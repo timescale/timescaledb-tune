@@ -8,6 +8,93 @@ import (
 	"testing"
 )
 
+func TestGetConfigFilePath(t *testing.T) {
+	cases := []struct {
+		desc      string
+		os        string
+		files     []string
+		wantFile  string
+		shouldErr bool
+	}{
+		{
+			desc:      "mac - yes",
+			os:        osMac,
+			files:     []string{fileNameMac},
+			wantFile:  fileNameMac,
+			shouldErr: false,
+		},
+		{
+			desc:      "mac - no",
+			os:        osMac,
+			files:     []string{"/etc"},
+			wantFile:  "",
+			shouldErr: true,
+		},
+		{
+			desc:      "linux - pg10+debian",
+			os:        osLinux,
+			files:     []string{fmt.Sprintf(fileNameDebianFmt, "10")},
+			wantFile:  fmt.Sprintf(fileNameDebianFmt, "10"),
+			shouldErr: false,
+		},
+		{
+			desc:      "linux - pg9.6+debian",
+			os:        osLinux,
+			files:     []string{fmt.Sprintf(fileNameDebianFmt, "9.6")},
+			wantFile:  fmt.Sprintf(fileNameDebianFmt, "9.6"),
+			shouldErr: false,
+		},
+		{
+			desc:      "linux - pg10+rpm",
+			os:        osLinux,
+			files:     []string{fmt.Sprintf(fileNameRPMFmt, "10")},
+			wantFile:  fmt.Sprintf(fileNameRPMFmt, "10"),
+			shouldErr: false,
+		},
+		{
+			desc:      "linux - pg9.6+rpm",
+			os:        osLinux,
+			files:     []string{fmt.Sprintf(fileNameDebianFmt, "9.6")},
+			wantFile:  fmt.Sprintf(fileNameDebianFmt, "9.6"),
+			shouldErr: false,
+		},
+		{
+			desc:      "linux - no",
+			os:        osLinux,
+			files:     []string{fmt.Sprintf(fileNameDebianFmt, "9.0")},
+			wantFile:  "",
+			shouldErr: true,
+		},
+	}
+
+	oldFileExistsFn := fileExistsFn
+	for _, c := range cases {
+		fileExistsFn = func(fn string) bool {
+			for _, s := range c.files {
+				if fn == s {
+					return true
+				}
+			}
+			return false
+		}
+		filename, err := getConfigFilePath(c.os)
+		if err != nil && !c.shouldErr {
+			t.Errorf("%s: unexpected error: %v", c.desc, err)
+		} else if err == nil && c.shouldErr {
+			t.Errorf("%s: unexpected lack of error", c.desc)
+		}
+
+		if c.shouldErr && filename != "" {
+			t.Errorf("%s: unexpected filename in error case: got %s", c.desc, filename)
+		}
+
+		if got := filename; got != c.wantFile {
+			t.Errorf("%s: incorrect filename: got %s want %s", c.desc, got, c.wantFile)
+		}
+	}
+	fileExistsFn = oldFileExistsFn
+}
+
 type limitChecker struct {
 	limit     uint64
 	calls     uint64

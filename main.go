@@ -18,6 +18,11 @@ import (
 )
 
 const (
+	osMac                = "darwin"
+	osLinux              = "linux"
+	fileNameMac          = "/usr/local/var/postgres/postgresql.conf"
+	fileNameDebianFmt    = "/etc/postgresql/%s/main/postgresql.conf"
+	fileNameRPMFmt       = "/var/lib/pgsql/%s/data/postgresql.conf"
 	errConfigNotFoundFmt = "could not find postgresql.conf at any of these locations:\n%v"
 
 	extName = "timescaledb"
@@ -88,7 +93,10 @@ var (
 	sharedRegex = regexp.MustCompile("(#+?\\s*)?shared_preload_libraries = '(.*?)'.*")
 	errNeedEdit = fmt.Errorf("need to edit")
 
-	printFn    = fmt.Printf
+	// useful for replacing these in testing
+	printFn      = fmt.Printf
+	fileExistsFn = fileExists
+
 	pgVersions = []string{"10", "9.6"}
 )
 
@@ -117,26 +125,26 @@ func getConfigFilePath(os string) (string, error) {
 	try := func(format string, args ...interface{}) string {
 		fileName := fmt.Sprintf(format, args...)
 		tried = append(tried, fileName)
-		if fileExists(fileName) {
+		if fileExistsFn(fileName) {
 			return fileName
 		}
 		return ""
 	}
 	switch {
-	case os == "darwin":
-		fileName := try("/usr/local/var/postgres/postgresql.conf")
+	case os == osMac:
+		fileName := try(fileNameMac)
 		if fileName != "" {
 			return fileName, nil
 		}
-	case os == "linux":
+	case os == osLinux:
 		for _, v := range pgVersions {
-			fileName := try("/etc/postgresql/%s/main/postgresql.conf", v)
+			fileName := try(fileNameDebianFmt, v)
 			if fileName != "" {
 				return fileName, nil
 			}
 		}
 		for _, v := range pgVersions {
-			fileName := try("/var/lib/pgsql/%s/data/postgresql.conf", v)
+			fileName := try(fileNameRPMFmt, v)
 			if fileName != "" {
 				return fileName, nil
 			}
