@@ -871,7 +871,7 @@ var (
 func TestProcessSettingsGroup(t *testing.T) {
 	cases := []struct {
 		desc           string
-		ts             *tuneSettings
+		ts             *settingsGroup
 		lines          []string
 		stdin          string
 		wantStatements uint64
@@ -883,7 +883,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 	}{
 		{
 			desc: "no keys, no need to prompt",
-			ts: &tuneSettings{
+			ts: &settingsGroup{
 				label: "foo",
 				rec:   nil,
 				keys:  nil,
@@ -897,7 +897,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc: "memory - commented",
-			ts: &tuneSettings{
+			ts: &settingsGroup{
 				label: "memory",
 				rec:   &memoryRecommender{8 * gigabyte, 4},
 				keys:  memoryKeys,
@@ -912,7 +912,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc: "memory - wrong",
-			ts: &tuneSettings{
+			ts: &settingsGroup{
 				label: "memory",
 				rec:   &memoryRecommender{8 * gigabyte, 4},
 				keys:  memoryKeys,
@@ -927,7 +927,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc: "memory - missing",
-			ts: &tuneSettings{
+			ts: &settingsGroup{
 				label: "memory",
 				rec:   &memoryRecommender{8 * gigabyte, 4},
 				keys:  memoryKeys,
@@ -943,7 +943,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc: "memory - comment+wrong",
-			ts: &tuneSettings{
+			ts: &settingsGroup{
 				label: "memory",
 				rec:   &memoryRecommender{8 * gigabyte, 4},
 				keys:  memoryKeys,
@@ -958,7 +958,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc: "memory - comment+wrong+missing",
-			ts: &tuneSettings{
+			ts: &settingsGroup{
 				label: "memory",
 				rec:   &memoryRecommender{8 * gigabyte, 4},
 				keys:  memoryKeys,
@@ -974,7 +974,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc: "memory - all wrong, but skip",
-			ts: &tuneSettings{
+			ts: &settingsGroup{
 				label: "memory",
 				rec:   &memoryRecommender{8 * gigabyte, 4},
 				keys:  memoryKeys,
@@ -990,7 +990,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc: "memory - all wrong, but quit",
-			ts: &tuneSettings{
+			ts: &settingsGroup{
 				label: "memory",
 				rec:   &memoryRecommender{8 * gigabyte, 4},
 				keys:  memoryKeys,
@@ -1005,7 +1005,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc: "memory - all wrong",
-			ts: &tuneSettings{
+			ts: &settingsGroup{
 				label: "memory",
 				rec:   &memoryRecommender{8 * gigabyte, 4},
 				keys:  memoryKeys,
@@ -1020,7 +1020,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc: "label capitalized",
-			ts: &tuneSettings{
+			ts: &settingsGroup{
 				label: "WAL",
 				rec:   nil,
 				keys:  []string{},
@@ -1060,7 +1060,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			return 0, nil
 		}
 
-		err := processSettingsGroup(handler, cfs, c.ts, false)
+		err := c.ts.process(handler, cfs, false)
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {

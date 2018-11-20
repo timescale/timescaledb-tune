@@ -173,6 +173,10 @@ func promptUntilValidInput(handler *ioHandler, prompt string, checker promptChec
 	}
 }
 
+// parseLineForSharedLibResult attempts to parse a line of the config file by
+// matching it against the shared_preload_libraries regex. If the line is
+// parseable by the regex, then the representation of that line is returned;
+// otherwise, nil.
 func parseLineForSharedLibResult(line string) *sharedLibResult {
 	res := sharedRegex.FindStringSubmatch(line)
 	if len(res) > 0 {
@@ -186,6 +190,8 @@ func parseLineForSharedLibResult(line string) *sharedLibResult {
 	return nil
 }
 
+// updateSharedLibLine takes a given line that matched the shared_preload_libraries
+// regex and updates it to validly include the 'timescaledb' extension.
 func updateSharedLibLine(line string, parseResult *sharedLibResult) string {
 	res := line
 	if parseResult.commented {
@@ -206,6 +212,8 @@ func updateSharedLibLine(line string, parseResult *sharedLibResult) string {
 	return res
 }
 
+// processNoSharedLibLine goes through interactions with the user if the
+// shared_preload_libraries line is completely missing from the conf file.
 func processNoSharedLibLine(handler *ioHandler, cfs *configFileState) error {
 	handler.p.Statement(statementSharedLibNotFound)
 	checker := newYesNoChecker(errSharedLibNeeded)
@@ -220,6 +228,8 @@ func processNoSharedLibLine(handler *ioHandler, cfs *configFileState) error {
 	return nil
 }
 
+// processSharedLibLine goes through the interactions to handle updating the
+// conf file to correctly support timescaledb in the shared_preload_libraries config param.
 func processSharedLibLine(handler *ioHandler, cfs *configFileState) error {
 	if cfs.sharedLibResult == nil {
 		return processNoSharedLibLine(handler, cfs)
@@ -227,7 +237,7 @@ func processSharedLibLine(handler *ioHandler, cfs *configFileState) error {
 
 	sharedIdx := cfs.sharedLibResult.idx
 	newLine := updateSharedLibLine(cfs.lines[sharedIdx], cfs.sharedLibResult)
-	if newLine == cfs.lines[sharedIdx] {
+	if newLine == cfs.lines[sharedIdx] { // already valid, nothing to do
 		handler.p.Success(successSharedLibCorrect)
 	} else {
 		handler.p.Statement("shared_preload_libraries needs to be updated")
@@ -246,6 +256,12 @@ func processSharedLibLine(handler *ioHandler, cfs *configFileState) error {
 	return nil
 }
 
+// checkIfShouldShowSetting iterates through a group of settings defined by keys
+// and checks whether the setting should be shown to the user for modification.
+// The criteria for being shown is either:
+// (a) the setting is missing altogether,
+// (b) the setting is currently commented out,
+// (c) OR the setting's recommended value is far enough away from its current value.
 func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunableParseResult, recommender recommender) (map[string]bool, error) {
 	show := make(map[string]bool)
 	for _, k := range keys {
@@ -279,20 +295,22 @@ func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunablePar
 	return show, nil
 }
 
-type tuneSettings struct {
+// settingsGroup represents a group of settings that should be tuned together
+type settingsGroup struct {
 	label string
 	rec   recommender
 	keys  []string
 }
 
-func processSettingsGroup(handler *ioHandler, cfs *configFileState, ts *tuneSettings, quiet bool) error {
+// process handles the user interactions while going through a group of settings.
+func (g *settingsGroup) process(handler *ioHandler, cfs *configFileState, quiet bool) error {
 	if !quiet {
 		printFn("\n")
-		handler.p.Statement(fmt.Sprintf("%s%s settings recommendations", strings.ToUpper(ts.label[:1]), ts.label[1:]))
+		handler.p.Statement(fmt.Sprintf("%s%s settings recommendations", strings.ToUpper(g.label[:1]), g.label[1:]))
 	}
 
 	// Get a map of only the settings that are missing, commented out, or not "close enough" to our recommendation.
-	show, err := checkIfShouldShowSetting(ts.keys, cfs.tuneParseResults, ts.rec)
+	show, err := checkIfShouldShowSetting(g.keys, cfs.tuneParseResults, g.rec)
 	if err != nil {
 		return err
 	}
@@ -302,7 +320,7 @@ func processSettingsGroup(handler *ioHandler, cfs *configFileState, ts *tuneSett
 		// Decorator for a function fn, where only the lines that need to be updated
 		// are processed
 		doWithVisibile := func(fn func(r *tunableParseResult)) {
-			for _, k := range ts.keys {
+			for _, k := range g.keys {
 				if _, ok := show[k]; !ok {
 					continue
 				}
@@ -331,25 +349,25 @@ func processSettingsGroup(handler *ioHandler, cfs *configFileState, ts *tuneSett
 		}
 		// Recommendations are always displayed, but the label above may not be
 		doWithVisibile(func(r *tunableParseResult) {
-			printFn(fmtTunableParam, r.key, ts.rec.Recommend(r.key), r.extra)
+			printFn(fmtTunableParam, r.key, g.rec.Recommend(r.key), r.extra)
 		})
 
 		// Prompt the user for input (only in non-quiet mode)
 		if !quiet {
-			checker := newSkipChecker(ts.label + " settings still need to be tuned, please re-run or do so manually")
+			checker := newSkipChecker(g.label + " settings still need to be tuned, please re-run or do so manually")
 			err := promptUntilValidInput(handler, promptOkay+promptSkip, checker)
 			if err == errSkip {
-				handler.p.Error("warning", ts.label+" settings left alone, but still need tuning")
+				handler.p.Error("warning", g.label+" settings left alone, but still need tuning")
 				return nil
 			} else if err != nil {
 				return err
 			}
-			handler.p.Success(ts.label + " settings will be updated")
+			handler.p.Success(g.label + " settings will be updated")
 		}
 
 		// If we reach here, it means the user accepted our recommendations, so update the lines
 		doWithVisibile(func(r *tunableParseResult) {
-			newLine := fmt.Sprintf(fmtTunableParam, r.key, ts.rec.Recommend(r.key), r.extra)
+			newLine := fmt.Sprintf(fmtTunableParam, r.key, g.rec.Recommend(r.key), r.extra)
 			if r.idx == -1 {
 				cfs.lines = append(cfs.lines, newLine)
 			} else {
@@ -357,16 +375,18 @@ func processSettingsGroup(handler *ioHandler, cfs *configFileState, ts *tuneSett
 			}
 		})
 	} else if !quiet { // nothing to tune
-		handler.p.Success(ts.label + " settings are already tuned")
+		handler.p.Success(g.label + " settings are already tuned")
 	}
 
 	return nil
 }
 
+// processTunables handles user interactions for updating the conf file when it comes
+// to parameters than be tuned, e.g. memory.
 func processTunables(handler *ioHandler, cfs *configFileState, totalMemory uint64, cpus int, quiet bool) {
 	tune := func(label string, r recommender, keys []string) {
-		ts := tuneSettings{label, r, keys}
-		err := processSettingsGroup(handler, cfs, &ts, quiet)
+		group := settingsGroup{label, r, keys}
+		err := group.process(handler, cfs, quiet)
 		if err != nil {
 			handler.errorExit(err)
 		}
@@ -388,6 +408,7 @@ func processTunables(handler *ioHandler, cfs *configFileState, totalMemory uint6
 	tune(tunableOther, mir, otherKeys)
 }
 
+// processQuiet handles the iteractions when the user wants "quiet" output.
 func processQuiet(handler *ioHandler, cfs *configFileState, totalMemory uint64, cpus int) error {
 	handler.p.Statement(statementTunableIntro, bytesFormat(totalMemory), cpus)
 	if cfs.sharedLibResult == nil {
