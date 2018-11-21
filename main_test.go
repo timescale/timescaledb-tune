@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
+	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
 
 func TestGetConfigFilePath(t *testing.T) {
@@ -622,31 +623,31 @@ func TestCheckIfShouldShowSetting(t *testing.T) {
 	okSharedBuffers := &tunableParseResult{
 		idx:       0,
 		commented: false,
-		key:       sharedBuffersKey,
+		key:       pgtune.SharedBuffersKey,
 		value:     valSharedBuffers,
 	}
 	okEffective := &tunableParseResult{
 		idx:       1,
 		commented: false,
-		key:       effectiveCacheKey,
+		key:       pgtune.EffectiveCacheKey,
 		value:     valEffective,
 	}
 	okWorkMem := &tunableParseResult{
 		idx:       2,
 		commented: false,
-		key:       workMemKey,
+		key:       pgtune.WorkMemKey,
 		value:     valWorkMem,
 	}
 	okMaintenance := &tunableParseResult{
 		idx:       3,
 		commented: false,
-		key:       maintenanceWorkMemKey,
+		key:       pgtune.MaintenanceWorkMemKey,
 		value:     valMaintenance,
 	}
 	badWorkMem := &tunableParseResult{
 		idx:       2,
 		commented: false,
-		key:       workMemKey,
+		key:       pgtune.WorkMemKey,
 		value:     "0B",
 	}
 	cases := []struct {
@@ -662,71 +663,71 @@ func TestCheckIfShouldShowSetting(t *testing.T) {
 		{
 			desc: "show nothing",
 			parseResults: map[string]*tunableParseResult{
-				sharedBuffersKey:      okSharedBuffers,
-				effectiveCacheKey:     okEffective,
-				workMemKey:            okWorkMem,
-				maintenanceWorkMemKey: okMaintenance,
+				pgtune.SharedBuffersKey:      okSharedBuffers,
+				pgtune.EffectiveCacheKey:     okEffective,
+				pgtune.WorkMemKey:            okWorkMem,
+				pgtune.MaintenanceWorkMemKey: okMaintenance,
 			},
 			want: []string{},
 		},
 		{
 			desc: "show 1, missing",
 			parseResults: map[string]*tunableParseResult{
-				effectiveCacheKey:     okEffective,
-				workMemKey:            okWorkMem,
-				maintenanceWorkMemKey: okMaintenance,
+				pgtune.EffectiveCacheKey:     okEffective,
+				pgtune.WorkMemKey:            okWorkMem,
+				pgtune.MaintenanceWorkMemKey: okMaintenance,
 			},
-			want: []string{sharedBuffersKey},
+			want: []string{pgtune.SharedBuffersKey},
 		},
 		{
 			desc: "show 1, unparseable",
 			parseResults: map[string]*tunableParseResult{
-				sharedBuffersKey:      okSharedBuffers,
-				effectiveCacheKey:     okEffective,
-				workMemKey:            badWorkMem,
-				maintenanceWorkMemKey: okMaintenance,
+				pgtune.SharedBuffersKey:      okSharedBuffers,
+				pgtune.EffectiveCacheKey:     okEffective,
+				pgtune.WorkMemKey:            badWorkMem,
+				pgtune.MaintenanceWorkMemKey: okMaintenance,
 			},
-			want: []string{workMemKey},
+			want: []string{pgtune.WorkMemKey},
 		},
 		{
 			desc: "show 2, 1 unparseable + 1 missing",
 			parseResults: map[string]*tunableParseResult{
-				effectiveCacheKey:     okEffective,
-				workMemKey:            badWorkMem,
-				maintenanceWorkMemKey: okMaintenance,
+				pgtune.EffectiveCacheKey:     okEffective,
+				pgtune.WorkMemKey:            badWorkMem,
+				pgtune.MaintenanceWorkMemKey: okMaintenance,
 			},
-			want: []string{sharedBuffersKey, workMemKey},
+			want: []string{pgtune.SharedBuffersKey, pgtune.WorkMemKey},
 		},
 		{
 			desc: "show all, all commented",
 			parseResults: map[string]*tunableParseResult{
-				sharedBuffersKey:      okSharedBuffers,
-				effectiveCacheKey:     okEffective,
-				workMemKey:            okWorkMem,
-				maintenanceWorkMemKey: okMaintenance,
+				pgtune.SharedBuffersKey:      okSharedBuffers,
+				pgtune.EffectiveCacheKey:     okEffective,
+				pgtune.WorkMemKey:            okWorkMem,
+				pgtune.MaintenanceWorkMemKey: okMaintenance,
 			},
-			commented: []string{sharedBuffersKey, effectiveCacheKey, workMemKey, maintenanceWorkMemKey},
-			want:      []string{sharedBuffersKey, effectiveCacheKey, workMemKey, maintenanceWorkMemKey},
+			commented: []string{pgtune.SharedBuffersKey, pgtune.EffectiveCacheKey, pgtune.WorkMemKey, pgtune.MaintenanceWorkMemKey},
+			want:      []string{pgtune.SharedBuffersKey, pgtune.EffectiveCacheKey, pgtune.WorkMemKey, pgtune.MaintenanceWorkMemKey},
 		},
 		{
 			desc: "show one, 1 commented",
 			parseResults: map[string]*tunableParseResult{
-				sharedBuffersKey:      okSharedBuffers,
-				effectiveCacheKey:     okEffective,
-				workMemKey:            okWorkMem,
-				maintenanceWorkMemKey: okMaintenance,
+				pgtune.SharedBuffersKey:      okSharedBuffers,
+				pgtune.EffectiveCacheKey:     okEffective,
+				pgtune.WorkMemKey:            okWorkMem,
+				pgtune.MaintenanceWorkMemKey: okMaintenance,
 			},
-			commented: []string{effectiveCacheKey},
-			want:      []string{effectiveCacheKey},
+			commented: []string{pgtune.EffectiveCacheKey},
+			want:      []string{pgtune.EffectiveCacheKey},
 		},
 		{
 			desc: "show none, 1 ok fudge",
 
 			parseResults: map[string]*tunableParseResult{
-				sharedBuffersKey:      okSharedBuffers,
-				effectiveCacheKey:     okEffective,
-				workMemKey:            okWorkMem,
-				maintenanceWorkMemKey: okMaintenance,
+				pgtune.SharedBuffersKey:      okSharedBuffers,
+				pgtune.EffectiveCacheKey:     okEffective,
+				pgtune.WorkMemKey:            okWorkMem,
+				pgtune.MaintenanceWorkMemKey: okMaintenance,
 			},
 			okFudge:   []string{},
 			commented: []string{},
@@ -736,29 +737,29 @@ func TestCheckIfShouldShowSetting(t *testing.T) {
 			desc: "show 2, 1 high fudge, 1 low fudge",
 
 			parseResults: map[string]*tunableParseResult{
-				sharedBuffersKey:      okSharedBuffers,
-				effectiveCacheKey:     okEffective,
-				workMemKey:            okWorkMem,
-				maintenanceWorkMemKey: okMaintenance,
+				pgtune.SharedBuffersKey:      okSharedBuffers,
+				pgtune.EffectiveCacheKey:     okEffective,
+				pgtune.WorkMemKey:            okWorkMem,
+				pgtune.MaintenanceWorkMemKey: okMaintenance,
 			},
-			highFudge: []string{sharedBuffersKey},
-			lowFudge:  []string{workMemKey},
+			highFudge: []string{pgtune.SharedBuffersKey},
+			lowFudge:  []string{pgtune.WorkMemKey},
 			commented: []string{},
-			want:      []string{sharedBuffersKey, workMemKey},
+			want:      []string{pgtune.SharedBuffersKey, pgtune.WorkMemKey},
 		},
 		{
 			desc: "show 2, 1 high fudge commented too, 1 low fudge",
 
 			parseResults: map[string]*tunableParseResult{
-				sharedBuffersKey:      okSharedBuffers,
-				effectiveCacheKey:     okEffective,
-				workMemKey:            okWorkMem,
-				maintenanceWorkMemKey: okMaintenance,
+				pgtune.SharedBuffersKey:      okSharedBuffers,
+				pgtune.EffectiveCacheKey:     okEffective,
+				pgtune.WorkMemKey:            okWorkMem,
+				pgtune.MaintenanceWorkMemKey: okMaintenance,
 			},
-			highFudge: []string{sharedBuffersKey},
-			lowFudge:  []string{workMemKey},
-			commented: []string{sharedBuffersKey},
-			want:      []string{sharedBuffersKey, workMemKey},
+			highFudge: []string{pgtune.SharedBuffersKey},
+			lowFudge:  []string{pgtune.WorkMemKey},
+			commented: []string{pgtune.SharedBuffersKey},
+			want:      []string{pgtune.SharedBuffersKey, pgtune.WorkMemKey},
 		},
 	}
 
@@ -806,8 +807,8 @@ func TestCheckIfShouldShowSetting(t *testing.T) {
 			temp = temp - float64(temp)*(fudgeFactor+.01)
 			c.parseResults[k].value = parse.BytesToPGFormat(uint64(temp))
 		}
-		mr := &memoryRecommender{8 * parse.Gigabyte, 1}
-		show, err := checkIfShouldShowSetting(memoryKeys, c.parseResults, mr)
+		mr := pgtune.NewMemoryRecommender(8*parse.Gigabyte, 1)
+		show, err := checkIfShouldShowSetting(pgtune.MemoryKeys, c.parseResults, mr)
 		if len(c.errMsg) > 0 {
 
 		} else if err != nil {
@@ -901,8 +902,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - commented",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
-				keys:  memoryKeys,
+				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
+				keys:  pgtune.MemoryKeys,
 			},
 			lines:          memSettingsCommented,
 			stdin:          "y\n",
@@ -916,8 +917,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - wrong",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
-				keys:  memoryKeys,
+				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
+				keys:  pgtune.MemoryKeys,
 			},
 			lines:          memSettingsWrongVal,
 			stdin:          "y\n",
@@ -931,8 +932,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - missing",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
-				keys:  memoryKeys,
+				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
+				keys:  pgtune.MemoryKeys,
 			},
 			lines:          memSettingsMissing,
 			stdin:          "y\n",
@@ -947,8 +948,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - comment+wrong",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
-				keys:  memoryKeys,
+				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
+				keys:  pgtune.MemoryKeys,
 			},
 			lines:          memSettingsCommentWrong,
 			stdin:          " \ny\n",
@@ -962,8 +963,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - comment+wrong+missing",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
-				keys:  memoryKeys,
+				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
+				keys:  pgtune.MemoryKeys,
 			},
 			lines:          memSettingsCommentWrongMissing,
 			stdin:          " \n \ny\n",
@@ -978,8 +979,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - all wrong, but skip",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
-				keys:  memoryKeys,
+				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
+				keys:  pgtune.MemoryKeys,
 			},
 			lines:          memSettingsAllWrong,
 			stdin:          "s\n",
@@ -994,8 +995,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - all wrong, but quit",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
-				keys:  memoryKeys,
+				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
+				keys:  pgtune.MemoryKeys,
 			},
 			lines:          memSettingsAllWrong,
 			stdin:          " \nqUIt\n",
@@ -1009,8 +1010,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - all wrong",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
-				keys:  memoryKeys,
+				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
+				keys:  pgtune.MemoryKeys,
 			},
 			lines:          memSettingsAllWrong,
 			stdin:          "y\n",

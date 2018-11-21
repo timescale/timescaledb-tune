@@ -1,11 +1,29 @@
-package main
+package pgtune
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
 )
+
+func TestNewMemoryRecommender(t *testing.T) {
+	for i := 0; i < 1000000; i++ {
+		mem := rand.Uint64()
+		cpus := rand.Intn(128)
+		r := NewMemoryRecommender(mem, cpus)
+		if r == nil {
+			t.Errorf("unexpected nil recommender")
+		}
+		if got := r.totalMem; got != mem {
+			t.Errorf("recommender has incorrect cpus: got %d want %d", got, cpus)
+		}
+		if got := r.cpus; got != cpus {
+			t.Errorf("recommender has incorrect cpus: got %d want %d", got, cpus)
+		}
+	}
+}
 
 func TestMemoryRecommenderRecommendWindows(t *testing.T) {
 	cases := []struct {
@@ -77,7 +95,7 @@ func TestMemoryRecommenderRecommendWindows(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		mr := &memoryRecommender{c.totalMem, c.cpus}
+		mr := &MemoryRecommender{c.totalMem, c.cpus}
 		if got := mr.recommendWindows(); got != c.want {
 			t.Errorf("%s: incorrect value: got %s want %s", c.desc, got, c.want)
 		}
@@ -95,56 +113,56 @@ func TestMemoryRecommenderRecommend(t *testing.T) {
 	}{
 		{
 			desc:     "shared_buffers, uneven divide",
-			key:      sharedBuffersKey,
+			key:      SharedBuffersKey,
 			totalMem: 10 * parse.Gigabyte,
 			cpus:     1,
 			want:     fmt.Sprintf(valFmt, 2560, parse.MB),
 		},
 		{
 			desc:     "shared_buffers, even divide",
-			key:      sharedBuffersKey,
+			key:      SharedBuffersKey,
 			totalMem: 8 * parse.Gigabyte,
 			cpus:     1,
 			want:     fmt.Sprintf(valFmt, 2, parse.GB),
 		},
 		{
 			desc:     "effective key, uneven divide",
-			key:      effectiveCacheKey,
+			key:      EffectiveCacheKey,
 			totalMem: 10 * parse.Gigabyte,
 			cpus:     1,
 			want:     fmt.Sprintf(valFmt, uint64(7.5*1024.0), parse.MB),
 		},
 		{
 			desc:     "effective key, even divide",
-			key:      effectiveCacheKey,
+			key:      EffectiveCacheKey,
 			totalMem: 12 * parse.Gigabyte,
 			cpus:     1,
 			want:     fmt.Sprintf(valFmt, 9, parse.GB),
 		},
 		{
 			desc:     "maintenance_work_mem",
-			key:      maintenanceWorkMemKey,
+			key:      MaintenanceWorkMemKey,
 			totalMem: 6 * parse.Gigabyte,
 			cpus:     1,
 			want:     fmt.Sprintf(valFmt, 768, parse.MB),
 		},
 		{
 			desc:     "maintenance_work_mem, over max",
-			key:      maintenanceWorkMemKey,
+			key:      MaintenanceWorkMemKey,
 			totalMem: 32 * parse.Gigabyte,
 			cpus:     1,
 			want:     fmt.Sprintf(valFmt, 2, parse.GB),
 		},
 		{
 			desc:     "work_mem",
-			key:      workMemKey,
+			key:      WorkMemKey,
 			totalMem: 8 * parse.Gigabyte,
 			cpus:     1,
 			want:     fmt.Sprintf(valFmt, 52428, parse.KB),
 		},
 		{
 			desc:     "work_mem, multiple CPUs",
-			key:      workMemKey,
+			key:      WorkMemKey,
 			totalMem: 8 * parse.Gigabyte,
 			cpus:     4,
 			want:     fmt.Sprintf(valFmt, 26214, parse.KB),
@@ -152,7 +170,7 @@ func TestMemoryRecommenderRecommend(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		mr := &memoryRecommender{c.totalMem, c.cpus}
+		mr := &MemoryRecommender{c.totalMem, c.cpus}
 		got := mr.Recommend(c.key)
 		if got != c.want {
 			t.Fatalf("%s: incorrect result: got\n%s\nwant\n%s", c.desc, got, c.want)
@@ -162,7 +180,7 @@ func TestMemoryRecommenderRecommend(t *testing.T) {
 
 func TestMemoryRecommenderRecommendPanic(t *testing.T) {
 	func() {
-		r := &memoryRecommender{1, 1}
+		r := &MemoryRecommender{1, 1}
 		defer func() {
 			if re := recover(); re == nil {
 				t.Errorf("did not panic when should")

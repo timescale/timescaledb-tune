@@ -120,7 +120,7 @@ func TestParseIntToFloatUnitsPanic(t *testing.T) {
 	}()
 }
 
-func TestBytesFormat(t *testing.T) {
+func TestBytesToDecimalFormat(t *testing.T) {
 	cases := []struct {
 		desc  string
 		input uint64
@@ -160,7 +160,7 @@ func TestBytesFormat(t *testing.T) {
 	}
 }
 
-func TestBytesPGFormat(t *testing.T) {
+func TestBytesToPGFormat(t *testing.T) {
 	cases := []struct {
 		desc  string
 		input uint64
@@ -255,7 +255,7 @@ func TestBytesPGFormat(t *testing.T) {
 	}
 }
 
-func TestParsePGStringToBytes(t *testing.T) {
+func TestParsePGFormatToBytes(t *testing.T) {
 	cases := []struct {
 		desc   string
 		input  string

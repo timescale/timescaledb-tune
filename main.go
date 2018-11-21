@@ -16,6 +16,7 @@ import (
 
 	"github.com/pbnjay/memory"
 	"github.com/timescale/timescaledb-tune/internal/parse"
+	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
 
 const (
@@ -263,7 +264,7 @@ func processSharedLibLine(handler *ioHandler, cfs *configFileState) error {
 // (a) the setting is missing altogether,
 // (b) the setting is currently commented out,
 // (c) OR the setting's recommended value is far enough away from its current value.
-func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunableParseResult, recommender recommender) (map[string]bool, error) {
+func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunableParseResult, recommender pgtune.Recommender) (map[string]bool, error) {
 	show := make(map[string]bool)
 	for _, k := range keys {
 		r := parseResults[k]
@@ -299,7 +300,7 @@ func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunablePar
 // settingsGroup represents a group of settings that should be tuned together
 type settingsGroup struct {
 	label string
-	rec   recommender
+	rec   pgtune.Recommender
 	keys  []string
 }
 
@@ -385,7 +386,7 @@ func (g *settingsGroup) process(handler *ioHandler, cfs *configFileState, quiet 
 // processTunables handles user interactions for updating the conf file when it comes
 // to parameters than be tuned, e.g. memory.
 func processTunables(handler *ioHandler, cfs *configFileState, totalMemory uint64, cpus int, quiet bool) {
-	tune := func(label string, r recommender, keys []string) {
+	tune := func(label string, r pgtune.Recommender, keys []string) {
 		group := settingsGroup{label, r, keys}
 		err := group.process(handler, cfs, quiet)
 		if err != nil {
@@ -396,17 +397,17 @@ func processTunables(handler *ioHandler, cfs *configFileState, totalMemory uint6
 		handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus)
 	}
 
-	mr := &memoryRecommender{totalMemory, cpus}
-	tune(tunableMemory, mr, memoryKeys)
+	mr := pgtune.NewMemoryRecommender(totalMemory, cpus)
+	tune(tunableMemory, mr, pgtune.MemoryKeys)
 
-	pr := &parallelRecommender{cpus}
-	tune(tunableParallelism, pr, parallelKeys)
+	pr := pgtune.NewParallelRecommender(cpus)
+	tune(tunableParallelism, pr, pgtune.ParallelKeys)
 
-	wr := &walRecommender{totalMemory}
-	tune(tunableWAL, wr, walKeys)
+	wr := pgtune.NewWALRecommender(totalMemory)
+	tune(tunableWAL, wr, pgtune.WALKeys)
 
-	mir := &miscRecommender{}
-	tune(tunableOther, mir, otherKeys)
+	mir := pgtune.NewMiscRecommender()
+	tune(tunableOther, mir, pgtune.MiscKeys)
 }
 
 // processQuiet handles the iteractions when the user wants "quiet" output.

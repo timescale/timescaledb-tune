@@ -1,8 +1,22 @@
-package main
+package pgtune
 
 import (
+	"math/rand"
 	"testing"
 )
+
+func TestNewParallelRecommender(t *testing.T) {
+	for i := 0; i < 1000000; i++ {
+		cpus := rand.Intn(128)
+		r := NewParallelRecommender(cpus)
+		if r == nil {
+			t.Errorf("unexpected nil recommender")
+		}
+		if got := r.cpus; got != cpus {
+			t.Errorf("recommender has incorrect cpus: got %d want %d", got, cpus)
+		}
+	}
+}
 
 func TestParallelRecommenderRecommend(t *testing.T) {
 	cases := []struct {
@@ -13,62 +27,62 @@ func TestParallelRecommenderRecommend(t *testing.T) {
 	}{
 		{
 			desc: "max_worker_processes, 2",
-			key:  maxWorkerProcessesKey,
+			key:  MaxWorkerProcessesKey,
 			cpus: 2,
 			want: "2",
 		},
 		{
 			desc: "max_worker_processes, 4",
-			key:  maxWorkerProcessesKey,
+			key:  MaxWorkerProcessesKey,
 			cpus: 4,
 			want: "4",
 		},
 		{
 			desc: "max_worker_processes, 5",
-			key:  maxWorkerProcessesKey,
+			key:  MaxWorkerProcessesKey,
 			cpus: 5,
 			want: "5",
 		},
 		{
 			desc: "max_parallel_workers, 2",
-			key:  maxParallelWorkers,
+			key:  MaxParallelWorkers,
 			cpus: 2,
 			want: "2",
 		},
 		{
 			desc: "max_parallel_workers, 4",
-			key:  maxParallelWorkers,
+			key:  MaxParallelWorkers,
 			cpus: 4,
 			want: "4",
 		},
 		{
 			desc: "max_parallel_workers, 5",
-			key:  maxParallelWorkers,
+			key:  MaxParallelWorkers,
 			cpus: 5,
 			want: "5",
 		},
 		{
 			desc: "max_parallel_workers_per_gather, 2",
-			key:  maxParallelWorkersGatherKey,
+			key:  MaxParallelWorkersGatherKey,
 			cpus: 2,
 			want: "1",
 		},
 		{
 			desc: "max_parallel_workers_per_gather, 4",
-			key:  maxParallelWorkersGatherKey,
+			key:  MaxParallelWorkersGatherKey,
 			cpus: 4,
 			want: "2",
 		},
 		{
 			desc: "max_parallel_workers_per_gather, 5",
-			key:  maxParallelWorkersGatherKey,
+			key:  MaxParallelWorkersGatherKey,
 			cpus: 5,
 			want: "3",
 		},
 	}
 
 	for _, c := range cases {
-		r := &parallelRecommender{c.cpus}
+		r := &ParallelRecommender{c.cpus}
 		got := r.Recommend(c.key)
 		if got != c.want {
 			t.Errorf("%s: incorrect result: got\n%s\nwant\n%s", c.desc, got, c.want)
@@ -78,7 +92,7 @@ func TestParallelRecommenderRecommend(t *testing.T) {
 
 func TestParallelRecommenderRecommendPanics(t *testing.T) {
 	func() {
-		r := &parallelRecommender{5}
+		r := &ParallelRecommender{5}
 		defer func() {
 			if re := recover(); re == nil {
 				t.Errorf("did not panic when should")
@@ -88,7 +102,7 @@ func TestParallelRecommenderRecommendPanics(t *testing.T) {
 	}()
 
 	func() {
-		r := &parallelRecommender{1}
+		r := &ParallelRecommender{1}
 		defer func() {
 			if re := recover(); re == nil {
 				t.Errorf("did not panic when should")

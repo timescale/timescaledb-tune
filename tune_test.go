@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
+	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
 
 const testKey = "test_setting"
@@ -65,19 +66,19 @@ func TestKeyToParseFn(t *testing.T) {
 	}{
 		{
 			desc:       "memory key",
-			key:        memoryKeys[0],
+			key:        pgtune.MemoryKeys[0],
 			parseInput: "10" + parse.GB,
 			want:       float64(10 * parse.Gigabyte),
 		},
 		{
 			desc:       "wal key",
-			key:        walKeys[0],
+			key:        pgtune.WALKeys[0],
 			parseInput: "5" + parse.MB,
 			want:       float64(5 * parse.Megabyte),
 		},
 		{
 			desc:       "other key",
-			key:        otherKeys[0],
+			key:        pgtune.MiscKeys[0],
 			parseInput: "501.0",
 			want:       501.0,
 		},

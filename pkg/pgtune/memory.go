@@ -1,4 +1,4 @@
-package main
+package pgtune
 
 import (
 	"fmt"
@@ -8,44 +8,55 @@ import (
 	"github.com/timescale/timescaledb-tune/internal/parse"
 )
 
+// Keys in the conf file that are tuned related to memory
 const (
-	sharedBuffersKey      = "shared_buffers"
-	effectiveCacheKey     = "effective_cache_size"
-	maintenanceWorkMemKey = "maintenance_work_mem"
-	workMemKey            = "work_mem"
+	SharedBuffersKey      = "shared_buffers"
+	EffectiveCacheKey     = "effective_cache_size"
+	MaintenanceWorkMemKey = "maintenance_work_mem"
+	WorkMemKey            = "work_mem"
 
 	sharedBuffersWindows = 512 * parse.Megabyte
 )
 
-var memoryKeys = []string{
-	sharedBuffersKey,
-	effectiveCacheKey,
-	maintenanceWorkMemKey,
-	workMemKey,
+// MemoryKeys is an array of keys that are tunable for memory
+var MemoryKeys = []string{
+	SharedBuffersKey,
+	EffectiveCacheKey,
+	MaintenanceWorkMemKey,
+	WorkMemKey,
 }
 
-type memoryRecommender struct {
+// MemoryRecommender gives recommendations for ParallelKeys based on system resources
+type MemoryRecommender struct {
 	totalMem uint64
 	cpus     int
 }
 
-func (r *memoryRecommender) Recommend(key string) string {
+// NewMemoryRecommender returns a MemoryRecommender that recommends based on the given
+// number of cpus and system memory
+func NewMemoryRecommender(totalMemory uint64, cpus int) *MemoryRecommender {
+	return &MemoryRecommender{totalMemory, cpus}
+}
+
+// Recommend returns the recommended PostgreSQL formatted value for the conf
+// file for a given key.
+func (r *MemoryRecommender) Recommend(key string) string {
 	var val string
-	if key == sharedBuffersKey {
+	if key == SharedBuffersKey {
 		if runtime.GOOS == osWindows {
 			val = parse.BytesToPGFormat(sharedBuffersWindows)
 		} else {
 			val = parse.BytesToPGFormat(r.totalMem / 4)
 		}
-	} else if key == effectiveCacheKey {
+	} else if key == EffectiveCacheKey {
 		val = parse.BytesToPGFormat((r.totalMem * 3) / 4)
-	} else if key == maintenanceWorkMemKey {
+	} else if key == MaintenanceWorkMemKey {
 		temp := (float64(r.totalMem) / float64(parse.Gigabyte)) * (128.0 * float64(parse.Megabyte))
 		if temp > (2 * parse.Gigabyte) {
 			temp = 2 * parse.Gigabyte
 		}
 		val = parse.BytesToPGFormat(uint64(temp))
-	} else if key == workMemKey {
+	} else if key == WorkMemKey {
 		if runtime.GOOS == osWindows {
 			val = r.recommendWindows()
 		} else {
@@ -59,7 +70,7 @@ func (r *memoryRecommender) Recommend(key string) string {
 	return val
 }
 
-func (r *memoryRecommender) recommendWindows() string {
+func (r *MemoryRecommender) recommendWindows() string {
 	cpuFactor := math.Round(float64(r.cpus) / 2.0)
 	if r.totalMem <= 2*parse.Gigabyte {
 		temp := (float64(r.totalMem) / float64(parse.Gigabyte)) * (6.4 * float64(parse.Megabyte)) / cpuFactor

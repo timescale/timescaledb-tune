@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
+	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
 
 const (
@@ -29,10 +30,6 @@ type tunableParseResult struct {
 	extra     string
 }
 
-type recommender interface {
-	Recommend(string) string
-}
-
 func keyToRegex(key string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(regexFmt, key))
 }
@@ -49,7 +46,7 @@ func isIn(key string, arr []string) bool {
 type parseFn func(string) (float64, error)
 
 func keyToParseFn(key string) parseFn {
-	if isIn(key, memoryKeys) || isIn(key, walKeys) {
+	if isIn(key, pgtune.MemoryKeys) || isIn(key, pgtune.WALKeys) {
 		return parse.PGFormatToBytes
 	}
 
@@ -66,13 +63,13 @@ func init() {
 		}
 	}
 	if runtime.GOOS == osWindows {
-		otherKeys = otherKeys[:len(otherKeys)-1]
+		pgtune.MiscKeys = pgtune.MiscKeys[:len(pgtune.MiscKeys)-1]
 	}
 
-	setup(memoryKeys)
-	setup(parallelKeys)
-	setup(walKeys)
-	setup(otherKeys)
+	setup(pgtune.MemoryKeys)
+	setup(pgtune.ParallelKeys)
+	setup(pgtune.WALKeys)
+	setup(pgtune.MiscKeys)
 }
 
 func parseWithRegex(line string, regex *regexp.Regexp) *tunableParseResult {

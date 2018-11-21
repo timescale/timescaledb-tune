@@ -1,8 +1,17 @@
-package main
+package pgtune
 
 import (
 	"testing"
 )
+
+func TestNewMiscRecommender(t *testing.T) {
+	for i := 0; i < 1000000; i++ {
+		r := NewMiscRecommender()
+		if r == nil {
+			t.Errorf("unexpected nil recommender")
+		}
+	}
+}
 
 func TestMiscRecommenderRecommend(t *testing.T) {
 	cases := []struct {
@@ -11,34 +20,34 @@ func TestMiscRecommenderRecommend(t *testing.T) {
 		want string
 	}{
 		{
-			desc: checkpointKey,
-			key:  checkpointKey,
+			desc: CheckpointKey,
+			key:  CheckpointKey,
 			want: checkpointDefault,
 		},
 		{
-			desc: statsTargetKey,
-			key:  statsTargetKey,
+			desc: StatsTargetKey,
+			key:  StatsTargetKey,
 			want: statsTargetDefault,
 		},
 		{
-			desc: maxConnectionsKey,
-			key:  maxConnectionsKey,
+			desc: MaxConnectionsKey,
+			key:  MaxConnectionsKey,
 			want: maxConnectionsDefault,
 		},
 		{
-			desc: randomPageCostKey,
-			key:  randomPageCostKey,
+			desc: RandomPageCostKey,
+			key:  RandomPageCostKey,
 			want: randomPageCostDefault,
 		},
 		{
-			desc: effectiveIOKey,
-			key:  effectiveIOKey,
+			desc: EffectiveIOKey,
+			key:  EffectiveIOKey,
 			want: effectiveIODefault,
 		},
 	}
 
 	for _, c := range cases {
-		r := &miscRecommender{}
+		r := &MiscRecommender{}
 		got := r.Recommend(c.key)
 		if got != c.want {
 			t.Errorf("%s: incorrect result: got\n%s\nwant\n%s", c.desc, got, c.want)
@@ -48,7 +57,7 @@ func TestMiscRecommenderRecommend(t *testing.T) {
 
 func TestMiscRecommenderRecommendPanic(t *testing.T) {
 	func() {
-		r := &miscRecommender{}
+		r := &MiscRecommender{}
 		defer func() {
 			if re := recover(); re == nil {
 				t.Errorf("did not panic when should")

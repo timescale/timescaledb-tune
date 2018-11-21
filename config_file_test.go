@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
 
 func TestGetConfigFileState(t *testing.T) {
@@ -55,17 +57,17 @@ func TestGetConfigFileState(t *testing.T) {
 			want: &configFileState{
 				lines: []string{"foo", sharedLibLine, "bar", memoryLine, walLine, "baz"},
 				tuneParseResults: map[string]*tunableParseResult{
-					sharedBuffersKey: &tunableParseResult{
+					pgtune.SharedBuffersKey: &tunableParseResult{
 						idx:       3,
 						commented: true,
-						key:       sharedBuffersKey,
+						key:       pgtune.SharedBuffersKey,
 						value:     "64MB",
 						extra:     "",
 					},
-					minWalKey: &tunableParseResult{
+					pgtune.MinWALKey: &tunableParseResult{
 						idx:       4,
 						commented: false,
-						key:       minWalKey,
+						key:       pgtune.MinWALKey,
 						value:     "0GB",
 						extra:     " # weird",
 					},
