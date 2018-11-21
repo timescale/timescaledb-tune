@@ -70,3 +70,26 @@ func TestMiscRecommenderRecommendPanic(t *testing.T) {
 		r.Recommend("foo")
 	}()
 }
+
+func TestMiscSettingsGroup(t *testing.T) {
+	mem := uint64(1024)
+	cpus := 4
+	sg := GetSettingsGroup(MiscLabel, mem, cpus)
+	// no matter how many calls, all calls should return the same
+	for i := 0; i < 1000; i++ {
+		if got := sg.Label(); got != MiscLabel {
+			t.Errorf("incorrect label: got %s want %s", got, MiscLabel)
+		}
+		if got := sg.Keys(); got != nil {
+			for i, k := range got {
+				if k != MiscKeys[i] {
+					t.Errorf("incorrect key at %d: got %s want %s", i, k, MiscKeys[i])
+				}
+			}
+		} else {
+			t.Errorf("keys is nil")
+		}
+		_ = sg.GetRecommender().(*MiscRecommender)
+		// the above will panic if not true
+	}
+}

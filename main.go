@@ -297,22 +297,17 @@ func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunablePar
 	return show, nil
 }
 
-// settingsGroup represents a group of settings that should be tuned together
-type settingsGroup struct {
-	label string
-	rec   pgtune.Recommender
-	keys  []string
-}
-
-// process handles the user interactions while going through a group of settings.
-func (g *settingsGroup) process(handler *ioHandler, cfs *configFileState, quiet bool) error {
+func processSettingsGroup(handler *ioHandler, cfs *configFileState, sg pgtune.SettingsGroup, quiet bool) error {
+	label := sg.Label()
 	if !quiet {
 		printFn("\n")
-		handler.p.Statement(fmt.Sprintf("%s%s settings recommendations", strings.ToUpper(g.label[:1]), g.label[1:]))
+		handler.p.Statement(fmt.Sprintf("%s%s settings recommendations", strings.ToUpper(label[:1]), label[1:]))
 	}
+	keys := sg.Keys()
+	recommender := sg.GetRecommender()
 
 	// Get a map of only the settings that are missing, commented out, or not "close enough" to our recommendation.
-	show, err := checkIfShouldShowSetting(g.keys, cfs.tuneParseResults, g.rec)
+	show, err := checkIfShouldShowSetting(keys, cfs.tuneParseResults, recommender)
 	if err != nil {
 		return err
 	}
@@ -322,7 +317,7 @@ func (g *settingsGroup) process(handler *ioHandler, cfs *configFileState, quiet 
 		// Decorator for a function fn, where only the lines that need to be updated
 		// are processed
 		doWithVisibile := func(fn func(r *tunableParseResult)) {
-			for _, k := range g.keys {
+			for _, k := range keys {
 				if _, ok := show[k]; !ok {
 					continue
 				}
@@ -351,25 +346,25 @@ func (g *settingsGroup) process(handler *ioHandler, cfs *configFileState, quiet 
 		}
 		// Recommendations are always displayed, but the label above may not be
 		doWithVisibile(func(r *tunableParseResult) {
-			printFn(fmtTunableParam, r.key, g.rec.Recommend(r.key), r.extra)
+			printFn(fmtTunableParam, r.key, recommender.Recommend(r.key), r.extra)
 		})
 
 		// Prompt the user for input (only in non-quiet mode)
 		if !quiet {
-			checker := newSkipChecker(g.label + " settings still need to be tuned, please re-run or do so manually")
+			checker := newSkipChecker(label + " settings still need to be tuned, please re-run or do so manually")
 			err := promptUntilValidInput(handler, promptOkay+promptSkip, checker)
 			if err == errSkip {
-				handler.p.Error("warning", g.label+" settings left alone, but still need tuning")
+				handler.p.Error("warning", label+" settings left alone, but still need tuning")
 				return nil
 			} else if err != nil {
 				return err
 			}
-			handler.p.Success(g.label + " settings will be updated")
+			handler.p.Success(label + " settings will be updated")
 		}
 
 		// If we reach here, it means the user accepted our recommendations, so update the lines
 		doWithVisibile(func(r *tunableParseResult) {
-			newLine := fmt.Sprintf(fmtTunableParam, r.key, g.rec.Recommend(r.key), r.extra)
+			newLine := fmt.Sprintf(fmtTunableParam, r.key, recommender.Recommend(r.key), r.extra)
 			if r.idx == -1 {
 				cfs.lines = append(cfs.lines, newLine)
 			} else {
@@ -377,7 +372,7 @@ func (g *settingsGroup) process(handler *ioHandler, cfs *configFileState, quiet 
 			}
 		})
 	} else if !quiet { // nothing to tune
-		handler.p.Success(g.label + " settings are already tuned")
+		handler.p.Success(label + " settings are already tuned")
 	}
 
 	return nil
@@ -385,32 +380,29 @@ func (g *settingsGroup) process(handler *ioHandler, cfs *configFileState, quiet 
 
 // processTunables handles user interactions for updating the conf file when it comes
 // to parameters than be tuned, e.g. memory.
-func processTunables(handler *ioHandler, cfs *configFileState, totalMemory uint64, cpus int, quiet bool) {
-	tune := func(label string, r pgtune.Recommender, keys []string) {
-		if !r.IsAvailable() {
-			return
-		}
-		group := settingsGroup{label, r, keys}
-		err := group.process(handler, cfs, quiet)
-		if err != nil {
-			handler.errorExit(err)
-		}
-	}
+func processTunables(handler *ioHandler, cfs *configFileState, totalMemory uint64, cpus int, quiet bool) error {
 	if !quiet {
 		handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus)
 	}
+	tunables := []string{
+		pgtune.MemoryLabel,
+		pgtune.ParallelLabel,
+		pgtune.WALLabel,
+		pgtune.MiscLabel,
+	}
 
-	mr := pgtune.NewMemoryRecommender(totalMemory, cpus)
-	tune(tunableMemory, mr, pgtune.MemoryKeys)
-
-	pr := pgtune.NewParallelRecommender(cpus)
-	tune(tunableParallelism, pr, pgtune.ParallelKeys)
-
-	wr := pgtune.NewWALRecommender(totalMemory)
-	tune(tunableWAL, wr, pgtune.WALKeys)
-
-	mir := pgtune.NewMiscRecommender()
-	tune(tunableOther, mir, pgtune.MiscKeys)
+	for _, label := range tunables {
+		sg := pgtune.GetSettingsGroup(label, totalMemory, cpus)
+		r := sg.GetRecommender()
+		if !r.IsAvailable() {
+			continue
+		}
+		err := processSettingsGroup(handler, cfs, sg, quiet)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // processQuiet handles the iteractions when the user wants "quiet" output.
@@ -430,9 +422,12 @@ func processQuiet(handler *ioHandler, cfs *configFileState, totalMemory uint64, 
 		}
 	}
 
-	processTunables(handler, cfs, totalMemory, cpus, true /* quiet */)
+	err := processTunables(handler, cfs, totalMemory, cpus, true /* quiet */)
+	if err != nil {
+		return err
+	}
 	checker := newYesNoChecker("not using these settings could lead to suboptimal performance")
-	err := promptUntilValidInput(handler, "Use these recommendations? "+promptYesNo, checker)
+	err = promptUntilValidInput(handler, "Use these recommendations? "+promptYesNo, checker)
 	if err != nil {
 		return err
 	}
@@ -503,7 +498,10 @@ func main() {
 		printFn("\n")
 		err = promptUntilValidInput(handler, promptTune+promptYesNo, newYesNoChecker(""))
 		if err == nil {
-			processTunables(handler, cfs, totalMemory, cpus, false /* quiet */)
+			err = processTunables(handler, cfs, totalMemory, cpus, false /* quiet */)
+			if err != nil {
+				handler.errorExit(err)
+			}
 		}
 	}
 

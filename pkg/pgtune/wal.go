@@ -18,6 +18,9 @@ const (
 	maxWalBytes         = 8 * parse.Gigabyte
 )
 
+// WALLabel is the label used to refer to the WAL settings group
+const WALLabel = "WAL"
+
 // WALKeys is an array of keys that are tunable for the WAL
 var WALKeys = []string{
 	WALBuffersKey,
@@ -27,7 +30,7 @@ var WALKeys = []string{
 
 // WALRecommender gives recommendations for WALKeys based on system resources
 type WALRecommender struct {
-	totalMem uint64
+	totalMemory uint64
 }
 
 // NewWALRecommender returns a WALRecommender that recommends based on the given
@@ -46,8 +49,8 @@ func (r *WALRecommender) IsAvailable() bool {
 func (r *WALRecommender) Recommend(key string) string {
 	var val string
 	if key == WALBuffersKey {
-		if r.totalMem < walBuffersThreshold {
-			temp := (float64(r.totalMem) / float64(parse.Gigabyte)) * (7864.0 * float64(parse.Kilobyte))
+		if r.totalMemory < walBuffersThreshold {
+			temp := (float64(r.totalMemory) / float64(parse.Gigabyte)) * (7864.0 * float64(parse.Kilobyte))
 			val = parse.BytesToPGFormat(uint64(temp))
 		} else {
 			val = parse.BytesToPGFormat(walBuffersDefault)
@@ -60,4 +63,20 @@ func (r *WALRecommender) Recommend(key string) string {
 		panic(fmt.Sprintf("unknown key: %s", key))
 	}
 	return val
+}
+
+// WALSettingsGroup is the SettingsGroup to represent settings that affect WAL usage.
+type WALSettingsGroup struct {
+	totalMemory uint64
+}
+
+// Label should always return the value WALLabel.
+func (sg *WALSettingsGroup) Label() string { return WALLabel }
+
+// Keys should always return the WALKeys slice.
+func (sg *WALSettingsGroup) Keys() []string { return WALKeys }
+
+// GetRecommender should return a new WALRecommender.
+func (sg *WALSettingsGroup) GetRecommender() Recommender {
+	return NewWALRecommender(sg.totalMemory)
 }

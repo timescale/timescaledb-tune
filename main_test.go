@@ -871,10 +871,18 @@ var (
 	}
 )
 
+type testSettingsGroup struct{}
+
+func (sg *testSettingsGroup) Label() string                      { return "foo" }
+func (sg *testSettingsGroup) Keys() []string                     { return nil }
+func (sg *testSettingsGroup) GetRecommender() pgtune.Recommender { return nil }
+
 func TestProcessSettingsGroup(t *testing.T) {
+	mem := uint64(8 * parse.Gigabyte)
+	cpus := 4
 	cases := []struct {
 		desc           string
-		ts             *settingsGroup
+		ts             pgtune.SettingsGroup
 		lines          []string
 		stdin          string
 		wantStatements uint64
@@ -885,12 +893,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 		shouldErr      bool
 	}{
 		{
-			desc: "no keys, no need to prompt",
-			ts: &settingsGroup{
-				label: "foo",
-				rec:   nil,
-				keys:  nil,
-			},
+			desc:           "no keys, no need to prompt",
+			ts:             &testSettingsGroup{},
 			lines:          memSettingsCorrect,
 			wantStatements: 1, // only intro remark
 			wantPrompts:    0,
@@ -899,12 +903,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			shouldErr:      false,
 		},
 		{
-			desc: "memory - commented",
-			ts: &settingsGroup{
-				label: "memory",
-				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
-				keys:  pgtune.MemoryKeys,
-			},
+			desc:           "memory - commented",
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
 			lines:          memSettingsCommented,
 			stdin:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -914,12 +914,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			shouldErr:      false,
 		},
 		{
-			desc: "memory - wrong",
-			ts: &settingsGroup{
-				label: "memory",
-				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
-				keys:  pgtune.MemoryKeys,
-			},
+			desc:           "memory - wrong",
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
 			lines:          memSettingsWrongVal,
 			stdin:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -929,12 +925,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			shouldErr:      false,
 		},
 		{
-			desc: "memory - missing",
-			ts: &settingsGroup{
-				label: "memory",
-				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
-				keys:  pgtune.MemoryKeys,
-			},
+			desc:           "memory - missing",
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
 			lines:          memSettingsMissing,
 			stdin:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -945,12 +937,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			shouldErr:      false,
 		},
 		{
-			desc: "memory - comment+wrong",
-			ts: &settingsGroup{
-				label: "memory",
-				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
-				keys:  pgtune.MemoryKeys,
-			},
+			desc:           "memory - comment+wrong",
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
 			lines:          memSettingsCommentWrong,
 			stdin:          " \ny\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -960,12 +948,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			shouldErr:      false,
 		},
 		{
-			desc: "memory - comment+wrong+missing",
-			ts: &settingsGroup{
-				label: "memory",
-				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
-				keys:  pgtune.MemoryKeys,
-			},
+			desc:           "memory - comment+wrong+missing",
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
 			lines:          memSettingsCommentWrongMissing,
 			stdin:          " \n \ny\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -976,12 +960,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			shouldErr:      false,
 		},
 		{
-			desc: "memory - all wrong, but skip",
-			ts: &settingsGroup{
-				label: "memory",
-				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
-				keys:  pgtune.MemoryKeys,
-			},
+			desc:           "memory - all wrong, but skip",
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
 			lines:          memSettingsAllWrong,
 			stdin:          "s\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -992,12 +972,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			shouldErr:      false,
 		},
 		{
-			desc: "memory - all wrong, but quit",
-			ts: &settingsGroup{
-				label: "memory",
-				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
-				keys:  pgtune.MemoryKeys,
-			},
+			desc:           "memory - all wrong, but quit",
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
 			lines:          memSettingsAllWrong,
 			stdin:          " \nqUIt\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -1007,12 +983,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 			shouldErr:      true,
 		},
 		{
-			desc: "memory - all wrong",
-			ts: &settingsGroup{
-				label: "memory",
-				rec:   pgtune.NewMemoryRecommender(8*parse.Gigabyte, 4),
-				keys:  pgtune.MemoryKeys,
-			},
+			desc:           "memory - all wrong",
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
 			lines:          memSettingsAllWrong,
 			stdin:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -1022,17 +994,15 @@ func TestProcessSettingsGroup(t *testing.T) {
 			shouldErr:      false,
 		},
 		{
-			desc: "label capitalized",
-			ts: &settingsGroup{
-				label: "WAL",
-				rec:   nil,
-				keys:  []string{},
-			},
+			desc:           "label capitalized",
+			ts:             pgtune.GetSettingsGroup(pgtune.WALLabel, mem, cpus),
 			lines:          []string{},
 			stdin:          "y\n",
-			wantStatements: 1,
-			wantPrints:     1, // one for initial newline
-			successMsg:     "WAL settings are already tuned",
+			wantStatements: 3, // intro remark + current label + recommend label
+			wantPrompts:    1,
+			wantPrints:     4, // one for initial newline + 3 for recommendations
+			wantErrors:     3, // everything is missing
+			successMsg:     "WAL settings will be updated",
 			shouldErr:      false,
 		},
 	}
@@ -1049,7 +1019,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		cfs := &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
 		cfs.lines = append(cfs.lines, c.lines...)
 		for i, l := range cfs.lines {
-			for _, k := range c.ts.keys {
+			for _, k := range c.ts.Keys() {
 				p := parseWithRegex(l, regexes[k])
 				if p != nil {
 					p.idx = i
@@ -1063,7 +1033,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			return 0, nil
 		}
 
-		err := c.ts.process(handler, cfs, false)
+		err := processSettingsGroup(handler, cfs, c.ts, false /* quiet */)
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {
@@ -1071,8 +1041,8 @@ func TestProcessSettingsGroup(t *testing.T) {
 		}
 
 		tp := handler.p.(*testPrinter)
-		if got := strings.ToUpper(strings.TrimSpace(tp.statements[0])[:1]); got != strings.ToUpper(c.ts.label[:1]) {
-			t.Errorf("%s: label not capitalized in first statement: got %s want %s", c.desc, got, strings.ToUpper(c.ts.label[:1]))
+		if got := strings.ToUpper(strings.TrimSpace(tp.statements[0])[:1]); got != strings.ToUpper(c.ts.Label()[:1]) {
+			t.Errorf("%s: label not capitalized in first statement: got %s want %s", c.desc, got, strings.ToUpper(c.ts.Label()[:1]))
 		}
 
 		if got := tp.statementCalls; got != c.wantStatements {

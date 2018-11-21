@@ -14,6 +14,9 @@ const (
 	errOneCPU = "cannot make recommendations with just 1 CPU"
 )
 
+// ParallelLabel is the label used to refer to the parallelism settings group
+const ParallelLabel = "parallelism"
+
 // ParallelKeys is an array of keys that are tunable for parallelism
 var ParallelKeys = []string{
 	MaxWorkerProcessesKey,
@@ -52,4 +55,20 @@ func (r *ParallelRecommender) Recommend(key string) string {
 		panic(fmt.Sprintf("unknown key: %s", key))
 	}
 	return val
+}
+
+// ParallelSettingsGroup is the SettingsGroup to represent parallelism settings.
+type ParallelSettingsGroup struct {
+	cpus int
+}
+
+// Label should always return the value ParallelLabel.
+func (sg *ParallelSettingsGroup) Label() string { return ParallelLabel }
+
+// Keys should always return the ParallelKeys slice.
+func (sg *ParallelSettingsGroup) Keys() []string { return ParallelKeys }
+
+// GetRecommender should return a new ParallelRecommender.
+func (sg *ParallelSettingsGroup) GetRecommender() Recommender {
+	return NewParallelRecommender(sg.cpus)
 }

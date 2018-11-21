@@ -17,6 +17,9 @@ const (
 	effectiveIODefault    = "200"
 )
 
+// MiscLabel is the label used to refer to the miscellaneous settings group
+const MiscLabel = "miscellaneous"
+
 // MiscKeys is an array of miscellaneous keys that are tunable
 var MiscKeys = []string{
 	StatsTargetKey,
@@ -57,4 +60,18 @@ func (r *MiscRecommender) Recommend(key string) string {
 		panic(fmt.Sprintf("unknown key: %s", key))
 	}
 	return val
+}
+
+// MiscSettingsGroup is the SettingsGroup to represent settings that do not fit in other SettingsGroups.
+type MiscSettingsGroup struct{}
+
+// Label should always return the value MiscLabel.
+func (sg *MiscSettingsGroup) Label() string { return MiscLabel }
+
+// Keys should always return the MiscKeys slice.
+func (sg *MiscSettingsGroup) Keys() []string { return MiscKeys }
+
+// GetRecommender should return a new MiscRecommender.
+func (sg *MiscSettingsGroup) GetRecommender() Recommender {
+	return NewMiscRecommender()
 }
