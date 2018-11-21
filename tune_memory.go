@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+
+	"github.com/timescale/timescaledb-tune/internal/parse"
 )
 
 const (
@@ -12,7 +14,7 @@ const (
 	maintenanceWorkMemKey = "maintenance_work_mem"
 	workMemKey            = "work_mem"
 
-	sharedBuffersWindows = 512 * megabyte
+	sharedBuffersWindows = 512 * parse.Megabyte
 )
 
 var memoryKeys = []string{
@@ -31,25 +33,25 @@ func (r *memoryRecommender) Recommend(key string) string {
 	var val string
 	if key == sharedBuffersKey {
 		if runtime.GOOS == osWindows {
-			val = bytesPGFormat(sharedBuffersWindows)
+			val = parse.BytesToPGFormat(sharedBuffersWindows)
 		} else {
-			val = bytesPGFormat(r.totalMem / 4)
+			val = parse.BytesToPGFormat(r.totalMem / 4)
 		}
 	} else if key == effectiveCacheKey {
-		val = bytesPGFormat((r.totalMem * 3) / 4)
+		val = parse.BytesToPGFormat((r.totalMem * 3) / 4)
 	} else if key == maintenanceWorkMemKey {
-		temp := (float64(r.totalMem) / float64(gigabyte)) * (128.0 * float64(megabyte))
-		if temp > (2 * gigabyte) {
-			temp = 2 * gigabyte
+		temp := (float64(r.totalMem) / float64(parse.Gigabyte)) * (128.0 * float64(parse.Megabyte))
+		if temp > (2 * parse.Gigabyte) {
+			temp = 2 * parse.Gigabyte
 		}
-		val = bytesPGFormat(uint64(temp))
+		val = parse.BytesToPGFormat(uint64(temp))
 	} else if key == workMemKey {
 		if runtime.GOOS == osWindows {
 			val = r.recommendWindows()
 		} else {
 			cpuFactor := math.Round(float64(r.cpus) / 2.0)
-			temp := (float64(r.totalMem) / float64(gigabyte)) * (6.4 * float64(megabyte)) / cpuFactor
-			val = bytesPGFormat(uint64(temp))
+			temp := (float64(r.totalMem) / float64(parse.Gigabyte)) * (6.4 * float64(parse.Megabyte)) / cpuFactor
+			val = parse.BytesToPGFormat(uint64(temp))
 		}
 	} else {
 		panic(fmt.Sprintf("unknown key: %s", key))
@@ -59,11 +61,11 @@ func (r *memoryRecommender) Recommend(key string) string {
 
 func (r *memoryRecommender) recommendWindows() string {
 	cpuFactor := math.Round(float64(r.cpus) / 2.0)
-	if r.totalMem <= 2*gigabyte {
-		temp := (float64(r.totalMem) / float64(gigabyte)) * (6.4 * float64(megabyte)) / cpuFactor
-		return bytesPGFormat(uint64(temp))
+	if r.totalMem <= 2*parse.Gigabyte {
+		temp := (float64(r.totalMem) / float64(parse.Gigabyte)) * (6.4 * float64(parse.Megabyte)) / cpuFactor
+		return parse.BytesToPGFormat(uint64(temp))
 	}
-	base := 2.0 * 6.4 * float64(megabyte)
-	temp := ((float64(r.totalMem)/float64(gigabyte)-2)*(8.53336*float64(megabyte)) + base) / cpuFactor
-	return bytesPGFormat(uint64(temp))
+	base := 2.0 * 6.4 * float64(parse.Megabyte)
+	temp := ((float64(r.totalMem)/float64(parse.Gigabyte)-2)*(8.53336*float64(parse.Megabyte)) + base) / cpuFactor
+	return parse.BytesToPGFormat(uint64(temp))
 }

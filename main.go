@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/pbnjay/memory"
+	"github.com/timescale/timescaledb-tune/internal/parse"
 )
 
 const (
@@ -392,7 +393,7 @@ func processTunables(handler *ioHandler, cfs *configFileState, totalMemory uint6
 		}
 	}
 	if !quiet {
-		handler.p.Statement(statementTunableIntro, bytesFormat(totalMemory), cpus)
+		handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus)
 	}
 
 	mr := &memoryRecommender{totalMemory, cpus}
@@ -410,7 +411,7 @@ func processTunables(handler *ioHandler, cfs *configFileState, totalMemory uint6
 
 // processQuiet handles the iteractions when the user wants "quiet" output.
 func processQuiet(handler *ioHandler, cfs *configFileState, totalMemory uint64, cpus int) error {
-	handler.p.Statement(statementTunableIntro, bytesFormat(totalMemory), cpus)
+	handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus)
 	if cfs.sharedLibResult == nil {
 		printFn(plainSharedLibLine + "\n")
 		cfs.lines = append(cfs.lines, plainSharedLibLine)

@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
+
+	"github.com/timescale/timescaledb-tune/internal/parse"
 )
 
 const (
@@ -48,7 +50,7 @@ type parseFn func(string) (float64, error)
 
 func keyToParseFn(key string) parseFn {
 	if isIn(key, memoryKeys) || isIn(key, walKeys) {
-		return parsePGStringToBytes
+		return parse.PGFormatToBytes
 	}
 
 	return func(s string) (float64, error) {

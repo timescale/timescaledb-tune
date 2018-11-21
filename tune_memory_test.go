@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"testing"
+
+	"github.com/timescale/timescaledb-tune/internal/parse"
 )
 
 func TestMemoryRecommenderRecommendWindows(t *testing.T) {
@@ -14,63 +16,63 @@ func TestMemoryRecommenderRecommendWindows(t *testing.T) {
 	}{
 		{
 			desc:     "1GB",
-			totalMem: 1 * gigabyte,
+			totalMem: 1 * parse.Gigabyte,
 			cpus:     1,
-			want:     "6553" + kb, // from pgtune
+			want:     "6553" + parse.KB, // from pgtune
 		},
 		{
 			desc:     "1GB, 4 cpus",
-			totalMem: 1 * gigabyte,
+			totalMem: 1 * parse.Gigabyte,
 			cpus:     4,
-			want:     "3276" + kb, // from pgtune
+			want:     "3276" + parse.KB, // from pgtune
 		},
 		{
 			desc:     "2GB",
-			totalMem: 2 * gigabyte,
+			totalMem: 2 * parse.Gigabyte,
 			cpus:     1,
-			want:     "13107" + kb, // from pgtune
+			want:     "13107" + parse.KB, // from pgtune
 		},
 		{
 			desc:     "2GB, 5 cpus",
-			totalMem: 2 * gigabyte,
+			totalMem: 2 * parse.Gigabyte,
 			cpus:     5,
-			want:     "4369" + kb, // from pgtune
+			want:     "4369" + parse.KB, // from pgtune
 		},
 		{
 			desc:     "3GB",
-			totalMem: 3 * gigabyte,
+			totalMem: 3 * parse.Gigabyte,
 			cpus:     1,
-			want:     "21845" + kb, // from pgtune
+			want:     "21845" + parse.KB, // from pgtune
 		},
 		{
 			desc:     "3GB, 3 cpus",
-			totalMem: 3 * gigabyte,
+			totalMem: 3 * parse.Gigabyte,
 			cpus:     3,
-			want:     "10922" + kb, // from pgtune
+			want:     "10922" + parse.KB, // from pgtune
 		},
 		{
 			desc:     "8GB",
-			totalMem: 8 * gigabyte,
+			totalMem: 8 * parse.Gigabyte,
 			cpus:     1,
-			want:     "64" + mb, // from pgtune
+			want:     "64" + parse.MB, // from pgtune
 		},
 		{
 			desc:     "8GB, 8 cpus",
-			totalMem: 8 * gigabyte,
+			totalMem: 8 * parse.Gigabyte,
 			cpus:     8,
-			want:     "16" + mb, // from pgtune
+			want:     "16" + parse.MB, // from pgtune
 		},
 		{
 			desc:     "16GB",
-			totalMem: 16 * gigabyte,
+			totalMem: 16 * parse.Gigabyte,
 			cpus:     1,
-			want:     "135441" + kb, // from pgtune
+			want:     "135441" + parse.KB, // from pgtune
 		},
 		{
 			desc:     "16GB, 10 cpus",
-			totalMem: 16 * gigabyte,
+			totalMem: 16 * parse.Gigabyte,
 			cpus:     10,
-			want:     "27088" + kb, // from pgtune
+			want:     "27088" + parse.KB, // from pgtune
 		},
 	}
 
@@ -94,58 +96,58 @@ func TestMemoryRecommenderRecommend(t *testing.T) {
 		{
 			desc:     "shared_buffers, uneven divide",
 			key:      sharedBuffersKey,
-			totalMem: 10 * gigabyte,
+			totalMem: 10 * parse.Gigabyte,
 			cpus:     1,
-			want:     fmt.Sprintf(valFmt, 2560, mb),
+			want:     fmt.Sprintf(valFmt, 2560, parse.MB),
 		},
 		{
 			desc:     "shared_buffers, even divide",
 			key:      sharedBuffersKey,
-			totalMem: 8 * gigabyte,
+			totalMem: 8 * parse.Gigabyte,
 			cpus:     1,
-			want:     fmt.Sprintf(valFmt, 2, gb),
+			want:     fmt.Sprintf(valFmt, 2, parse.GB),
 		},
 		{
 			desc:     "effective key, uneven divide",
 			key:      effectiveCacheKey,
-			totalMem: 10 * gigabyte,
+			totalMem: 10 * parse.Gigabyte,
 			cpus:     1,
-			want:     fmt.Sprintf(valFmt, uint64(7.5*1024.0), mb),
+			want:     fmt.Sprintf(valFmt, uint64(7.5*1024.0), parse.MB),
 		},
 		{
 			desc:     "effective key, even divide",
 			key:      effectiveCacheKey,
-			totalMem: 12 * gigabyte,
+			totalMem: 12 * parse.Gigabyte,
 			cpus:     1,
-			want:     fmt.Sprintf(valFmt, 9, gb),
+			want:     fmt.Sprintf(valFmt, 9, parse.GB),
 		},
 		{
 			desc:     "maintenance_work_mem",
 			key:      maintenanceWorkMemKey,
-			totalMem: 6 * gigabyte,
+			totalMem: 6 * parse.Gigabyte,
 			cpus:     1,
-			want:     fmt.Sprintf(valFmt, 768, mb),
+			want:     fmt.Sprintf(valFmt, 768, parse.MB),
 		},
 		{
 			desc:     "maintenance_work_mem, over max",
 			key:      maintenanceWorkMemKey,
-			totalMem: 32 * gigabyte,
+			totalMem: 32 * parse.Gigabyte,
 			cpus:     1,
-			want:     fmt.Sprintf(valFmt, 2, gb),
+			want:     fmt.Sprintf(valFmt, 2, parse.GB),
 		},
 		{
 			desc:     "work_mem",
 			key:      workMemKey,
-			totalMem: 8 * gigabyte,
+			totalMem: 8 * parse.Gigabyte,
 			cpus:     1,
-			want:     fmt.Sprintf(valFmt, 52428, kb),
+			want:     fmt.Sprintf(valFmt, 52428, parse.KB),
 		},
 		{
 			desc:     "work_mem, multiple CPUs",
 			key:      workMemKey,
-			totalMem: 8 * gigabyte,
+			totalMem: 8 * parse.Gigabyte,
 			cpus:     4,
-			want:     fmt.Sprintf(valFmt, 26214, kb),
+			want:     fmt.Sprintf(valFmt, 26214, parse.KB),
 		},
 	}
 

@@ -1,4 +1,4 @@
-package main
+package parse
 
 import (
 	"fmt"
@@ -14,87 +14,87 @@ func TestParseIntToFloatUnits(t *testing.T) {
 	}{
 		{
 			desc:      "no limit to TB",
-			input:     2000 * terabyte,
+			input:     2000 * Terabyte,
 			wantNum:   2000,
-			wantUnits: tb,
+			wantUnits: TB,
 		},
 		{
 			desc:      "1 TB",
-			input:     terabyte,
+			input:     Terabyte,
 			wantNum:   1.0,
-			wantUnits: tb,
+			wantUnits: TB,
 		},
 		{
 			desc:      "1.5 TB",
-			input:     uint64(1.5 * float64(terabyte)),
+			input:     uint64(1.5 * float64(Terabyte)),
 			wantNum:   1.5,
-			wantUnits: tb,
+			wantUnits: TB,
 		},
 		{
 			desc:      "1TB - 1GB",
-			input:     terabyte - gigabyte,
+			input:     Terabyte - Gigabyte,
 			wantNum:   1023,
-			wantUnits: gb,
+			wantUnits: GB,
 		},
 		{
 			desc:      "1 GB",
-			input:     gigabyte,
+			input:     Gigabyte,
 			wantNum:   1.0,
-			wantUnits: gb,
+			wantUnits: GB,
 		},
 		{
 			desc:      "1.5 GB",
-			input:     uint64(1.5 * float64(gigabyte)),
+			input:     uint64(1.5 * float64(Gigabyte)),
 			wantNum:   1.5,
-			wantUnits: gb,
+			wantUnits: GB,
 		},
 		{
 			desc:      "2.0 GB",
-			input:     2 * gigabyte,
+			input:     2 * Gigabyte,
 			wantNum:   2.0,
-			wantUnits: gb,
+			wantUnits: GB,
 		},
 		{
 			desc:      "1 GB - 1 MB",
-			input:     gigabyte - megabyte,
+			input:     Gigabyte - Megabyte,
 			wantNum:   1023.0,
-			wantUnits: mb,
+			wantUnits: MB,
 		},
 		{
 			desc:      "1 MB",
-			input:     megabyte,
+			input:     Megabyte,
 			wantNum:   1.0,
-			wantUnits: mb,
+			wantUnits: MB,
 		},
 		{
 			desc:      "1.5 MB",
-			input:     uint64(1.5 * float64(megabyte)),
+			input:     uint64(1.5 * float64(Megabyte)),
 			wantNum:   1.5,
-			wantUnits: mb,
+			wantUnits: MB,
 		},
 		{
 			desc:      "1020 kB",
-			input:     megabyte - 4*kilobyte,
+			input:     Megabyte - 4*Kilobyte,
 			wantNum:   1020.0,
-			wantUnits: kb,
+			wantUnits: KB,
 		},
 		{
 			desc:      "1 kB",
-			input:     kilobyte,
+			input:     Kilobyte,
 			wantNum:   1.0,
-			wantUnits: kb,
+			wantUnits: KB,
 		},
 		{
 			desc:      "1.5 kB",
-			input:     uint64(1.5 * float64(kilobyte)),
+			input:     uint64(1.5 * float64(Kilobyte)),
 			wantNum:   1.5,
-			wantUnits: kb,
+			wantUnits: KB,
 		},
 		{
 			desc:      "1000 bytes",
-			input:     kilobyte - 24,
+			input:     Kilobyte - 24,
 			wantNum:   1000,
-			wantUnits: b,
+			wantUnits: B,
 		},
 	}
 
@@ -120,6 +120,46 @@ func TestParseIntToFloatUnitsPanic(t *testing.T) {
 	}()
 }
 
+func TestBytesFormat(t *testing.T) {
+	cases := []struct {
+		desc  string
+		input uint64
+		want  string
+	}{
+		{
+			desc:  "no limit to TB",
+			input: 2000 * Terabyte,
+			want:  "2000.00 " + TB,
+		},
+		{
+			desc:  "1 TB",
+			input: Terabyte,
+			want:  "1.00 " + TB,
+		},
+		{
+			desc:  "1.5 TB",
+			input: uint64(1.5 * float64(Terabyte)),
+			want:  "1.50 " + TB,
+		},
+		{
+			desc:  "1.25 TB",
+			input: uint64(1.25 * float64(Terabyte)),
+			want:  "1.25 " + TB,
+		},
+		{
+			desc:  ".50 TB",
+			input: uint64(.50 * float64(Terabyte)),
+			want:  "512.00 " + GB,
+		},
+	}
+
+	for _, c := range cases {
+		if got := BytesToDecimalFormat(c.input); got != c.want {
+			t.Errorf("%s: incorrect return: got %s want %s", c.desc, got, c.want)
+		}
+	}
+}
+
 func TestBytesPGFormat(t *testing.T) {
 	cases := []struct {
 		desc  string
@@ -128,88 +168,88 @@ func TestBytesPGFormat(t *testing.T) {
 	}{
 		{
 			desc:  "no limit to TB",
-			input: 2000 * terabyte,
-			want:  "2000" + tb,
+			input: 2000 * Terabyte,
+			want:  "2000" + TB,
 		},
 		{
 			desc:  "1 TB",
-			input: terabyte,
-			want:  "1" + tb,
+			input: Terabyte,
+			want:  "1" + TB,
 		},
 		{
 			desc:  "1.5 TB",
-			input: uint64(1.5 * float64(terabyte)),
-			want:  "1536" + gb,
+			input: uint64(1.5 * float64(Terabyte)),
+			want:  "1536" + GB,
 		},
 		{
 			desc:  "1TB - 1GB",
-			input: terabyte - gigabyte,
-			want:  "1023" + gb,
+			input: Terabyte - Gigabyte,
+			want:  "1023" + GB,
 		},
 		{
 			desc:  "1TB - 1MB",
-			input: terabyte - megabyte,
-			want:  "1048575" + mb,
+			input: Terabyte - Megabyte,
+			want:  "1048575" + MB,
 		},
 		{
 			desc:  "1 GB",
-			input: gigabyte,
-			want:  "1" + gb,
+			input: Gigabyte,
+			want:  "1" + GB,
 		},
 		{
 			desc:  "1.5 GB",
-			input: uint64(1.5 * float64(gigabyte)),
-			want:  "1536" + mb,
+			input: uint64(1.5 * float64(Gigabyte)),
+			want:  "1536" + MB,
 		},
 		{
 			desc:  "2.0 GB",
-			input: 2 * gigabyte,
-			want:  "2" + gb,
+			input: 2 * Gigabyte,
+			want:  "2" + GB,
 		},
 		{
 			desc:  "1 GB - 1MB",
-			input: gigabyte - megabyte,
-			want:  "1023" + mb,
+			input: Gigabyte - Megabyte,
+			want:  "1023" + MB,
 		},
 		{
 			desc:  "1 MB",
-			input: megabyte,
-			want:  "1" + mb,
+			input: Megabyte,
+			want:  "1" + MB,
 		},
 		{
 			desc:  "1.5 MB",
-			input: uint64(1.5 * float64(megabyte)),
-			want:  "1536" + kb,
+			input: uint64(1.5 * float64(Megabyte)),
+			want:  "1536" + KB,
 		},
 		{
 			desc:  "1020 kB",
-			input: megabyte - 4*kilobyte,
-			want:  "1020" + kb,
+			input: Megabyte - 4*Kilobyte,
+			want:  "1020" + KB,
 		},
 		{
 			desc:  "1 kB",
-			input: kilobyte,
-			want:  "1" + kb,
+			input: Kilobyte,
+			want:  "1" + KB,
 		},
 		{
 			desc:  "1.5 kB, round up",
-			input: uint64(1.5 * float64(kilobyte)),
-			want:  "2" + kb,
+			input: uint64(1.5 * float64(Kilobyte)),
+			want:  "2" + KB,
 		},
 		{
 			desc:  "1.4 kB, round down",
 			input: 1400,
-			want:  "1" + kb,
+			want:  "1" + KB,
 		},
 		{
 			desc:  "1000 bytes",
-			input: kilobyte - 24,
-			want:  "1" + kb,
+			input: Kilobyte - 24,
+			want:  "1" + KB,
 		},
 	}
 
 	for _, c := range cases {
-		if got := bytesPGFormat(c.input); got != c.want {
+		if got := BytesToPGFormat(c.input); got != c.want {
 			t.Errorf("%s: incorrect return: got %s want %s", c.desc, got, c.want)
 		}
 	}
@@ -244,48 +284,48 @@ func TestParsePGStringToBytes(t *testing.T) {
 		},
 		{
 			desc:  "valid kilobytes",
-			input: "64" + kb,
-			want:  64 * kilobyte,
+			input: "64" + KB,
+			want:  64 * Kilobyte,
 		},
 		{
 			desc:  "valid kilobytes, oversized",
-			input: "2048" + kb,
-			want:  2048 * kilobyte,
+			input: "2048" + KB,
+			want:  2048 * Kilobyte,
 		},
 		{
 			desc:  "valid megabytes",
-			input: "64" + mb,
-			want:  64 * megabyte,
+			input: "64" + MB,
+			want:  64 * Megabyte,
 		},
 		{
 			desc:  "valid megabytes, oversized",
-			input: "2048" + mb,
-			want:  2048 * megabyte,
+			input: "2048" + MB,
+			want:  2048 * Megabyte,
 		},
 		{
 			desc:  "valid gigabytes",
-			input: "64" + gb,
-			want:  64 * gigabyte,
+			input: "64" + GB,
+			want:  64 * Gigabyte,
 		},
 		{
 			desc:  "valid gigabytes, oversized",
-			input: "2048" + gb,
-			want:  2048 * gigabyte,
+			input: "2048" + GB,
+			want:  2048 * Gigabyte,
 		},
 		{
 			desc:  "valid terabytes",
-			input: "64" + tb,
-			want:  64 * terabyte,
+			input: "64" + TB,
+			want:  64 * Terabyte,
 		},
 		{
 			desc:  "valid terabytes, oversized",
-			input: "2048" + tb,
-			want:  2048 * terabyte,
+			input: "2048" + TB,
+			want:  2048 * Terabyte,
 		},
 	}
 
 	for _, c := range cases {
-		bytes, err := parsePGStringToBytes(c.input)
+		bytes, err := PGFormatToBytes(c.input)
 		if len(c.errMsg) > 0 { // failure cases
 			if err == nil {
 				t.Errorf("%s: unexpectedly err is nil: want %s", c.desc, c.errMsg)

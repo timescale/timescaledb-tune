@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/timescale/timescaledb-tune/internal/parse"
 )
 
 func TestGetConfigFilePath(t *testing.T) {
@@ -779,32 +781,32 @@ func TestCheckIfShouldShowSetting(t *testing.T) {
 		}
 		// change values, but still within fudge factor so it shouldn't be shown
 		for _, k := range c.okFudge {
-			temp, err := parsePGStringToBytes(c.parseResults[k].value)
+			temp, err := parse.PGFormatToBytes(c.parseResults[k].value)
 			if err != nil {
 				t.Errorf("%s: unexpected err in parsing: %v", c.desc, err)
 			}
 			temp = temp + float64(temp)*(fudgeFactor-.01)
-			c.parseResults[k].value = bytesPGFormat(uint64(temp))
+			c.parseResults[k].value = parse.BytesToPGFormat(uint64(temp))
 		}
 		// change values to higher fudge factor, so it should be shown
 		for _, k := range c.highFudge {
-			temp, err := parsePGStringToBytes(c.parseResults[k].value)
+			temp, err := parse.PGFormatToBytes(c.parseResults[k].value)
 			if err != nil {
 				t.Errorf("%s: unexpected err in parsing: %v", c.desc, err)
 			}
 			temp = temp + float64(temp)*(fudgeFactor+.01)
-			c.parseResults[k].value = bytesPGFormat(uint64(temp))
+			c.parseResults[k].value = parse.BytesToPGFormat(uint64(temp))
 		}
 		// change values to lower fudge factor, so it should be shown
 		for _, k := range c.lowFudge {
-			temp, err := parsePGStringToBytes(c.parseResults[k].value)
+			temp, err := parse.PGFormatToBytes(c.parseResults[k].value)
 			if err != nil {
 				t.Errorf("%s: unexpected err in parsing: %v", c.desc, err)
 			}
 			temp = temp - float64(temp)*(fudgeFactor+.01)
-			c.parseResults[k].value = bytesPGFormat(uint64(temp))
+			c.parseResults[k].value = parse.BytesToPGFormat(uint64(temp))
 		}
-		mr := &memoryRecommender{8 * gigabyte, 1}
+		mr := &memoryRecommender{8 * parse.Gigabyte, 1}
 		show, err := checkIfShouldShowSetting(memoryKeys, c.parseResults, mr)
 		if len(c.errMsg) > 0 {
 
@@ -899,7 +901,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - commented",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * gigabyte, 4},
+				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
 				keys:  memoryKeys,
 			},
 			lines:          memSettingsCommented,
@@ -914,7 +916,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - wrong",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * gigabyte, 4},
+				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
 				keys:  memoryKeys,
 			},
 			lines:          memSettingsWrongVal,
@@ -929,7 +931,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - missing",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * gigabyte, 4},
+				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
 				keys:  memoryKeys,
 			},
 			lines:          memSettingsMissing,
@@ -945,7 +947,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - comment+wrong",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * gigabyte, 4},
+				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
 				keys:  memoryKeys,
 			},
 			lines:          memSettingsCommentWrong,
@@ -960,7 +962,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - comment+wrong+missing",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * gigabyte, 4},
+				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
 				keys:  memoryKeys,
 			},
 			lines:          memSettingsCommentWrongMissing,
@@ -976,7 +978,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - all wrong, but skip",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * gigabyte, 4},
+				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
 				keys:  memoryKeys,
 			},
 			lines:          memSettingsAllWrong,
@@ -992,7 +994,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - all wrong, but quit",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * gigabyte, 4},
+				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
 				keys:  memoryKeys,
 			},
 			lines:          memSettingsAllWrong,
@@ -1007,7 +1009,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc: "memory - all wrong",
 			ts: &settingsGroup{
 				label: "memory",
-				rec:   &memoryRecommender{8 * gigabyte, 4},
+				rec:   &memoryRecommender{8 * parse.Gigabyte, 4},
 				keys:  memoryKeys,
 			},
 			lines:          memSettingsAllWrong,
@@ -1102,7 +1104,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 }
 
 func TestProcessTunables(t *testing.T) {
-	mem := uint64(10 * gigabyte)
+	mem := uint64(10 * parse.Gigabyte)
 	cpus := 6
 	oldPrintFn := printFn
 	printFn = func(_ string, _ ...interface{}) (int, error) {
@@ -1126,7 +1128,7 @@ func TestProcessTunables(t *testing.T) {
 		t.Errorf("incorrect number of statements: got %d, want %d", got, 1+3*4)
 	}
 
-	wantStatement := fmt.Sprintf(statementTunableIntro, bytesFormat(mem), cpus)
+	wantStatement := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(mem), cpus)
 	if got := tp.statements[0]; got != wantStatement {
 		t.Errorf("incorrect first statement: got\n%s\nwant\n%s\n", got, wantStatement)
 	}
