@@ -18,6 +18,10 @@ func TestNewWALRecommender(t *testing.T) {
 		if got := r.totalMem; got != mem {
 			t.Errorf("recommender has incorrect memory: got %d want %d", got, mem)
 		}
+
+		if !r.IsAvailable() {
+			t.Errorf("unexpectedly not available")
+		}
 	}
 }
 

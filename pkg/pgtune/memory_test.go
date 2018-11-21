@@ -22,6 +22,10 @@ func TestNewMemoryRecommender(t *testing.T) {
 		if got := r.cpus; got != cpus {
 			t.Errorf("recommender has incorrect cpus: got %d want %d", got, cpus)
 		}
+
+		if !r.IsAvailable() {
+			t.Errorf("unexpectedly not available")
+		}
 	}
 }
 

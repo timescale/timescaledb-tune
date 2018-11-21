@@ -18,6 +18,21 @@ func TestNewParallelRecommender(t *testing.T) {
 	}
 }
 
+func TestParallelRecommenderIsAvailable(t *testing.T) {
+	if r := NewParallelRecommender(0); r.IsAvailable() {
+		t.Errorf("unexpectedly available for 0 cpus")
+	}
+	if r := NewParallelRecommender(1); r.IsAvailable() {
+		t.Errorf("unexpectedly available for 1 cpus")
+	}
+
+	for i := 2; i < 1000; i++ {
+		if r := NewParallelRecommender(i); !r.IsAvailable() {
+			t.Errorf("unexpected UNavailable for %d cpus", i)
+		}
+	}
+}
+
 func TestParallelRecommenderRecommend(t *testing.T) {
 	cases := []struct {
 		desc string

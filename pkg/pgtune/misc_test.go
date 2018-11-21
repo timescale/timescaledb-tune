@@ -10,6 +10,10 @@ func TestNewMiscRecommender(t *testing.T) {
 		if r == nil {
 			t.Errorf("unexpected nil recommender")
 		}
+
+		if !r.IsAvailable() {
+			t.Errorf("unexpectedly not available")
+		}
 	}
 }
 

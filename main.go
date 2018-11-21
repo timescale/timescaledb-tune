@@ -387,6 +387,9 @@ func (g *settingsGroup) process(handler *ioHandler, cfs *configFileState, quiet 
 // to parameters than be tuned, e.g. memory.
 func processTunables(handler *ioHandler, cfs *configFileState, totalMemory uint64, cpus int, quiet bool) {
 	tune := func(label string, r pgtune.Recommender, keys []string) {
+		if !r.IsAvailable() {
+			return
+		}
 		group := settingsGroup{label, r, keys}
 		err := group.process(handler, cfs, quiet)
 		if err != nil {

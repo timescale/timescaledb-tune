@@ -34,6 +34,11 @@ func NewMiscRecommender() *MiscRecommender {
 	return &MiscRecommender{}
 }
 
+// IsAvailable returns whether this Recommender is usable given the system resources. Always true.
+func (r *MiscRecommender) IsAvailable() bool {
+	return true
+}
+
 // Recommend returns the recommended PostgreSQL formatted value for the conf
 // file for a given key.
 func (r *MiscRecommender) Recommend(key string) string {

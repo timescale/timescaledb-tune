@@ -1162,3 +1162,60 @@ func TestProcessTunables(t *testing.T) {
 
 	printFn = oldPrintFn
 }
+
+func TestProcessTunablesSingleCPU(t *testing.T) {
+	mem := uint64(10 * parse.Gigabyte)
+	cpus := 1
+	oldPrintFn := printFn
+	printFn = func(_ string, _ ...interface{}) (int, error) {
+		return 0, nil
+	}
+
+	buf := bytes.NewBuffer([]byte("y\ny\ny\ny\n"))
+	br := bufio.NewReader(buf)
+	handler := &ioHandler{
+		p:  &testPrinter{},
+		br: br,
+	}
+
+	cfs := &configFileState{lines: []string{}, tuneParseResults: make(map[string]*tunableParseResult)}
+	processTunables(handler, cfs, mem, cpus, false)
+
+	tp := handler.p.(*testPrinter)
+	// Total number of statements is intro statement and then 3 per group of settings;
+	// each group has a heading and then the current/recommended labels.
+	// On a single CPU, only 3 groups since parallelism does not apply
+	if got := tp.statementCalls; got != 1+3*3 {
+		t.Errorf("incorrect number of statements: got %d, want %d", got, 1+3*3)
+	}
+
+	wantStatement := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(mem), cpus)
+	if got := tp.statements[0]; got != wantStatement {
+		t.Errorf("incorrect first statement: got\n%s\nwant\n%s\n", got, wantStatement)
+	}
+
+	for i := 2; i < len(tp.statements); i += 3 {
+		if got := tp.statements[i]; got != currentLabel {
+			t.Errorf("did not get current label as expected: got %s", got)
+		}
+		if got := tp.statements[i+1]; got != recommendLabel {
+			t.Errorf("did not get recommend label as expected: got %s", got)
+		}
+	}
+
+	wantStatement = "Memory settings recommendations"
+	if got := tp.statements[1]; got != wantStatement {
+		t.Errorf("incorrect statement at 1: got\n%s\nwant\n%s", got, wantStatement)
+	}
+	// no parallelism on single CPU
+	wantStatement = "WAL settings recommendations"
+	if got := tp.statements[4]; got != wantStatement {
+		t.Errorf("incorrect statement at 7: got\n%s\nwant\n%s", got, wantStatement)
+	}
+	wantStatement = "Miscellaneous settings recommendations"
+	if got := tp.statements[7]; got != wantStatement {
+		t.Errorf("incorrect statement at 10: got\n%s\nwant\n%s", got, wantStatement)
+	}
+
+	printFn = oldPrintFn
+}

@@ -36,6 +36,11 @@ func NewWALRecommender(totalMemory uint64) *WALRecommender {
 	return &WALRecommender{totalMemory}
 }
 
+// IsAvailable returns whether this Recommender is usable given the system resources. Always true.
+func (r *WALRecommender) IsAvailable() bool {
+	return true
+}
+
 // Recommend returns the recommended PostgreSQL formatted value for the conf
 // file for a given key.
 func (r *WALRecommender) Recommend(key string) string {

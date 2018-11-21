@@ -32,6 +32,11 @@ func NewParallelRecommender(cpus int) *ParallelRecommender {
 	return &ParallelRecommender{cpus}
 }
 
+// IsAvailable returns whether this Recommender is usable given the system resources. True when number of CPUS > 1.
+func (r *ParallelRecommender) IsAvailable() bool {
+	return r.cpus > 1
+}
+
 // Recommend returns the recommended PostgreSQL formatted value for the conf
 // file for a given key.
 func (r *ParallelRecommender) Recommend(key string) string {

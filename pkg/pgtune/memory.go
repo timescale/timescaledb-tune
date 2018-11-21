@@ -38,6 +38,11 @@ func NewMemoryRecommender(totalMemory uint64, cpus int) *MemoryRecommender {
 	return &MemoryRecommender{totalMemory, cpus}
 }
 
+// IsAvailable returns whether this Recommender is usable given the system resources. Always true.
+func (r *MemoryRecommender) IsAvailable() bool {
+	return true
+}
+
 // Recommend returns the recommended PostgreSQL formatted value for the conf
 // file for a given key.
 func (r *MemoryRecommender) Recommend(key string) string {
