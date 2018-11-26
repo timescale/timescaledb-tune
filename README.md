@@ -10,7 +10,7 @@ parallelism, WAL, and other settings.
 ### Getting started
 You need the Go runtime (1.10+) installed, then simply `go get` this repo:
 ```bash
-$ go get github.com/timescale/timescaledb-parallel-copy
+$ go get github.com/timescale/timescaledb-tune
 ```
 
 ### Using timescaledb-tune
