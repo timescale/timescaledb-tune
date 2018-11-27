@@ -1,12 +1,17 @@
 package main
 
 import (
+	"io"
 	"strings"
 
 	"github.com/fatih/color"
 )
 
-const successLabel = "success: "
+const (
+	successLabel           = "success: "
+	noColorPrefixStatement = "== "
+	noColorPrefixPrompt    = "-- "
+)
 
 var (
 	statementColor = color.New(color.FgWhite, color.Bold)   // color for directions / statements
@@ -22,44 +27,49 @@ type printer interface {
 	Error(string, string, ...interface{})
 }
 
-type colorPrinter struct{}
+type colorPrinter struct {
+	w io.Writer
+}
 
-func printWithColor(c *color.Color, format string, args ...interface{}) {
-	c.Printf(format, args...)
+func (p *colorPrinter) printWithColor(c *color.Color, format string, args ...interface{}) {
+	color.NoColor = false // force color printing :)
+	c.Fprintf(p.w, format, args...)
 }
 
 func (p *colorPrinter) Statement(format string, args ...interface{}) {
-	printWithColor(statementColor, format+"\n", args...)
+	p.printWithColor(statementColor, format+"\n", args...)
 }
 
 func (p *colorPrinter) Prompt(format string, args ...interface{}) {
-	printWithColor(promptColor, format, args...)
+	p.printWithColor(promptColor, format, args...)
 }
 
 func (p *colorPrinter) Success(format string, args ...interface{}) {
-	printWithColor(successColor, successLabel)
-	printFn(format+"\n", args...)
+	p.printWithColor(successColor, successLabel)
+	printFn(p.w, format+"\n", args...)
 }
 
 func (p *colorPrinter) Error(label string, format string, args ...interface{}) {
-	printWithColor(errorColor, label+": ")
-	printFn(format+"\n", args...)
+	p.printWithColor(errorColor, label+": ")
+	printFn(p.w, format+"\n", args...)
 }
 
-type noColorPrinter struct{}
+type noColorPrinter struct {
+	w io.Writer
+}
 
 func (p *noColorPrinter) Statement(format string, args ...interface{}) {
-	printFn("== "+format+"\n", args...)
+	printFn(p.w, noColorPrefixStatement+format+"\n", args...)
 }
 
 func (p *noColorPrinter) Prompt(format string, args ...interface{}) {
-	printFn("-- "+format, args...)
+	printFn(p.w, noColorPrefixPrompt+format, args...)
 }
 
 func (p *noColorPrinter) Success(format string, args ...interface{}) {
-	printFn(strings.ToUpper(successLabel)+format+"\n", args...)
+	printFn(p.w, strings.ToUpper(successLabel)+format+"\n", args...)
 }
 
 func (p *noColorPrinter) Error(label string, format string, args ...interface{}) {
-	printFn(strings.ToUpper(label)+": "+format+"\n", args...)
+	printFn(p.w, strings.ToUpper(label)+": "+format+"\n", args...)
 }

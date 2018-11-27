@@ -96,7 +96,7 @@ var (
 	errNeedEdit = fmt.Errorf("need to edit")
 
 	// useful for replacing these in testing
-	printFn      = fmt.Printf
+	printFn      = fmt.Fprintf
 	fileExistsFn = fileExists
 
 	pgVersions = []string{"10", "9.6"}
@@ -247,9 +247,9 @@ func processSharedLibLine(handler *ioHandler, cfs *configFileState) error {
 	} else {
 		handler.p.Statement("shared_preload_libraries needs to be updated")
 		handler.p.Statement(currentLabel)
-		printFn(cfs.lines[sharedIdx] + "\n")
+		printFn(os.Stdout, cfs.lines[sharedIdx]+"\n")
 		handler.p.Statement(recommendLabel)
-		printFn(newLine + "\n")
+		printFn(os.Stdout, newLine+"\n")
 		checker := newYesNoChecker(errSharedLibNeeded)
 		err := promptUntilValidInput(handler, promptOkay+promptYesNo, checker)
 		if err != nil {
@@ -303,7 +303,7 @@ func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunablePar
 func processSettingsGroup(handler *ioHandler, cfs *configFileState, sg pgtune.SettingsGroup, quiet bool) error {
 	label := sg.Label()
 	if !quiet {
-		printFn("\n")
+		printFn(os.Stdout, "\n")
 		handler.p.Statement(fmt.Sprintf("%s%s settings recommendations", strings.ToUpper(label[:1]), label[1:]))
 	}
 	keys := sg.Keys()
@@ -341,7 +341,7 @@ func processSettingsGroup(handler *ioHandler, cfs *configFileState, sg pgtune.Se
 					handler.p.Error("missing", r.key)
 					return
 				}
-				printFn(cfs.lines[r.idx] + "\n")
+				printFn(os.Stdout, cfs.lines[r.idx]+"\n")
 			})
 
 			// Now display recommendations, but only those with new recommendations
@@ -349,7 +349,7 @@ func processSettingsGroup(handler *ioHandler, cfs *configFileState, sg pgtune.Se
 		}
 		// Recommendations are always displayed, but the label above may not be
 		doWithVisibile(func(r *tunableParseResult) {
-			printFn(fmtTunableParam, r.key, recommender.Recommend(r.key), r.extra)
+			printFn(os.Stdout, fmtTunableParam, r.key, recommender.Recommend(r.key), r.extra)
 		})
 
 		// Prompt the user for input (only in non-quiet mode)
@@ -412,7 +412,7 @@ func processTunables(handler *ioHandler, cfs *configFileState, totalMemory uint6
 func processQuiet(handler *ioHandler, cfs *configFileState, totalMemory uint64, cpus int) error {
 	handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus)
 	if cfs.sharedLibResult == nil {
-		printFn(plainSharedLibLine + "\n")
+		printFn(os.Stdout, plainSharedLibLine+"\n")
 		cfs.lines = append(cfs.lines, plainSharedLibLine)
 		cfs.sharedLibResult = parseLineForSharedLibResult(plainSharedLibLine)
 		cfs.sharedLibResult.idx = len(cfs.lines) - 1
@@ -420,7 +420,7 @@ func processQuiet(handler *ioHandler, cfs *configFileState, totalMemory uint64, 
 		sharedIdx := cfs.sharedLibResult.idx
 		newLine := updateSharedLibLine(cfs.lines[sharedIdx], cfs.sharedLibResult)
 		if newLine != cfs.lines[sharedIdx] {
-			printFn(newLine + "\n")
+			printFn(os.Stdout, newLine+"\n")
 			cfs.lines[sharedIdx] = newLine
 		}
 	}
@@ -443,9 +443,9 @@ func main() {
 	// setup IO
 	var p printer
 	if f.useColor {
-		p = &colorPrinter{}
+		p = &colorPrinter{os.Stderr}
 	} else {
-		p = &noColorPrinter{}
+		p = &noColorPrinter{os.Stderr}
 	}
 	handler := &ioHandler{p: p}
 
@@ -468,7 +468,7 @@ func main() {
 	handler.br = br
 
 	handler.p.Statement("Using postgresql.conf at this path:")
-	printFn(fileName + "\n\n")
+	printFn(os.Stderr, fileName+"\n\n")
 	if len(f.confPath) == 0 {
 		checker := newYesNoChecker("please pass in the correct path to postgresql.conf using the --conf-path flag")
 		err = promptUntilValidInput(handler, "Is this the correct path? "+promptYesNo, checker)
@@ -498,7 +498,7 @@ func main() {
 			handler.errorExit(err)
 		}
 
-		printFn("\n")
+		printFn(os.Stdout, "\n")
 		err = promptUntilValidInput(handler, promptTune+promptYesNo, newYesNoChecker(""))
 		if err == nil {
 			err = processTunables(handler, cfs, totalMemory, cpus, false /* quiet */)

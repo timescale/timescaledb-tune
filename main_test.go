@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -577,7 +578,7 @@ func TestProcessSharedLibLine(t *testing.T) {
 		cfs.sharedLibResult = parseLineForSharedLibResult(c.lines[0])
 
 		prints := []string{}
-		printFn = func(format string, args ...interface{}) (int, error) {
+		printFn = func(_ io.Writer, format string, args ...interface{}) (int, error) {
 			prints = append(prints, fmt.Sprintf(format, args...))
 			return 0, nil
 		}
@@ -1028,7 +1029,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			}
 		}
 		numPrints := uint64(0)
-		printFn = func(format string, args ...interface{}) (int, error) {
+		printFn = func(_ io.Writer, format string, args ...interface{}) (int, error) {
 			numPrints++
 			return 0, nil
 		}
@@ -1078,7 +1079,7 @@ func TestProcessTunables(t *testing.T) {
 	mem := uint64(10 * parse.Gigabyte)
 	cpus := 6
 	oldPrintFn := printFn
-	printFn = func(_ string, _ ...interface{}) (int, error) {
+	printFn = func(_ io.Writer, _ string, _ ...interface{}) (int, error) {
 		return 0, nil
 	}
 
@@ -1137,7 +1138,7 @@ func TestProcessTunablesSingleCPU(t *testing.T) {
 	mem := uint64(10 * parse.Gigabyte)
 	cpus := 1
 	oldPrintFn := printFn
-	printFn = func(_ string, _ ...interface{}) (int, error) {
+	printFn = func(_ io.Writer, _ string, _ ...interface{}) (int, error) {
 		return 0, nil
 	}
 
