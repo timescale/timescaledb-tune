@@ -1,6 +1,12 @@
 package pgtune
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+	"runtime"
+
+	"github.com/timescale/timescaledb-tune/internal/parse"
+)
 
 // Keys in the conf file that are tunable but not in the other groupings
 const (
@@ -8,6 +14,7 @@ const (
 	StatsTargetKey    = "default_statistics_target"
 	MaxConnectionsKey = "max_connections"
 	RandomPageCostKey = "random_page_cost"
+	MaxLocksPerTx     = "max_locks_per_transaction"
 	EffectiveIOKey    = "effective_io_concurrency" // linux only
 
 	checkpointDefault     = "0.9"
@@ -17,6 +24,14 @@ const (
 	effectiveIODefault    = "200"
 )
 
+// maxLocksValues gives the number of locks for a power-2 memory starting
+// with sub-8GB. i.e.:
+// < 8GB = 64
+// >=8GB, < 16GB = 128
+// >=16GB, < 32GB = 256
+// >=32GB = 512
+var maxLocksValues = []string{"64", "128", "256", "512"}
+
 // MiscLabel is the label used to refer to the miscellaneous settings group
 const MiscLabel = "miscellaneous"
 
@@ -24,17 +39,20 @@ const MiscLabel = "miscellaneous"
 var MiscKeys = []string{
 	StatsTargetKey,
 	RandomPageCostKey,
-	EffectiveIOKey,
 	CheckpointKey,
 	MaxConnectionsKey,
+	MaxLocksPerTx,
+	EffectiveIOKey,
 }
 
 // MiscRecommender gives recommendations for MiscKeys based on system resources.
-type MiscRecommender struct{}
+type MiscRecommender struct {
+	totalMemory uint64
+}
 
 // NewMiscRecommender returns a MiscRecommender (unaffected by system resources).
-func NewMiscRecommender() *MiscRecommender {
-	return &MiscRecommender{}
+func NewMiscRecommender(totalMemory uint64) *MiscRecommender {
+	return &MiscRecommender{totalMemory}
 }
 
 // IsAvailable returns whether this Recommender is usable given the system resources. Always true.
@@ -54,6 +72,14 @@ func (r *MiscRecommender) Recommend(key string) string {
 		val = maxConnectionsDefault
 	} else if key == RandomPageCostKey {
 		val = randomPageCostDefault
+	} else if key == MaxLocksPerTx {
+		for i := len(maxLocksValues) - 1; i >= 1; i-- {
+			limit := uint64(math.Pow(2.0, float64(2+i)))
+			if r.totalMemory >= limit*parse.Gigabyte {
+				return maxLocksValues[i]
+			}
+		}
+		return maxLocksValues[0]
 	} else if key == EffectiveIOKey {
 		val = effectiveIODefault
 	} else {
@@ -63,15 +89,22 @@ func (r *MiscRecommender) Recommend(key string) string {
 }
 
 // MiscSettingsGroup is the SettingsGroup to represent settings that do not fit in other SettingsGroups.
-type MiscSettingsGroup struct{}
+type MiscSettingsGroup struct {
+	totalMemory uint64
+}
 
 // Label should always return the value MiscLabel.
 func (sg *MiscSettingsGroup) Label() string { return MiscLabel }
 
 // Keys should always return the MiscKeys slice.
-func (sg *MiscSettingsGroup) Keys() []string { return MiscKeys }
+func (sg *MiscSettingsGroup) Keys() []string {
+	if runtime.GOOS == "windows" {
+		return MiscKeys[:len(MiscKeys)-1]
+	}
+	return MiscKeys
+}
 
 // GetRecommender should return a new MiscRecommender.
 func (sg *MiscSettingsGroup) GetRecommender() Recommender {
-	return NewMiscRecommender()
+	return NewMiscRecommender(sg.totalMemory)
 }
