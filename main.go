@@ -25,6 +25,7 @@ const (
 	fileNameMac          = "/usr/local/var/postgres/postgresql.conf"
 	fileNameDebianFmt    = "/etc/postgresql/%s/main/postgresql.conf"
 	fileNameRPMFmt       = "/var/lib/pgsql/%s/data/postgresql.conf"
+	fileNameArch         = "/var/lib/postgres/data/postgresql.conf"
 	errConfigNotFoundFmt = "could not find postgresql.conf at any of these locations:\n%v"
 
 	extName = "timescaledb"
@@ -57,7 +58,6 @@ const (
 type flags struct {
 	confPath  string // path to the postgresql.conf file
 	destPath  string // path to output file
-	pgconfig  string // path to the pg_config binary
 	yesAlways bool   // always respond yes to prompts
 	quiet     bool   // show only the bare necessities
 	useColor  bool   // use color in output
@@ -105,7 +105,6 @@ var (
 // Parse args
 func init() {
 	flag.StringVar(&f.confPath, "conf-path", "", "Path to postgresql.conf. If blank, heuristics will be used to find it")
-	flag.StringVar(&f.pgconfig, "pgconfig", "pg_config", "Path to pg_config binary")
 	flag.StringVar(&f.destPath, "out-path", "", "Path to write the new configuration file. If blank, will use the same file that is read from")
 	flag.BoolVar(&f.yesAlways, "yes", false, "Answer 'yes' to every prompt")
 	flag.BoolVar(&f.quiet, "quiet", false, "Show only the total recommendations at the end")
@@ -150,6 +149,10 @@ func getConfigFilePath(os string) (string, error) {
 			if fileName != "" {
 				return fileName, nil
 			}
+		}
+		fileName := try(fileNameArch)
+		if fileName != "" {
+			return fileName, nil
 		}
 	}
 	return "", fmt.Errorf(errConfigNotFoundFmt, strings.Join(tried, "\n"))
