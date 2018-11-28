@@ -1,96 +1,47 @@
-package main
+package tstune
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
-	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
+
+func TestBytesFloatParserParseFloat(t *testing.T) {
+	s := "8" + parse.GB
+	want := float64(8 * parse.Gigabyte)
+	v := &bytesFloatParser{}
+	got, err := v.ParseFloat(s)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if got != want {
+		t.Errorf("incorrect result: got %f want %f", got, want)
+	}
+}
+
+func TestNumericFloatParserParseFloat(t *testing.T) {
+	s := "8.245"
+	want := 8.245
+	v := &numericFloatParser{}
+	got, err := v.ParseFloat(s)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if got != want {
+		t.Errorf("incorrect result: got %f want %f", got, want)
+	}
+}
 
 const testKey = "test_setting"
 
 var testRegex = keyToRegex(testKey)
 
-func TestIsIn(t *testing.T) {
-	cases := []struct {
-		desc string
-		key  string
-		arr  []string
-		want bool
-	}{
-		{
-			desc: "yes, len 1",
-			key:  "foo",
-			arr:  []string{"foo"},
-			want: true,
-		},
-		{
-			desc: "no, len 0",
-			key:  "foo",
-			arr:  []string{},
-			want: false,
-		},
-		{
-			desc: "no, len 1",
-			key:  "bar",
-			arr:  []string{"foo"},
-			want: false,
-		},
-		{
-			desc: "no, len 3",
-			key:  "bar",
-			arr:  []string{"foo1", "foo2", "foo3"},
-			want: false,
-		},
-		{
-			desc: "yes, len 3",
-			key:  "foo2",
-			arr:  []string{"foo1", "foo2", "foo3"},
-			want: true,
-		},
-	}
-
-	for _, c := range cases {
-		if got := isIn(c.key, c.arr); got != c.want {
-			t.Errorf("%s: incorrect value: got %v want %v", c.desc, got, c.want)
-		}
-	}
-}
-
-func TestKeyToParseFn(t *testing.T) {
-	cases := []struct {
-		desc       string
-		key        string
-		parseInput string
-		want       float64
-	}{
-		{
-			desc:       "memory key",
-			key:        pgtune.MemoryKeys[0],
-			parseInput: "10" + parse.GB,
-			want:       float64(10 * parse.Gigabyte),
-		},
-		{
-			desc:       "wal key",
-			key:        pgtune.WALKeys[0],
-			parseInput: "5" + parse.MB,
-			want:       float64(5 * parse.Megabyte),
-		},
-		{
-			desc:       "other key",
-			key:        pgtune.MiscKeys[0],
-			parseInput: "501.0",
-			want:       501.0,
-		},
-	}
-
-	for _, c := range cases {
-		got, err := keyToParseFn(c.key)(c.parseInput)
-		if err != nil {
-			t.Errorf("%s: unexpected error: %v", c.desc, err)
-		} else if got != c.want {
-			t.Errorf("%s: incorrect result: got %v want %v", c.desc, got, c.want)
-		}
+func TestKeyToRegex(t *testing.T) {
+	regex := keyToRegex("foo")
+	want := fmt.Sprintf(tuneRegexFmt, "foo")
+	if got := regex.String(); got != want {
+		t.Errorf("incorrect regex: got %s want %s", got, want)
 	}
 }
 

@@ -1,4 +1,4 @@
-package main
+package tstune
 
 import (
 	"bytes"
@@ -33,9 +33,9 @@ func (p *testPrinter) Success(format string, args ...interface{}) {
 	p.successes = append(p.successes, fmt.Sprintf(format, args...))
 }
 
-func (p *testPrinter) Error(_ string, format string, args ...interface{}) {
+func (p *testPrinter) Error(label string, format string, args ...interface{}) {
 	p.errorCalls++
-	p.errors = append(p.errors, fmt.Sprintf(format, args...))
+	p.errors = append(p.errors, fmt.Sprintf(label+": "+format, args...))
 }
 
 const whiteBoldSeq = "\x1b[37;1m"

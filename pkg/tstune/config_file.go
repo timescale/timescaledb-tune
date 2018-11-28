@@ -1,4 +1,4 @@
-package main
+package tstune
 
 import (
 	"bufio"
@@ -6,7 +6,16 @@ import (
 	"io"
 )
 
-// configFileState represents that the postgresql.conf file, including all of its
+type tunableParseResult struct {
+	idx       int
+	commented bool
+	missing   bool
+	key       string
+	value     string
+	extra     string
+}
+
+// configFileState represents the postgresql.conf file, including all of its
 // lines, the parsed result of the shared_preload_libraries line, and parse results
 // for parameters we care about tuning
 type configFileState struct {

@@ -10,7 +10,7 @@ parallelism, WAL, and other settings.
 ### Getting started
 You need the Go runtime (1.10+) installed, then simply `go get` this repo:
 ```bash
-$ go get github.com/timescale/timescaledb-tune
+$ go get github.com/timescale/timescaledb-tune/cmd/timescaledb-tune
 ```
 
 ### Using timescaledb-tune
@@ -83,6 +83,12 @@ $ timescaledb-tune --quiet
 And if you want to skip all prompts and get quiet output:
 ```bash
 $ timescaledb-tune --quiet --yes
+```
+
+And if you want to append the recommendations to the end of your conf file
+instead of in-place replacement:
+```bash
+$ timescaledb-tune --quiet --yes --dry-run > /path/to/postgresql.conf
 ```
 
 ### Contributing

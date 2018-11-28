@@ -1,4 +1,4 @@
-package main
+package tstune
 
 import (
 	"bufio"
@@ -11,6 +11,10 @@ import (
 	"github.com/timescale/timescaledb-tune/internal/parse"
 	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
+
+func newTunerWithDefaultFlags(handler *ioHandler, cfs *configFileState) *Tuner {
+	return &Tuner{handler, cfs, &TunerFlags{}}
+}
 
 func TestGetConfigFilePath(t *testing.T) {
 	cases := []struct {
@@ -157,7 +161,6 @@ func TestPromptUntilValidInput(t *testing.T) {
 	}
 
 	testString := "foo\nFoo\nFOO\nfOo\nfOO\n\n"
-
 	for _, c := range cases {
 		buf := bytes.NewBuffer([]byte(testString))
 		br := bufio.NewReader(buf)
@@ -165,8 +168,9 @@ func TestPromptUntilValidInput(t *testing.T) {
 			p:  &testPrinter{},
 			br: br,
 		}
+		tuner := newTunerWithDefaultFlags(handler, nil)
 		checker := &limitChecker{limit: c.limit, shouldErr: c.shouldErr}
-		err := promptUntilValidInput(handler, "test prompt", checker)
+		err := tuner.promptUntilValidInput("test prompt", checker)
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {
@@ -187,126 +191,20 @@ func TestPromptUntilValidInput(t *testing.T) {
 			}
 		}
 	}
-}
 
-func TestParseLineForSharedLibResult(t *testing.T) {
-	cases := []struct {
-		desc  string
-		input string
-		want  *sharedLibResult
-	}{
-		{
-			desc: "initial config value",
-			input: "#shared_preload_libraries = ''		# (change requires restart)",
-			want: &sharedLibResult{
-				commented:    true,
-				hasTimescale: false,
-				libs:         "",
-			},
-		},
-		{
-			desc: "extra commented out",
-			input: "###shared_preload_libraries = ''		# (change requires restart)",
-			want: &sharedLibResult{
-				commented:    true,
-				hasTimescale: false,
-				libs:         "",
-			},
-		},
-		{
-			desc: "commented with space after",
-			input: "# shared_preload_libraries = ''		# (change requires restart)",
-			want: &sharedLibResult{
-				commented:    true,
-				hasTimescale: false,
-				libs:         "",
-			},
-		},
-		{
-			desc: "extra commented with space after",
-			input: "## shared_preload_libraries = ''		# (change requires restart)",
-			want: &sharedLibResult{
-				commented:    true,
-				hasTimescale: false,
-				libs:         "",
-			},
-		},
-		{
-			desc: "initial config value, uncommented",
-			input: "shared_preload_libraries = ''		# (change requires restart)",
-			want: &sharedLibResult{
-				commented:    false,
-				hasTimescale: false,
-				libs:         "",
-			},
-		},
-		{
-			desc: "initial config value, uncommented with leading space",
-			input: "  shared_preload_libraries = ''		# (change requires restart)",
-			want: &sharedLibResult{
-				commented:    false,
-				hasTimescale: false,
-				libs:         "",
-			},
-		},
-		{
-			desc: "timescaledb already there but commented",
-			input: "#shared_preload_libraries = 'timescaledb'		# (change requires restart)",
-			want: &sharedLibResult{
-				commented:    true,
-				hasTimescale: true,
-				libs:         "timescaledb",
-			},
-		},
-		{
-			desc:  "other libraries besides timescaledb, commented",
-			input: "#shared_preload_libraries = 'pg_stats' # (change requires restart)   ",
-			want: &sharedLibResult{
-				commented:    true,
-				hasTimescale: false,
-				libs:         "pg_stats",
-			},
-		},
-		{
-			desc:  "no string after the quotes",
-			input: "shared_preload_libraries = 'pg_stats,timescaledb'",
-			want: &sharedLibResult{
-				commented:    false,
-				hasTimescale: true,
-				libs:         "pg_stats,timescaledb",
-			},
-		},
-		{
-			desc: "don't be greedy with things between single quotes",
-			input: "#shared_preload_libraries = 'timescaledb'		# comment with single quote ' test",
-			want: &sharedLibResult{
-				commented:    true,
-				hasTimescale: true,
-				libs:         "timescaledb",
-			},
-		},
-		{
-			desc:  "not shared preload line",
-			input: "data_dir = '/path/to/data'",
-			want:  nil,
-		},
-	}
+	// check --yes case works
 	for _, c := range cases {
-		res := parseLineForSharedLibResult(c.input)
-		if res == nil && c.want != nil {
-			t.Errorf("%s: result was unexpectedly nil: want %v", c.desc, c.want)
-		} else if res != nil && c.want == nil {
-			t.Errorf("%s: result was unexpectedly non-nil: got %v", c.desc, res)
-		} else if c.want != nil {
-			if got := res.commented; got != c.want.commented {
-				t.Errorf("%s: incorrect commented: got %v want %v", c.desc, got, c.want.commented)
-			}
-			if got := res.hasTimescale; got != c.want.hasTimescale {
-				t.Errorf("%s: incorrect hasTimescale: got %v want %v", c.desc, got, c.want.hasTimescale)
-			}
-			if got := res.libs; got != c.want.libs {
-				t.Errorf("%s: incorrect libs: got %s want %s", c.desc, got, c.want.libs)
-			}
+		buf := bytes.NewBuffer([]byte(testString))
+		br := bufio.NewReader(buf)
+		handler := &ioHandler{
+			p:  &testPrinter{},
+			br: br,
+		}
+		tuner := &Tuner{handler: handler, flags: &TunerFlags{YesAlways: true}}
+		checker := &limitChecker{limit: c.limit, shouldErr: c.shouldErr}
+		err := tuner.promptUntilValidInput("test prompt", checker)
+		if err != nil {
+			t.Errorf("%s: unexpected error in yesAlways case: %v", c.desc, err)
 		}
 	}
 }
@@ -472,7 +370,8 @@ func TestProcessNoSharedLibLine(t *testing.T) {
 			br: br,
 		}
 		cfs := &configFileState{lines: []string{}}
-		err := processNoSharedLibLine(handler, cfs)
+		tuner := newTunerWithDefaultFlags(handler, cfs)
+		err := tuner.processNoSharedLibLine()
 		if got := handler.p.(*testPrinter).statementCalls; got != 1 {
 			t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, 1)
 		}
@@ -576,6 +475,7 @@ func TestProcessSharedLibLine(t *testing.T) {
 		}
 		cfs := &configFileState{lines: c.lines}
 		cfs.sharedLibResult = parseLineForSharedLibResult(c.lines[0])
+		tuner := newTunerWithDefaultFlags(handler, cfs)
 
 		prints := []string{}
 		printFn = func(_ io.Writer, format string, args ...interface{}) (int, error) {
@@ -583,7 +483,7 @@ func TestProcessSharedLibLine(t *testing.T) {
 			return 0, nil
 		}
 
-		err := processSharedLibLine(handler, cfs)
+		err := tuner.processSharedLibLine()
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {
@@ -614,6 +514,32 @@ func TestProcessSharedLibLine(t *testing.T) {
 	}
 
 	printFn = oldPrintFn
+}
+
+func TestGetFloatParser(t *testing.T) {
+	switch x := (getFloatParser(&pgtune.MemoryRecommender{})).(type) {
+	case *bytesFloatParser:
+	default:
+		t.Errorf("wrong validator type for MemoryRecommender: got %T", x)
+	}
+
+	switch x := (getFloatParser(&pgtune.WALRecommender{})).(type) {
+	case *bytesFloatParser:
+	default:
+		t.Errorf("wrong validator type for WALRecommender: got %T", x)
+	}
+
+	switch x := (getFloatParser(&pgtune.ParallelRecommender{})).(type) {
+	case *numericFloatParser:
+	default:
+		t.Errorf("wrong validator type for ParallelRecommender: got %T", x)
+	}
+
+	switch x := (getFloatParser(&pgtune.MiscRecommender{})).(type) {
+	case *numericFloatParser:
+	default:
+		t.Errorf("wrong validator type for MiscRecommender: got %T", x)
+	}
 }
 
 func TestCheckIfShouldShowSetting(t *testing.T) {
@@ -1028,13 +954,15 @@ func TestProcessSettingsGroup(t *testing.T) {
 				}
 			}
 		}
+		tuner := newTunerWithDefaultFlags(handler, cfs)
+
 		numPrints := uint64(0)
-		printFn = func(_ io.Writer, format string, args ...interface{}) (int, error) {
+		printFn = func(_ io.Writer, _ string, _ ...interface{}) (int, error) {
 			numPrints++
 			return 0, nil
 		}
 
-		err := processSettingsGroup(handler, cfs, c.ts, false /* quiet */)
+		err := tuner.processSettingsGroup(c.ts, false /* quiet */)
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {
@@ -1091,7 +1019,8 @@ func TestProcessTunables(t *testing.T) {
 	}
 
 	cfs := &configFileState{lines: []string{}, tuneParseResults: make(map[string]*tunableParseResult)}
-	processTunables(handler, cfs, mem, cpus, false)
+	tuner := newTunerWithDefaultFlags(handler, cfs)
+	tuner.processTunables(mem, cpus, false /* quiet */)
 
 	tp := handler.p.(*testPrinter)
 	// Total number of statements is intro statement and then 3 per group of settings;
@@ -1150,7 +1079,8 @@ func TestProcessTunablesSingleCPU(t *testing.T) {
 	}
 
 	cfs := &configFileState{lines: []string{}, tuneParseResults: make(map[string]*tunableParseResult)}
-	processTunables(handler, cfs, mem, cpus, false)
+	tuner := newTunerWithDefaultFlags(handler, cfs)
+	tuner.processTunables(mem, cpus, false)
 
 	tp := handler.p.(*testPrinter)
 	// Total number of statements is intro statement and then 3 per group of settings;

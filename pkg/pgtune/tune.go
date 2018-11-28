@@ -1,3 +1,6 @@
+// Package pgtune provides the resources and interfaces for getting tuning
+// recommendations based on heuristics and knowledge from the online pgtune tool
+// for groups of settings in a PostgreSQL conf file.
 package pgtune
 
 const osWindows = "windows"
