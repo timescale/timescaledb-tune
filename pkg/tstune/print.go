@@ -1,6 +1,7 @@
-package main
+package tstune
 
 import (
+	"fmt"
 	"io"
 	"strings"
 
@@ -18,6 +19,8 @@ var (
 	promptColor    = color.New(color.FgMagenta, color.Bold) // color for prompt/questions requiring user input
 	successColor   = color.New(color.FgGreen, color.Bold)
 	errorColor     = color.New(color.FgRed, color.Bold)
+
+	printFn = fmt.Fprintf
 )
 
 type printer interface {
@@ -32,7 +35,7 @@ type colorPrinter struct {
 }
 
 func (p *colorPrinter) printWithColor(c *color.Color, format string, args ...interface{}) {
-	color.NoColor = false // force color printing :)
+	color.NoColor = false
 	c.Fprintf(p.w, format, args...)
 }
 
