@@ -505,6 +505,8 @@ func main() {
 			if err != nil {
 				handler.errorExit(err)
 			}
+		} else if err.Error() != "" { // error msg of "" is response when user selects no to tuning
+			handler.errorExit(err)
 		}
 	}
 
