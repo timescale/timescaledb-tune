@@ -124,12 +124,16 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		}
 	}
 
+	ifErrHandle := func(err error) {
+		if err != nil {
+			t.handler.errorExit(err)
+		}
+	}
+
 	// write backup
 
 	cfs, err := getConfigFileState(file)
-	if err != nil {
-		t.handler.errorExit(err)
-	}
+	ifErrHandle(err)
 	t.cfs = cfs
 
 	totalMemory := memory.TotalMemory()
@@ -137,19 +141,16 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 
 	if t.flags.Quiet {
 		err = t.processQuiet(totalMemory, cpus)
-		if err != nil {
-			t.handler.errorExit(err)
-		}
+		ifErrHandle(err)
 	} else {
 		err = t.processSharedLibLine()
-		if err != nil {
-			t.handler.errorExit(err)
-		}
+		ifErrHandle(err)
 
 		printFn(os.Stderr, "\n")
 		err = t.promptUntilValidInput(promptTune+promptYesNo, newYesNoChecker(""))
 		if err == nil {
-			t.processTunables(totalMemory, cpus, false /* quiet */)
+			err = t.processTunables(totalMemory, cpus, false /* quiet */)
+			ifErrHandle(err)
 		} else if err.Error() != "" { // error msg of "" is response when user selects no to tuning
 			t.handler.errorExit(err)
 		}
@@ -170,9 +171,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 			t.handler.exit(1, "could not open %s for writing: %v", outPath, err)
 		}
 		_, err = t.cfs.WriteTo(f)
-		if err != nil {
-			t.handler.errorExit(err)
-		}
+		ifErrHandle(err)
 	} else {
 		t.handler.p.Statement("Success, but not writing due to --dry-run flag")
 	}
@@ -289,22 +288,29 @@ func (t *Tuner) processSharedLibLine() error {
 		return t.processNoSharedLibLine()
 	}
 
-	sharedIdx := t.cfs.sharedLibResult.idx
-	newLine := updateSharedLibLine(t.cfs.lines[sharedIdx], t.cfs.sharedLibResult)
-	if newLine == t.cfs.lines[sharedIdx] { // already valid, nothing to do
+	res := t.cfs.sharedLibResult
+	idx := res.idx
+	newLine := updateSharedLibLine(t.cfs.lines[idx], res)
+	if newLine == t.cfs.lines[idx] { // already valid, nothing to do
 		t.handler.p.Success(successSharedLibCorrect)
 	} else {
 		t.handler.p.Statement("shared_preload_libraries needs to be updated")
 		t.handler.p.Statement(currentLabel)
-		printFn(t.handler.out, t.cfs.lines[sharedIdx]+"\n")
+		// want to print without trailing comments to reduce clutter
+		currWithoutComments := fmt.Sprintf("%sshared_preload_libraries = '%s'", res.commentGroup, res.libs)
+		printFn(t.handler.out, currWithoutComments+"\n")
+
 		t.handler.p.Statement(recommendLabel)
-		printFn(t.handler.out, newLine+"\n")
+		// want to print without trailing comments to reduce clutter
+		recWithoutComments := updateSharedLibLine(currWithoutComments, res)
+		printFn(t.handler.out, recWithoutComments+"\n")
+
 		checker := newYesNoChecker(errSharedLibNeeded)
 		err := t.promptUntilValidInput(promptOkay+promptYesNo, checker)
 		if err != nil {
 			return err
 		}
-		t.cfs.lines[sharedIdx] = newLine
+		t.cfs.lines[idx] = newLine // keep trailing comments when writing
 		t.handler.p.Success(successSharedLibUpdated)
 	}
 	return nil
@@ -403,7 +409,11 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, quiet bool) error 
 					t.handler.p.Error("missing", r.key)
 					return
 				}
-				printFn(os.Stdout, t.cfs.lines[r.idx]+"\n")
+				format := fmtTunableParam
+				if r.commented {
+					format = "#" + format
+				}
+				printFn(os.Stdout, format, r.key, r.value, "") // don't print comment, too cluttered
 			})
 
 			// Now display recommendations, but only those with new recommendations
@@ -411,7 +421,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, quiet bool) error 
 		}
 		// Recommendations are always displayed, but the label above may not be
 		doWithVisibile(func(r *tunableParseResult) {
-			printFn(os.Stdout, fmtTunableParam, r.key, recommender.Recommend(r.key), r.extra)
+			printFn(os.Stdout, fmtTunableParam, r.key, recommender.Recommend(r.key), "") // don't print comment, too cluttered
 		})
 
 		// Prompt the user for input (only in non-quiet mode)
@@ -429,7 +439,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, quiet bool) error 
 
 		// If we reach here, it means the user accepted our recommendations, so update the lines
 		doWithVisibile(func(r *tunableParseResult) {
-			newLine := fmt.Sprintf(fmtTunableParam, r.key, recommender.Recommend(r.key), r.extra)
+			newLine := fmt.Sprintf(fmtTunableParam, r.key, recommender.Recommend(r.key), r.extra) // do write comment into file
 			if r.idx == -1 {
 				t.cfs.lines = append(t.cfs.lines, newLine)
 			} else {
@@ -487,7 +497,7 @@ func (t *Tuner) processQuiet(totalMemory uint64, cpus int) error {
 		}
 	}
 
-	t.processTunables(totalMemory, cpus, true /* quiet */)
+	_ = t.processTunables(totalMemory, cpus, true /* quiet */)
 	checker := newYesNoChecker("not using these settings could lead to suboptimal performance")
 	err := t.promptUntilValidInput("Use these recommendations? "+promptYesNo, checker)
 	if err != nil {
