@@ -395,6 +395,7 @@ func TestProcessNoSharedLibLine(t *testing.T) {
 
 func TestProcessSharedLibLine(t *testing.T) {
 	okLine := "shared_preload_libraries = 'timescaledb' # (need restart)"
+	okLinePrint := "shared_preload_libraries = 'timescaledb'"
 	cases := []struct {
 		desc       string
 		lines      []string
@@ -421,17 +422,17 @@ func TestProcessSharedLibLine(t *testing.T) {
 			shouldErr:  false,
 			prompts:    1,
 			statements: 3,
-			prints:     []string{"#" + okLine + "\n", okLine + "\n"},
+			prints:     []string{"#" + okLinePrint + "\n", okLinePrint + "\n"},
 			successMsg: successSharedLibUpdated,
 		},
 		{
 			desc:       "success on 2nd prompt",
-			lines:      []string{"#" + okLine},
+			lines:      []string{"  ##  " + okLine},
 			input:      " \ny\n",
 			shouldErr:  false,
 			prompts:    2,
 			statements: 3,
-			prints:     []string{"#" + okLine + "\n", okLine + "\n"},
+			prints:     []string{"##  " + okLinePrint + "\n", okLinePrint + "\n"},
 			successMsg: successSharedLibUpdated,
 		},
 		{
@@ -441,7 +442,7 @@ func TestProcessSharedLibLine(t *testing.T) {
 			shouldErr:  true,
 			prompts:    2,
 			statements: 3,
-			prints:     []string{"#" + okLine + "\n", okLine + "\n"},
+			prints:     []string{"#" + okLinePrint + "\n", okLinePrint + "\n"},
 			successMsg: "",
 		},
 		{
