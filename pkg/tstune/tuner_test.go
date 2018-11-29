@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -14,6 +15,72 @@ import (
 
 func newTunerWithDefaultFlags(handler *ioHandler, cfs *configFileState) *Tuner {
 	return &Tuner{handler, cfs, &TunerFlags{}}
+}
+
+func TestTunerInitializeIOHandler(t *testing.T) {
+	tuner := &Tuner{nil, nil, &TunerFlags{}}
+	tuner.flags.UseColor = true
+	tuner.initializeIOHandler(os.Stdout, os.Stderr)
+
+	switch x := tuner.handler.p.(type) {
+	case *colorPrinter:
+	default:
+		t.Errorf("non-color printer for UseColor flag: got %T", x)
+	}
+
+	tuner.flags.UseColor = false
+	tuner.initializeIOHandler(os.Stdout, os.Stderr)
+
+	switch x := tuner.handler.p.(type) {
+	case *noColorPrinter:
+	default:
+		t.Errorf("color printer for UseColor=false flag: got %T", x)
+	}
+}
+
+func TestFileExists(t *testing.T) {
+	existsName := "exists.txt"
+	errorName := "error.txt"
+	cases := []struct {
+		desc     string
+		filename string
+		want     bool
+	}{
+		{
+			desc:     "found file",
+			filename: existsName,
+			want:     true,
+		},
+		{
+			desc:     "not found file",
+			filename: "ghost.txt",
+			want:     false,
+		},
+		{
+			desc:     "error in stat",
+			filename: errorName,
+			want:     false,
+		},
+	}
+
+	oldOSStatFn := osStatFn
+	osStatFn = func(name string) (os.FileInfo, error) {
+		if name == existsName {
+			return nil, nil
+		} else if name == errorName {
+			return nil, fmt.Errorf("this is an error")
+		} else {
+			return nil, os.ErrNotExist
+		}
+	}
+
+	for _, c := range cases {
+		if got := fileExists(c.filename); got != c.want {
+			t.Errorf("%s: incorrect result: got %v want %v", c.desc, got, c.want)
+		}
+	}
+
+	osStatFn = oldOSStatFn
 }
 
 func TestGetConfigFilePath(t *testing.T) {
@@ -67,6 +134,14 @@ func TestGetConfigFilePath(t *testing.T) {
 			shouldErr: false,
 		},
 		{
+			desc:      "linux - arch",
+			os:        osLinux,
+			files:     []string{fileNameArch},
+			wantFile:  fileNameArch,
+			shouldErr: false,
+		},
+
+		{
 			desc:      "linux - no",
 			os:        osLinux,
 			files:     []string{fmt.Sprintf(fileNameDebianFmt, "9.0")},
@@ -75,15 +150,15 @@ func TestGetConfigFilePath(t *testing.T) {
 		},
 	}
 
-	oldFileExistsFn := fileExistsFn
+	oldOSStatFn := osStatFn
 	for _, c := range cases {
-		fileExistsFn = func(fn string) bool {
+		osStatFn = func(fn string) (os.FileInfo, error) {
 			for _, s := range c.files {
 				if fn == s {
-					return true
+					return nil, nil
 				}
 			}
-			return false
+			return nil, os.ErrNotExist
 		}
 		filename, err := getConfigFilePath(c.os)
 		if err != nil && !c.shouldErr {
@@ -100,7 +175,7 @@ func TestGetConfigFilePath(t *testing.T) {
 			t.Errorf("%s: incorrect filename: got %s want %s", c.desc, got, c.wantFile)
 		}
 	}
-	fileExistsFn = oldFileExistsFn
+	osStatFn = oldOSStatFn
 }
 
 type limitChecker struct {
