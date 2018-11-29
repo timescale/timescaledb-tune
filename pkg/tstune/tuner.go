@@ -52,7 +52,7 @@ const (
 )
 
 var (
-	fileExistsFn = fileExists
+	osStatFn = os.Stat
 
 	pgVersions = []string{"10", "9.6"}
 )
@@ -78,6 +78,16 @@ type Tuner struct {
 	flags   *TunerFlags
 }
 
+func (t *Tuner) initializeIOHandler(out io.Writer, outErr io.Writer) {
+	var p printer
+	if t.flags.UseColor {
+		p = &colorPrinter{outErr}
+	} else {
+		p = &noColorPrinter{outErr}
+	}
+	t.handler = &ioHandler{p: p, out: out, outErr: outErr}
+}
+
 // Run executes the tuning process given the provided flags and looks for input
 // on the in io.Reader. Informational messages are written to outErr while
 // actual recommendations are written to out.
@@ -86,23 +96,20 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	if t.flags == nil {
 		t.flags = &TunerFlags{}
 	}
-	var err error
-	// setup IO
-	var p printer
-	if t.flags.UseColor {
-		p = &colorPrinter{outErr}
-	} else {
-		p = &noColorPrinter{outErr}
+	t.initializeIOHandler(out, outErr)
+
+	ifErrHandle := func(err error) {
+		if err != nil {
+			t.handler.errorExit(err)
+		}
 	}
-	t.handler = &ioHandler{p: p, out: out, outErr: outErr}
+	var err error
 
 	// attempt to find the config file and open it for reading
 	fileName := t.flags.ConfPath
 	if len(fileName) == 0 {
 		fileName, err = getConfigFilePath(runtime.GOOS)
-		if err != nil {
-			t.handler.errorExit(err)
-		}
+		ifErrHandle(err)
 	}
 
 	file, err := os.Open(fileName)
@@ -121,12 +128,6 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		err = t.promptUntilValidInput("Is this the correct path? "+promptYesNo, checker)
 		if err != nil {
 			t.handler.exit(0, err.Error())
-		}
-	}
-
-	ifErrHandle := func(err error) {
-		if err != nil {
-			t.handler.errorExit(err)
 		}
 	}
 
@@ -177,20 +178,25 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	}
 }
 
+// fileExists is a simple check for stating if a file exists and if any error
+// occurs it returns false.
 func fileExists(name string) bool {
 	// for our purposes, any error is a problem, so assume it does not exist
-	if _, err := os.Stat(name); err != nil {
+	if _, err := osStatFn(name); err != nil {
 		return false
 	}
 	return true
 }
 
+// getConfigFilePath attempts to find the postgresql.conf file using path heuristics
+// for different operating systems. If successful it returns the full path to
+// the file; otherwise, it returns with an empty path and error.
 func getConfigFilePath(os string) (string, error) {
 	tried := []string{}
 	try := func(format string, args ...interface{}) string {
 		fileName := fmt.Sprintf(format, args...)
 		tried = append(tried, fileName)
-		if fileExistsFn(fileName) {
+		if fileExists(fileName) {
 			return fileName
 		}
 		return ""
