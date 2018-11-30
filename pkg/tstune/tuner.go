@@ -18,14 +18,6 @@ import (
 )
 
 const (
-	osMac                = "darwin"
-	osLinux              = "linux"
-	fileNameMac          = "/usr/local/var/postgres/postgresql.conf"
-	fileNameDebianFmt    = "/etc/postgresql/%s/main/postgresql.conf"
-	fileNameRPMFmt       = "/var/lib/pgsql/%s/data/postgresql.conf"
-	fileNameArch         = "/var/lib/postgres/data/postgresql.conf"
-	errConfigNotFoundFmt = "could not find postgresql.conf at any of these locations:\n%v"
-
 	currentLabel   = "Current:"
 	recommendLabel = "Recommended:"
 
@@ -177,57 +169,6 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	}
 }
 
-// fileExists is a simple check for stating if a file exists and if any error
-// occurs it returns false.
-func fileExists(name string) bool {
-	// for our purposes, any error is a problem, so assume it does not exist
-	if _, err := osStatFn(name); err != nil {
-		return false
-	}
-	return true
-}
-
-// getConfigFilePath attempts to find the postgresql.conf file using path heuristics
-// for different operating systems. If successful it returns the full path to
-// the file; otherwise, it returns with an empty path and error.
-func getConfigFilePath(os string) (string, error) {
-	tried := []string{}
-	try := func(format string, args ...interface{}) string {
-		fileName := fmt.Sprintf(format, args...)
-		tried = append(tried, fileName)
-		if fileExists(fileName) {
-			return fileName
-		}
-		return ""
-	}
-	switch {
-	case os == osMac:
-		fileName := try(fileNameMac)
-		if fileName != "" {
-			return fileName, nil
-		}
-	case os == osLinux:
-		for _, v := range pgVersions {
-			fileName := try(fileNameDebianFmt, v)
-			if fileName != "" {
-				return fileName, nil
-			}
-		}
-		for _, v := range pgVersions {
-			fileName := try(fileNameRPMFmt, v)
-			if fileName != "" {
-				return fileName, nil
-			}
-		}
-
-		fileName := try(fileNameArch)
-		if fileName != "" {
-			return fileName, nil
-		}
-	}
-	return "", fmt.Errorf(errConfigNotFoundFmt, strings.Join(tried, "\n"))
-}
-
 // promptUntilValidInput continually prompts the user via handler's output to
 // answer a question provided in prompt until an acceptable answer is given.
 func (t *Tuner) promptUntilValidInput(prompt string, checker promptChecker) error {
@@ -246,28 +187,6 @@ func (t *Tuner) promptUntilValidInput(prompt string, checker promptChecker) erro
 			return err
 		}
 	}
-}
-
-// updateSharedLibLine takes a given line that matched the shared_preload_libraries
-// regex and updates it to validly include the 'timescaledb' extension.
-func updateSharedLibLine(line string, parseResult *sharedLibResult) string {
-	res := line
-	if parseResult.commented {
-		res = strings.Replace(res, parseResult.commentGroup, "", 1)
-	}
-
-	if parseResult.hasTimescale {
-		return res
-	}
-	newLibsVal := "= '"
-	if len(parseResult.libs) > 0 {
-		newLibsVal += parseResult.libs + ","
-	}
-	newLibsVal += extName + "'"
-	replaceVal := "= '" + parseResult.libs + "'"
-	res = strings.Replace(res, replaceVal, newLibsVal, 1)
-
-	return res
 }
 
 // processNoSharedLibLine goes through interactions with the user if the

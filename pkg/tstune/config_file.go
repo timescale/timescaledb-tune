@@ -4,7 +4,69 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"strings"
 )
+
+const (
+	osMac                = "darwin"
+	osLinux              = "linux"
+	fileNameMac          = "/usr/local/var/postgres/postgresql.conf"
+	fileNameDebianFmt    = "/etc/postgresql/%s/main/postgresql.conf"
+	fileNameRPMFmt       = "/var/lib/pgsql/%s/data/postgresql.conf"
+	fileNameArch         = "/var/lib/postgres/data/postgresql.conf"
+	errConfigNotFoundFmt = "could not find postgresql.conf at any of these locations:\n%v"
+)
+
+// fileExists is a simple check for stating if a file exists and if any error
+// occurs it returns false.
+func fileExists(name string) bool {
+	// for our purposes, any error is a problem, so assume it does not exist
+	if _, err := osStatFn(name); err != nil {
+		return false
+	}
+	return true
+}
+
+// getConfigFilePath attempts to find the postgresql.conf file using path heuristics
+// for different operating systems. If successful it returns the full path to
+// the file; otherwise, it returns with an empty path and error.
+func getConfigFilePath(os string) (string, error) {
+	tried := []string{}
+	try := func(format string, args ...interface{}) string {
+		fileName := fmt.Sprintf(format, args...)
+		tried = append(tried, fileName)
+		if fileExists(fileName) {
+			return fileName
+		}
+		return ""
+	}
+	switch {
+	case os == osMac:
+		fileName := try(fileNameMac)
+		if fileName != "" {
+			return fileName, nil
+		}
+	case os == osLinux:
+		for _, v := range pgVersions {
+			fileName := try(fileNameDebianFmt, v)
+			if fileName != "" {
+				return fileName, nil
+			}
+		}
+		for _, v := range pgVersions {
+			fileName := try(fileNameRPMFmt, v)
+			if fileName != "" {
+				return fileName, nil
+			}
+		}
+
+		fileName := try(fileNameArch)
+		if fileName != "" {
+			return fileName, nil
+		}
+	}
+	return "", fmt.Errorf(errConfigNotFoundFmt, strings.Join(tried, "\n"))
+}
 
 type tunableParseResult struct {
 	idx       int

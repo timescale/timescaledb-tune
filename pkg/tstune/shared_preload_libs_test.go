@@ -123,3 +123,106 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 		}
 	}
 }
+
+func TestUpdateSharedLibLine(t *testing.T) {
+	confKey := "shared_preload_libraries = "
+	simpleOkayCase := confKey + "'" + extName + "'"
+	simpleOkayCaseExtra := simpleOkayCase + " # (change requires restart)"
+	cases := []struct {
+		desc     string
+		original string
+		want     string
+	}{
+		{
+			desc:     "original = ok",
+			original: simpleOkayCase,
+			want:     simpleOkayCase,
+		},
+		{
+			desc:     "original = ok w/ ending comments",
+			original: simpleOkayCaseExtra,
+			want:     simpleOkayCaseExtra,
+		},
+		{
+			desc:     "original = ok w/ prepended spaces",
+			original: "   " + simpleOkayCase,
+			want:     "   " + simpleOkayCase,
+		},
+		{
+			desc:     "just need to uncomment",
+			original: "#" + simpleOkayCase,
+			want:     simpleOkayCase,
+		},
+		{
+			desc:     "just need to uncomment w/ ending comments",
+			original: "#" + simpleOkayCaseExtra,
+			want:     simpleOkayCaseExtra,
+		},
+		{
+			desc:     "just need to uncomment multiple times",
+			original: "###" + simpleOkayCase,
+			want:     simpleOkayCase,
+		},
+		{
+			desc:     "uncomment + spaces",
+			original: "###  " + simpleOkayCase,
+			want:     simpleOkayCase,
+		},
+		{
+			desc:     "needs to be added, empty list",
+			original: confKey + "''",
+			want:     simpleOkayCase,
+		},
+		{
+			desc:     "needs to be added, empty list, commented out",
+			original: "#" + confKey + "''",
+			want:     simpleOkayCase,
+		},
+		{
+			desc:     "needs to be added, empty list, trailing comment",
+			original: confKey + "'' # (change requires restart)",
+			want:     simpleOkayCaseExtra,
+		},
+		{
+			desc:     "needs to be added, one item",
+			original: confKey + "'pg_stats'",
+			want:     confKey + "'pg_stats," + extName + "'",
+		},
+		{
+			desc:     "needs to be added, t item, commented out",
+			original: "#" + confKey + "'pg_stats,ext2'",
+			want:     confKey + "'pg_stats,ext2," + extName + "'",
+		},
+		{
+			desc:     "needs to be added, two items",
+			original: confKey + "'pg_stats'",
+			want:     confKey + "'pg_stats," + extName + "'",
+		},
+		{
+			desc:     "needs to be added, two items, commented out",
+			original: "#" + confKey + "'pg_stats,ext2'",
+			want:     confKey + "'pg_stats,ext2," + extName + "'",
+		},
+		{
+			desc:     "in list with others",
+			original: confKey + "'timescaledb,pg_stats'",
+			want:     confKey + "'timescaledb,pg_stats'",
+		},
+		{
+			desc:     "in list with others, commented out",
+			original: "#" + confKey + "'timescaledb,pg_stats'",
+			want:     confKey + "'timescaledb,pg_stats'",
+		},
+	}
+
+	for _, c := range cases {
+		res := parseLineForSharedLibResult(c.original)
+		if res == nil {
+			t.Errorf("%s: parsing gave unexpected nil", c.desc)
+		}
+		got := updateSharedLibLine(c.original, res)
+		if got != c.want {
+			t.Errorf("%s: incorrect result: got\n%s\nwant\n%s", c.desc, got, c.want)
+		}
+	}
+}

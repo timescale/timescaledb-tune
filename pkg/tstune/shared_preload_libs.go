@@ -35,3 +35,25 @@ func parseLineForSharedLibResult(line string) *sharedLibResult {
 	}
 	return nil
 }
+
+// updateSharedLibLine takes a given line that matched the shared_preload_libraries
+// regex and updates it to validly include the 'timescaledb' extension.
+func updateSharedLibLine(line string, parseResult *sharedLibResult) string {
+	res := line
+	if parseResult.commented {
+		res = strings.Replace(res, parseResult.commentGroup, "", 1)
+	}
+
+	if parseResult.hasTimescale {
+		return res
+	}
+	newLibsVal := "= '"
+	if len(parseResult.libs) > 0 {
+		newLibsVal += parseResult.libs + ","
+	}
+	newLibsVal += extName + "'"
+	replaceVal := "= '" + parseResult.libs + "'"
+	res = strings.Replace(res, replaceVal, newLibsVal, 1)
+
+	return res
+}
