@@ -33,18 +33,17 @@ const (
 	promptYesNo = "[(y)es/(n)o]: "
 	promptSkip  = "[(y)es/(s)kip/(q)uit]: "
 
-	errSharedLibNeeded         = "`timescaledb` needs to be added to shared_preload_libraries in order for it to work"
-	successSharedLibCorrect    = "shared_preload_libraries is set correctly"
-	successSharedLibUpdated    = "shared_preload_libraries will be updated"
-	statementSharedLibNotFound = "Unable to find shared_preload_libraries in configuration file"
-	plainSharedLibLine         = "shared_preload_libraries = 'timescaledb'	# (change requires restart)"
+	errSharedLibNeeded             = "`timescaledb` needs to be added to shared_preload_libraries in order for it to work"
+	successSharedLibCorrect        = "shared_preload_libraries is set correctly"
+	successSharedLibUpdated        = "shared_preload_libraries will be updated"
+	statementSharedLibNotFound     = "Unable to find shared_preload_libraries in configuration file"
+	plainSharedLibLine             = "shared_preload_libraries = 'timescaledb'"
+	plainSharedLibLineWithComments = plainSharedLibLine + "	# (change requires restart)"
 
 	statementTunableIntro = "Recommendations based on %s of available memory and %d CPUs"
 	promptTune            = "Tune memory/parallelism/WAL and other settings?"
-	tunableMemory         = "memory"
-	tunableWAL            = "WAL"
-	tunableParallelism    = "parallelism"
-	tunableOther          = "miscellaneous"
+
+	successQuiet = "all settings tuned, no changes needed"
 
 	fmtTunableParam = "%s = %s%s\n"
 
@@ -150,7 +149,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		printFn(os.Stderr, "\n")
 		err = t.promptUntilValidInput(promptTune+promptYesNo, newYesNoChecker(""))
 		if err == nil {
-			err = t.processTunables(totalMemory, cpus, false /* quiet */)
+			err = t.processTunables(totalMemory, cpus)
 			ifErrHandle(err)
 		} else if err.Error() != "" { // error msg of "" is response when user selects no to tuning
 			t.handler.errorExit(err)
@@ -374,8 +373,9 @@ func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunablePar
 	return show, nil
 }
 
-func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, quiet bool) error {
+func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 	label := sg.Label()
+	quiet := t.flags.Quiet
 	if !quiet {
 		printFn(os.Stdout, "\n")
 		t.handler.p.Statement(fmt.Sprintf("%s%s settings recommendations", strings.ToUpper(label[:1]), label[1:]))
@@ -461,7 +461,8 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, quiet bool) error 
 
 // processTunables handles user interactions for updating the conf file when it comes
 // to parameters than be tuned, e.g. memory.
-func (t *Tuner) processTunables(totalMemory uint64, cpus int, quiet bool) error {
+func (t *Tuner) processTunables(totalMemory uint64, cpus int) error {
+	quiet := t.flags.Quiet
 	if !quiet {
 		t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus)
 	}
@@ -478,7 +479,7 @@ func (t *Tuner) processTunables(totalMemory uint64, cpus int, quiet bool) error 
 		if !r.IsAvailable() {
 			continue
 		}
-		err := t.processSettingsGroup(sg, quiet)
+		err := t.processSettingsGroup(sg)
 		if err != nil {
 			return err
 		}
@@ -489,12 +490,27 @@ func (t *Tuner) processTunables(totalMemory uint64, cpus int, quiet bool) error 
 // processQuiet handles the iteractions when the user wants "quiet" output.
 func (t *Tuner) processQuiet(totalMemory uint64, cpus int) error {
 	t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus)
-	if t.cfs.sharedLibResult == nil {
+
+	// Replace the print function with a version that counts how many times it
+	// is invoked so we can know whether to prompt the user or not. It doesn't
+	// make sense to ask for a yes/no if nothing would change.
+	changedSettings := uint64(0)
+	oldPrintFn := printFn
+	printFn = func(w io.Writer, format string, args ...interface{}) (int, error) {
+		changedSettings++
+		return oldPrintFn(w, format, args...)
+	}
+	// Need to restore the old printFn whenever this returns
+	defer func() {
+		printFn = oldPrintFn
+	}()
+
+	if t.cfs.sharedLibResult == nil { // shared lib line is missing completely
 		printFn(os.Stdout, plainSharedLibLine+"\n")
 		t.cfs.lines = append(t.cfs.lines, plainSharedLibLine)
-		t.cfs.sharedLibResult = parseLineForSharedLibResult(plainSharedLibLine)
+		t.cfs.sharedLibResult = parseLineForSharedLibResult(plainSharedLibLineWithComments)
 		t.cfs.sharedLibResult.idx = len(t.cfs.lines) - 1
-	} else {
+	} else { // exists, but may need to be updated
 		sharedIdx := t.cfs.sharedLibResult.idx
 		newLine := updateSharedLibLine(t.cfs.lines[sharedIdx], t.cfs.sharedLibResult)
 		if newLine != t.cfs.lines[sharedIdx] {
@@ -503,11 +519,19 @@ func (t *Tuner) processQuiet(totalMemory uint64, cpus int) error {
 		}
 	}
 
-	_ = t.processTunables(totalMemory, cpus, true /* quiet */)
-	checker := newYesNoChecker("not using these settings could lead to suboptimal performance")
-	err := t.promptUntilValidInput("Use these recommendations? "+promptYesNo, checker)
+	// print out all tunables that need to be changed
+	err := t.processTunables(totalMemory, cpus)
 	if err != nil {
 		return err
+	}
+	if changedSettings > 0 {
+		checker := newYesNoChecker("not using these settings could lead to suboptimal performance")
+		err = t.promptUntilValidInput("Use these recommendations? "+promptYesNo, checker)
+		if err != nil {
+			return err
+		}
+	} else {
+		t.handler.p.Success(successQuiet)
 	}
 
 	return nil
