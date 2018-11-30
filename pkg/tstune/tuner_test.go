@@ -1038,7 +1038,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			return 0, nil
 		}
 
-		err := tuner.processSettingsGroup(c.ts, false /* quiet */)
+		err := tuner.processSettingsGroup(c.ts)
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {
@@ -1096,7 +1096,7 @@ func TestProcessTunables(t *testing.T) {
 
 	cfs := &configFileState{lines: []string{}, tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner := newTunerWithDefaultFlags(handler, cfs)
-	tuner.processTunables(mem, cpus, false /* quiet */)
+	tuner.processTunables(mem, cpus)
 
 	tp := handler.p.(*testPrinter)
 	// Total number of statements is intro statement and then 3 per group of settings;
@@ -1156,7 +1156,7 @@ func TestProcessTunablesSingleCPU(t *testing.T) {
 
 	cfs := &configFileState{lines: []string{}, tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner := newTunerWithDefaultFlags(handler, cfs)
-	tuner.processTunables(mem, cpus, false)
+	tuner.processTunables(mem, cpus)
 
 	tp := handler.p.(*testPrinter)
 	// Total number of statements is intro statement and then 3 per group of settings;
@@ -1194,5 +1194,152 @@ func TestProcessTunablesSingleCPU(t *testing.T) {
 		t.Errorf("incorrect statement at 10: got\n%s\nwant\n%s", got, wantStatement)
 	}
 
+	printFn = oldPrintFn
+}
+
+var (
+	wantedQuietCorrectShared   = plainSharedLibLine
+	wantedQuietCommentedShared = "#" + plainSharedLibLine
+	wantedQuietMissingShared   = "shared_preload_libraries = ''"
+	wantedQuietLines           = []string{
+		wantedQuietCorrectShared,
+		"shared_buffers = 2GB",
+		"effective_cache_size = 6GB",
+		"maintenance_work_mem = 1GB",
+		"work_mem = 26214kB",
+		"max_worker_processes = 4",
+		"max_parallel_workers_per_gather = 2",
+		"max_parallel_workers = 4",
+		"wal_buffers = 16MB",
+		"min_wal_size = 4GB",
+		"max_wal_size = 8GB",
+		"default_statistics_target = 500",
+		"random_page_cost = 1.1",
+		"checkpoint_completion_target = 0.9",
+		"max_connections = 20",
+		"max_locks_per_transaction = 64",
+		"effective_io_concurrency = 200",
+	}
+)
+
+func TestTunerProcessQuiet(t *testing.T) {
+	cases := []struct {
+		desc          string
+		lines         []string
+		wantedPrints  []string
+		wantPrompts   uint64
+		wantSuccesses uint64
+		shouldErr     bool
+	}{
+		{
+			desc:         "missing shared",
+			lines:        wantedQuietLines[1:],
+			wantedPrints: []string{wantedQuietCorrectShared},
+			wantPrompts:  1,
+		},
+		{
+			desc:          "all correct",
+			lines:         wantedQuietLines,
+			wantedPrints:  []string{},
+			wantPrompts:   0,
+			wantSuccesses: 1,
+		},
+		{
+			desc:         "commented shared",
+			lines:        append([]string{wantedQuietCommentedShared}, wantedQuietLines[1:]...),
+			wantedPrints: []string{wantedQuietCorrectShared},
+			wantPrompts:  1,
+		},
+		{
+			desc:         "wrong shared",
+			lines:        append([]string{wantedQuietMissingShared}, wantedQuietLines[1:]...),
+			wantedPrints: []string{wantedQuietCorrectShared},
+			wantPrompts:  1,
+		},
+		{
+			desc:         "missing tunables",
+			lines:        append([]string{wantedQuietCorrectShared}, wantedQuietLines[6:]...),
+			wantedPrints: wantedQuietLines[1:6],
+			wantPrompts:  1,
+		},
+		{
+			desc:         "no = error",
+			lines:        wantedQuietLines[1:],
+			wantedPrints: []string{wantedQuietCorrectShared},
+			wantPrompts:  1,
+			shouldErr:    true,
+		},
+	}
+	oldPrintFn := printFn
+
+	for _, c := range cases {
+		prints := []string{}
+		printFn = func(_ io.Writer, format string, args ...interface{}) (int, error) {
+			prints = append(prints, fmt.Sprintf(format, args...))
+			return 0, nil
+		}
+
+		mem := uint64(8 * parse.Gigabyte)
+		cpus := 4
+		input := "y\n"
+		if c.shouldErr {
+			input = "n\n"
+		}
+		buf := bytes.NewBufferString(input)
+		br := bufio.NewReader(buf)
+		handler := &ioHandler{
+			p:  &testPrinter{},
+			br: br,
+		}
+		confFile := bytes.NewBufferString(strings.Join(c.lines, "\n"))
+		cfs, err := getConfigFileState(confFile)
+		if err != nil {
+			t.Fatalf("could not parse config lines")
+		}
+
+		tuner := newTunerWithDefaultFlags(handler, cfs)
+		tuner.flags.Quiet = true
+		err = tuner.processQuiet(mem, cpus)
+
+		if err != nil && !c.shouldErr {
+			t.Errorf("%s: unexpected error: %v", c.desc, err)
+		} else if err == nil && c.shouldErr {
+			t.Errorf("%s: unexpected lack of an error", c.desc)
+		}
+
+		if got := len(prints); got != len(c.wantedPrints) {
+			t.Errorf("%s: incorrect prints len: got %d want %d", c.desc, got, len(c.wantedPrints))
+		} else {
+			for i, want := range c.wantedPrints {
+				if got := prints[i]; got != want+"\n" {
+					t.Errorf("%s: incorrect print at idx %d: got\n%s\nwant\n%s", c.desc, i, got, want+"\n")
+				}
+			}
+		}
+
+		tp := handler.p.(*testPrinter)
+		if got := tp.statementCalls; got != 1 {
+			t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, 1)
+		} else {
+			want := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(mem), cpus)
+			if got := tp.statements[0]; got != want {
+				t.Errorf("%s: incorrect statement: got\n%s\nwant\n%s", c.desc, got, want)
+			}
+		}
+
+		if got := tp.promptCalls; got != c.wantPrompts {
+			t.Errorf("%s: incorrect number of prompts: got %d want %d", c.desc, got, c.wantPrompts)
+		}
+
+		if got := tp.successCalls; got != c.wantSuccesses {
+			t.Errorf("%s: incorrect number of successes: got %d want %d", c.desc, got, c.wantSuccesses)
+		}
+
+		if c.wantSuccesses == 1 {
+			if got := tp.successes[0]; got != successQuiet {
+				t.Errorf("%s: incorrect success: got\n%s\nwant\n%s", c.desc, got, successQuiet)
+			}
+		}
+	}
 	printFn = oldPrintFn
 }
