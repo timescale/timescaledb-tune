@@ -2,6 +2,7 @@ package parse
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 )
 
@@ -256,6 +257,8 @@ func TestBytesToPGFormat(t *testing.T) {
 }
 
 func TestParsePGFormatToBytes(t *testing.T) {
+	tooBigInt := "9223372036854775808"
+	_, tooBigErr := strconv.ParseInt(tooBigInt, 10, 64)
 	cases := []struct {
 		desc   string
 		input  string
@@ -281,6 +284,11 @@ func TestParsePGFormatToBytes(t *testing.T) {
 			desc:   "incorrect format #4",
 			input:  "-64MB", // negative memory is a no-no
 			errMsg: fmt.Sprintf(errIncorrectFormatFmt, "-64MB"),
+		},
+		{
+			desc:   "incorrect format #5",
+			input:  tooBigInt + MB,
+			errMsg: fmt.Sprintf(errCouldNotParseFmt, tooBigErr),
 		},
 		{
 			desc:  "valid kilobytes",

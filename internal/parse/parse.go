@@ -26,7 +26,10 @@ const (
 	B  = "bytes" // for completeness, not used in PostgreSQL
 )
 
-const errIncorrectFormatFmt = "incorrect format for '%s'"
+const (
+	errIncorrectFormatFmt = "incorrect format for '%s'"
+	errCouldNotParseFmt   = "could not parse bytes number: %v"
+)
 
 var pgBytesRegex = regexp.MustCompile("^([0-9]+)((?:k|M|G|T)B)$")
 
@@ -94,7 +97,7 @@ func PGFormatToBytes(val string) (float64, error) {
 	}
 	num, err := strconv.ParseInt(res[1], 10, 64)
 	if err != nil {
-		return 0.0, fmt.Errorf("could not parse bytes number: %v", err)
+		return 0.0, fmt.Errorf(errCouldNotParseFmt, err)
 	}
 	units := res[2]
 	var ret uint64
