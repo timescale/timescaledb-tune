@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
 
 func TestFileExists(t *testing.T) {
@@ -195,22 +197,22 @@ func TestGetConfigFileState(t *testing.T) {
 			lines: []string{"foo", sharedLibLine, "bar", memoryLine, walLine, "baz"},
 			want: &configFileState{
 				lines: []string{"foo", sharedLibLine, "bar", memoryLine, walLine, "baz"},
-				/*tuneParseResults: map[string]*tunableParseResult{
-					sharedBuffersKey: &tunableParseResult{
+				tuneParseResults: map[string]*tunableParseResult{
+					pgtune.SharedBuffersKey: &tunableParseResult{
 						idx:       3,
 						commented: true,
-						key:       sharedBuffersKey,
+						key:       pgtune.SharedBuffersKey,
 						value:     "64MB",
 						extra:     "",
 					},
-					minWalKey: &tunableParseResult{
+					pgtune.MinWALKey: &tunableParseResult{
 						idx:       4,
 						commented: false,
-						key:       minWalKey,
+						key:       pgtune.MinWALKey,
 						value:     "0GB",
 						extra:     " # weird",
 					},
-				},*/
+				},
 				sharedLibResult: &sharedLibResult{
 					idx:          1,
 					commented:    false,
@@ -258,6 +260,30 @@ func TestGetConfigFileState(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+type errReader struct {
+	count uint64
+}
+
+func (r *errReader) Read(p []byte) (int, error) {
+	if r.count > 1 {
+		return 0, fmt.Errorf("erroring")
+	}
+	p[len(p)-1] = '\n'
+	r.count++
+	return 1, nil
+}
+
+func TestGetConfigFileStateErr(t *testing.T) {
+	r := &errReader{}
+	cfs, err := getConfigFileState(r)
+	if cfs != nil {
+		t.Errorf("cfs not nil: %v", cfs)
+	}
+	if err == nil {
+		t.Errorf("err is nil")
 	}
 }
 

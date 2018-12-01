@@ -375,6 +375,11 @@ func TestGetFloatParser(t *testing.T) {
 	}
 }
 
+type badRecommender struct{}
+
+func (r *badRecommender) IsAvailable() bool       { return true }
+func (r *badRecommender) Recommend(string) string { return "not a number" }
+
 func TestCheckIfShouldShowSetting(t *testing.T) {
 	valSharedBuffers := "2GB"
 	valEffective := "6GB"
@@ -586,6 +591,22 @@ func TestCheckIfShouldShowSetting(t *testing.T) {
 	}
 }
 
+func TestCheckIfShouldShowSettingErr(t *testing.T) {
+	keys := []string{"foo"}
+	parseResults := map[string]*tunableParseResult{
+		"foo": &tunableParseResult{
+			value: "5.0",
+		},
+	}
+	show, err := checkIfShouldShowSetting(keys, parseResults, &badRecommender{})
+	if show != nil {
+		t.Errorf("show map is not nil: %v", show)
+	}
+	if err == nil {
+		t.Errorf("err is nil")
+	}
+}
+
 var (
 	memSettingsCorrect = []string{
 		"shared_buffers = 2GB",
@@ -631,11 +652,13 @@ var (
 	}
 )
 
-type testSettingsGroup struct{}
+type testSettingsGroup struct {
+	keys []string
+}
 
 func (sg *testSettingsGroup) Label() string                      { return "foo" }
-func (sg *testSettingsGroup) Keys() []string                     { return nil }
-func (sg *testSettingsGroup) GetRecommender() pgtune.Recommender { return nil }
+func (sg *testSettingsGroup) Keys() []string                     { return sg.keys }
+func (sg *testSettingsGroup) GetRecommender() pgtune.Recommender { return &badRecommender{} }
 
 func TestProcessSettingsGroup(t *testing.T) {
 	mem := uint64(8 * parse.Gigabyte)
@@ -652,6 +675,14 @@ func TestProcessSettingsGroup(t *testing.T) {
 		successMsg     string
 		shouldErr      bool
 	}{
+		{
+			desc:           "bad recommender",
+			ts:             &testSettingsGroup{pgtune.ParallelKeys},
+			lines:          []string{fmt.Sprintf("%s = 1.0", pgtune.ParallelKeys[0])},
+			wantStatements: 1, // only intro remark
+			wantPrints:     1, // one for initial newline
+			shouldErr:      true,
+		},
 		{
 			desc:           "no keys, no need to prompt",
 			ts:             &testSettingsGroup{},
