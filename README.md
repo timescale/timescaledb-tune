@@ -23,7 +23,7 @@ $ timescaledb-tune
 
 You'll then be given a series of prompts that require minimal user input to
 make sure your config file is up to date:
-```bash
+```text
 Using postgresql.conf at this path:
 /usr/local/var/postgres/postgresql.conf
 
