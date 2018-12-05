@@ -6,8 +6,9 @@ func TestGetSettingsGroup(t *testing.T) {
 	okLabels := []string{MemoryLabel, ParallelLabel, WALLabel, MiscLabel}
 	mem := uint64(1024)
 	cpus := 4
+	pgVersion := "10"
 	for _, label := range okLabels {
-		sg := GetSettingsGroup(label, mem, cpus)
+		sg := GetSettingsGroup(label, pgVersion, mem, cpus)
 		if sg == nil {
 			t.Errorf("settings group unexpectedly nil for label %s", label)
 		}
@@ -19,6 +20,9 @@ func TestGetSettingsGroup(t *testing.T) {
 		case *ParallelSettingsGroup:
 			if x.cpus != cpus {
 				t.Errorf("parallel settings group incorrect: got %d want %d", x.cpus, cpus)
+			}
+			if x.pgVersion != pgVersion {
+				t.Errorf("parallel settings group incorrect: got %s want %s", x.pgVersion, pgVersion)
 			}
 		case *WALSettingsGroup:
 			if x.totalMemory != mem {
@@ -37,6 +41,6 @@ func TestGetSettingsGroup(t *testing.T) {
 				t.Errorf("did not panic when should")
 			}
 		}()
-		GetSettingsGroup("foo", mem, cpus)
+		GetSettingsGroup("foo", pgVersion, mem, cpus)
 	}()
 }

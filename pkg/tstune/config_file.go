@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 )
 
@@ -16,6 +17,9 @@ const (
 	fileNameArch         = "/var/lib/postgres/data/postgresql.conf"
 	errConfigNotFoundFmt = "could not find postgresql.conf at any of these locations:\n%v"
 )
+
+// allows us to substitute mock versions in tests
+var osStatFn = os.Stat
 
 // fileExists is a simple check for stating if a file exists and if any error
 // occurs it returns false.
@@ -30,7 +34,7 @@ func fileExists(name string) bool {
 // getConfigFilePath attempts to find the postgresql.conf file using path heuristics
 // for different operating systems. If successful it returns the full path to
 // the file; otherwise, it returns with an empty path and error.
-func getConfigFilePath(os string) (string, error) {
+func getConfigFilePath(os, pgVersion string) (string, error) {
 	tried := []string{}
 	try := func(format string, args ...interface{}) string {
 		fileName := fmt.Sprintf(format, args...)
@@ -40,27 +44,23 @@ func getConfigFilePath(os string) (string, error) {
 		}
 		return ""
 	}
-	switch {
-	case os == osMac:
+	switch os {
+	case osMac:
 		fileName := try(fileNameMac)
 		if fileName != "" {
 			return fileName, nil
 		}
-	case os == osLinux:
-		for _, v := range pgVersions {
-			fileName := try(fileNameDebianFmt, v)
-			if fileName != "" {
-				return fileName, nil
-			}
+	case osLinux:
+		fileName := try(fileNameDebianFmt, pgVersion)
+		if fileName != "" {
+			return fileName, nil
 		}
-		for _, v := range pgVersions {
-			fileName := try(fileNameRPMFmt, v)
-			if fileName != "" {
-				return fileName, nil
-			}
+		fileName = try(fileNameRPMFmt, pgVersion)
+		if fileName != "" {
+			return fileName, nil
 		}
 
-		fileName := try(fileNameArch)
+		fileName = try(fileNameArch)
 		if fileName != "" {
 			return fileName, nil
 		}

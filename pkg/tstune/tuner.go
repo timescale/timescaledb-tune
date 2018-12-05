@@ -6,9 +6,9 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -18,6 +18,9 @@ import (
 )
 
 const (
+	errCouldNotExecuteFmt  = "could not execute `%s --version`: %v"
+	errUnsupportedMajorFmt = "unsupported major PG version: %s"
+
 	currentLabel   = "Current:"
 	recommendLabel = "Recommended:"
 
@@ -32,7 +35,7 @@ const (
 	plainSharedLibLine             = "shared_preload_libraries = 'timescaledb'"
 	plainSharedLibLineWithComments = plainSharedLibLine + "	# (change requires restart)"
 
-	statementTunableIntro = "Recommendations based on %s of available memory and %d CPUs"
+	statementTunableIntro = "Recommendations based on %s of available memory and %d CPUs for PostgreSQL %s"
 	promptTune            = "Tune memory/parallelism/WAL and other settings?"
 
 	successQuiet = "all settings tuned, no changes needed"
@@ -40,20 +43,37 @@ const (
 	fmtTunableParam = "%s = %s%s\n"
 
 	fudgeFactor = 0.05
+
+	pgMajor96 = "9.6"
+	pgMajor10 = "10"
 )
 
 var (
-	osStatFn = os.Stat
+	// allows us to substitute mock versions in tests
+	getPGConfigVersionFn = getPGConfigVersion
 
-	pgVersions = []string{"10", "9.6"}
+	pgVersionRegex = regexp.MustCompile("^PostgreSQL ([0-9]+?).([0-9]+?).*")
+	pgVersions     = []string{pgMajor10, pgMajor96}
 )
 
-func isCloseEnough(actual, target, fudge float64) bool {
-	return math.Abs((target-actual)/target) <= fudge
+func getPGMajorVersion(binPath string) (string, error) {
+	version, err := getPGConfigVersionFn(binPath)
+	if err != nil {
+		return "", fmt.Errorf(errCouldNotExecuteFmt, binPath, err)
+	}
+	majorVersion, err := parse.ToPGMajorVersion(string(version))
+	if err != nil {
+		return "", err
+	}
+	if !isIn(majorVersion, pgVersions) {
+		return "", fmt.Errorf(errUnsupportedMajorFmt, majorVersion)
+	}
+	return majorVersion, nil
 }
 
 // TunerFlags are the flags that control how a Tuner object behaves when it is run.
 type TunerFlags struct {
+	PGConfig  string // path to pg_config binary
 	ConfPath  string // path to the postgresql.conf file
 	DestPath  string // path to output file
 	YesAlways bool   // always respond yes to prompts
@@ -94,12 +114,16 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 			t.handler.errorExit(err)
 		}
 	}
-	var err error
+
+	// Some settings are not applicable in some versions,
+	// e.g. max_parallel_workers is not available in 9.6
+	pgVersion, err := getPGMajorVersion(t.flags.PGConfig)
+	ifErrHandle(err)
 
 	// attempt to find the config file and open it for reading
 	fileName := t.flags.ConfPath
 	if len(fileName) == 0 {
-		fileName, err = getConfigFilePath(runtime.GOOS)
+		fileName, err = getConfigFilePath(runtime.GOOS, pgVersion)
 		ifErrHandle(err)
 	}
 
@@ -132,7 +156,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	cpus := runtime.NumCPU()
 
 	if t.flags.Quiet {
-		err = t.processQuiet(totalMemory, cpus)
+		err = t.processQuiet(pgVersion, totalMemory, cpus)
 		ifErrHandle(err)
 	} else {
 		err = t.processSharedLibLine()
@@ -141,7 +165,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		printFn(os.Stderr, "\n")
 		err = t.promptUntilValidInput(promptTune+promptYesNo, newYesNoChecker(""))
 		if err == nil {
-			err = t.processTunables(totalMemory, cpus)
+			err = t.processTunables(pgVersion, totalMemory, cpus)
 			ifErrHandle(err)
 		} else if err.Error() != "" { // error msg of "" is response when user selects no to tuning
 			t.handler.errorExit(err)
@@ -380,10 +404,10 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 
 // processTunables handles user interactions for updating the conf file when it comes
 // to parameters than be tuned, e.g. memory.
-func (t *Tuner) processTunables(totalMemory uint64, cpus int) error {
+func (t *Tuner) processTunables(pgVersion string, totalMemory uint64, cpus int) error {
 	quiet := t.flags.Quiet
 	if !quiet {
-		t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus)
+		t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus, pgVersion)
 	}
 	tunables := []string{
 		pgtune.MemoryLabel,
@@ -393,7 +417,7 @@ func (t *Tuner) processTunables(totalMemory uint64, cpus int) error {
 	}
 
 	for _, label := range tunables {
-		sg := pgtune.GetSettingsGroup(label, totalMemory, cpus)
+		sg := pgtune.GetSettingsGroup(label, pgVersion, totalMemory, cpus)
 		r := sg.GetRecommender()
 		if !r.IsAvailable() {
 			continue
@@ -407,8 +431,8 @@ func (t *Tuner) processTunables(totalMemory uint64, cpus int) error {
 }
 
 // processQuiet handles the iteractions when the user wants "quiet" output.
-func (t *Tuner) processQuiet(totalMemory uint64, cpus int) error {
-	t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus)
+func (t *Tuner) processQuiet(pgVersion string, totalMemory uint64, cpus int) error {
+	t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus, pgVersion)
 
 	// Replace the print function with a version that counts how many times it
 	// is invoked so we can know whether to prompt the user or not. It doesn't
@@ -439,7 +463,7 @@ func (t *Tuner) processQuiet(totalMemory uint64, cpus int) error {
 	}
 
 	// print out all tunables that need to be changed
-	err := t.processTunables(totalMemory, cpus)
+	err := t.processTunables(pgVersion, totalMemory, cpus)
 	if err != nil {
 		return err
 	}

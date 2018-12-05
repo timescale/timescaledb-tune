@@ -9,7 +9,7 @@ import (
 const (
 	MaxWorkerProcessesKey       = "max_worker_processes"
 	MaxParallelWorkersGatherKey = "max_parallel_workers_per_gather"
-	MaxParallelWorkers          = "max_parallel_workers"
+	MaxParallelWorkers          = "max_parallel_workers" // pg10+
 
 	errOneCPU = "cannot make recommendations with just 1 CPU"
 )
@@ -59,14 +59,20 @@ func (r *ParallelRecommender) Recommend(key string) string {
 
 // ParallelSettingsGroup is the SettingsGroup to represent parallelism settings.
 type ParallelSettingsGroup struct {
-	cpus int
+	pgVersion string
+	cpus      int
 }
 
 // Label should always return the value ParallelLabel.
 func (sg *ParallelSettingsGroup) Label() string { return ParallelLabel }
 
 // Keys should always return the ParallelKeys slice.
-func (sg *ParallelSettingsGroup) Keys() []string { return ParallelKeys }
+func (sg *ParallelSettingsGroup) Keys() []string {
+	if sg.pgVersion == "9.6" {
+		return ParallelKeys[:2]
+	}
+	return ParallelKeys
+}
 
 // GetRecommender should return a new ParallelRecommender.
 func (sg *ParallelSettingsGroup) GetRecommender() Recommender {
