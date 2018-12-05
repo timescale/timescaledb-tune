@@ -28,12 +28,12 @@ type SettingsGroup interface {
 
 // GetSettingsGroup returns the corresponding SettingsGroup for a given label, initialized
 // according to the system resources of totalMemory and cpus. Panics if unknown label.
-func GetSettingsGroup(label string, totalMemory uint64, cpus int) SettingsGroup {
+func GetSettingsGroup(label string, pgVersion string, totalMemory uint64, cpus int) SettingsGroup {
 	switch {
 	case label == MemoryLabel:
 		return &MemorySettingsGroup{totalMemory, cpus}
 	case label == ParallelLabel:
-		return &ParallelSettingsGroup{cpus}
+		return &ParallelSettingsGroup{pgVersion, cpus}
 	case label == WALLabel:
 		return &WALSettingsGroup{totalMemory}
 	case label == MiscLabel:

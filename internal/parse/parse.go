@@ -27,11 +27,16 @@ const (
 )
 
 const (
-	errIncorrectFormatFmt = "incorrect format for '%s'"
-	errCouldNotParseFmt   = "could not parse bytes number: %v"
+	errIncorrectFormatFmt      = "incorrect format for '%s'"
+	errCouldNotParseBytesFmt   = "could not parse bytes number: %v"
+	errCouldNotParseVersionFmt = "unable to parse PG version string: %s"
+	errUnknownMajorVersionFmt  = "unknown major PG version: %s"
 )
 
-var pgBytesRegex = regexp.MustCompile("^([0-9]+)((?:k|M|G|T)B)$")
+var (
+	pgBytesRegex   = regexp.MustCompile("^([0-9]+)((?:k|M|G|T)B)$")
+	pgVersionRegex = regexp.MustCompile("^PostgreSQL ([0-9]+?).([0-9]+?).*")
+)
 
 func parseIntToFloatUnits(bytes uint64) (float64, string) {
 	if bytes <= 0 {
@@ -97,7 +102,7 @@ func PGFormatToBytes(val string) (float64, error) {
 	}
 	num, err := strconv.ParseInt(res[1], 10, 64)
 	if err != nil {
-		return 0.0, fmt.Errorf(errCouldNotParseFmt, err)
+		return 0.0, fmt.Errorf(errCouldNotParseBytesFmt, err)
 	}
 	units := res[2]
 	var ret uint64
@@ -113,4 +118,30 @@ func PGFormatToBytes(val string) (float64, error) {
 		return 0, fmt.Errorf("unknown units: %s", units)
 	}
 	return float64(ret), nil
+}
+
+// ToPGMajorVersion returns the major PostgreSQL version associated with a given
+// version string, as given from an invocation of pg_config --version. This string
+// has the form of "PostgreSQL X.Y[.Z (extra)]". For versions before 10, the major
+// version is defined as X.Y, whereas starting with 10 it is defined as just X.
+// That is, "PostgreSQL 10.3" returns "10" and "PostgreSQL 9.6.4" returns "9.6".
+func ToPGMajorVersion(val string) (string, error) {
+	res := pgVersionRegex.FindStringSubmatch(val)
+	if len(res) != 3 {
+		return "", fmt.Errorf(errCouldNotParseVersionFmt, val)
+	}
+	switch res[1] {
+	case "11":
+		fallthrough
+	case "10":
+		return res[1], nil
+	case "9":
+		fallthrough
+	case "8":
+		fallthrough
+	case "7":
+		return res[1] + "." + res[2], nil
+	default:
+		return "", fmt.Errorf(errUnknownMajorVersionFmt, val)
+	}
 }

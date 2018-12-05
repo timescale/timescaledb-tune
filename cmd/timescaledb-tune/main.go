@@ -21,6 +21,7 @@ var f tstune.TunerFlags
 func init() {
 	flag.StringVar(&f.ConfPath, "conf-path", "", "Path to postgresql.conf. If blank, heuristics will be used to find it")
 	flag.StringVar(&f.DestPath, "out-path", "", "Path to write the new configuration file. If blank, will use the same file that is read from")
+	flag.StringVar(&f.PGConfig, "pg-config", "pg_config", "Path to the pg_config binary")
 	flag.BoolVar(&f.YesAlways, "yes", false, "Answer 'yes' to every prompt")
 	flag.BoolVar(&f.Quiet, "quiet", false, "Show only the total recommendations at the end")
 	flag.BoolVar(&f.UseColor, "color", true, "Use color in output (works best on dark terminals)")

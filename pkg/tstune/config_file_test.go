@@ -59,6 +59,7 @@ func TestGetConfigFilePath(t *testing.T) {
 	cases := []struct {
 		desc      string
 		os        string
+		pgVersion string
 		files     []string
 		wantFile  string
 		shouldErr bool
@@ -80,6 +81,7 @@ func TestGetConfigFilePath(t *testing.T) {
 		{
 			desc:      "linux - pg10+debian",
 			os:        osLinux,
+			pgVersion: pgMajor10,
 			files:     []string{fmt.Sprintf(fileNameDebianFmt, "10")},
 			wantFile:  fmt.Sprintf(fileNameDebianFmt, "10"),
 			shouldErr: false,
@@ -87,13 +89,23 @@ func TestGetConfigFilePath(t *testing.T) {
 		{
 			desc:      "linux - pg9.6+debian",
 			os:        osLinux,
+			pgVersion: pgMajor96,
 			files:     []string{fmt.Sprintf(fileNameDebianFmt, "9.6")},
 			wantFile:  fmt.Sprintf(fileNameDebianFmt, "9.6"),
 			shouldErr: false,
 		},
 		{
+			desc:      "linux - mismatch+debian",
+			os:        osLinux,
+			pgVersion: pgMajor96,
+			files:     []string{fmt.Sprintf(fileNameDebianFmt, "10")},
+			wantFile:  "",
+			shouldErr: true,
+		},
+		{
 			desc:      "linux - pg10+rpm",
 			os:        osLinux,
+			pgVersion: pgMajor10,
 			files:     []string{fmt.Sprintf(fileNameRPMFmt, "10")},
 			wantFile:  fmt.Sprintf(fileNameRPMFmt, "10"),
 			shouldErr: false,
@@ -101,9 +113,19 @@ func TestGetConfigFilePath(t *testing.T) {
 		{
 			desc:      "linux - pg9.6+rpm",
 			os:        osLinux,
+			pgVersion: pgMajor96,
 			files:     []string{fmt.Sprintf(fileNameDebianFmt, "9.6")},
 			wantFile:  fmt.Sprintf(fileNameDebianFmt, "9.6"),
 			shouldErr: false,
+		},
+
+		{
+			desc:      "linux - mismatch+rpm",
+			os:        osLinux,
+			pgVersion: pgMajor96,
+			files:     []string{fmt.Sprintf(fileNameRPMFmt, "10")},
+			wantFile:  "",
+			shouldErr: true,
 		},
 		{
 			desc:      "linux - arch",
@@ -132,7 +154,7 @@ func TestGetConfigFilePath(t *testing.T) {
 			}
 			return nil, os.ErrNotExist
 		}
-		filename, err := getConfigFilePath(c.os)
+		filename, err := getConfigFilePath(c.os, c.pgVersion)
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {

@@ -6,12 +6,89 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
 	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
+
+func TestGetPGMajorVersion(t *testing.T) {
+	okPath96 := "pg_config_9.6"
+	okPath10 := "pg_config_10"
+	okPath95 := "pg_config_9.5"
+	okPath60 := "pg_config_6.0"
+	cases := []struct {
+		desc    string
+		binPath string
+		want    string
+		errMsg  string
+	}{
+		{
+			desc:    "failed execute",
+			binPath: "pg_config_bad",
+			errMsg:  fmt.Sprintf(errCouldNotExecuteFmt, "pg_config_bad", exec.ErrNotFound),
+		},
+		{
+			desc:    "failed major parse",
+			binPath: okPath60,
+			errMsg:  fmt.Sprintf("unknown major PG version: PostgreSQL 6.0.5"),
+		},
+		{
+			desc:    "failed unsupported",
+			binPath: okPath95,
+			errMsg:  fmt.Sprintf(errUnsupportedMajorFmt, "9.5"),
+		},
+		{
+			desc:    "success 9.6",
+			binPath: okPath96,
+			want:    pgMajor96,
+		},
+		{
+			desc:    "success 10",
+			binPath: okPath10,
+			want:    pgMajor10,
+		},
+	}
+
+	oldVersionFn := getPGConfigVersionFn
+	getPGConfigVersionFn = func(binPath string) ([]byte, error) {
+		switch binPath {
+		case okPath60:
+			return []byte("PostgreSQL 6.0.5"), nil
+		case okPath95:
+			return []byte("PostgreSQL 9.5.10"), nil
+		case okPath96:
+			return []byte("PostgreSQL 9.6.6"), nil
+		case okPath10:
+			return []byte("PostgreSQL 10.5 (Debian7)"), nil
+		default:
+			return nil, exec.ErrNotFound
+		}
+	}
+
+	for _, c := range cases {
+		got, err := getPGMajorVersion(c.binPath)
+		if len(c.errMsg) == 0 {
+			if err != nil {
+				t.Errorf("%s: unexpected error: got %v", c.desc, err)
+			}
+			if got != c.want {
+				t.Errorf("%s: incorrect major version: got %s want %s", c.desc, got, c.want)
+			}
+		} else {
+			if err == nil {
+				t.Errorf("%s: unexpected lack of error", c.desc)
+			}
+			if got := err.Error(); got != c.errMsg {
+				t.Errorf("%s: incorrect error:\ngot\n%s\nwant\n%s", c.desc, got, c.errMsg)
+			}
+		}
+	}
+
+	getPGConfigVersionFn = oldVersionFn
+}
 
 func newTunerWithDefaultFlags(handler *ioHandler, cfs *configFileState) *Tuner {
 	return &Tuner{handler, cfs, &TunerFlags{}}
@@ -695,7 +772,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc:           "memory - commented",
-			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, pgMajor10, mem, cpus),
 			lines:          memSettingsCommented,
 			stdin:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -706,7 +783,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc:           "memory - wrong",
-			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, pgMajor10, mem, cpus),
 			lines:          memSettingsWrongVal,
 			stdin:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -717,7 +794,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc:           "memory - missing",
-			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, pgMajor10, mem, cpus),
 			lines:          memSettingsMissing,
 			stdin:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -729,7 +806,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc:           "memory - comment+wrong",
-			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, pgMajor10, mem, cpus),
 			lines:          memSettingsCommentWrong,
 			stdin:          " \ny\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -740,7 +817,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc:           "memory - comment+wrong+missing",
-			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, pgMajor10, mem, cpus),
 			lines:          memSettingsCommentWrongMissing,
 			stdin:          " \n \ny\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -752,7 +829,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc:           "memory - all wrong, but skip",
-			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, pgMajor10, mem, cpus),
 			lines:          memSettingsAllWrong,
 			stdin:          "s\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -764,7 +841,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc:           "memory - all wrong, but quit",
-			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, pgMajor10, mem, cpus),
 			lines:          memSettingsAllWrong,
 			stdin:          " \nqUIt\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -775,7 +852,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc:           "memory - all wrong",
-			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, mem, cpus),
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, pgMajor10, mem, cpus),
 			lines:          memSettingsAllWrong,
 			stdin:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -786,7 +863,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		},
 		{
 			desc:           "label capitalized",
-			ts:             pgtune.GetSettingsGroup(pgtune.WALLabel, mem, cpus),
+			ts:             pgtune.GetSettingsGroup(pgtune.WALLabel, pgMajor10, mem, cpus),
 			lines:          []string{},
 			stdin:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -884,7 +961,7 @@ func TestProcessTunables(t *testing.T) {
 
 	cfs := &configFileState{lines: []string{}, tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner := newTunerWithDefaultFlags(handler, cfs)
-	tuner.processTunables(mem, cpus)
+	tuner.processTunables(pgMajor10, mem, cpus)
 
 	tp := handler.p.(*testPrinter)
 	// Total number of statements is intro statement and then 3 per group of settings;
@@ -893,7 +970,7 @@ func TestProcessTunables(t *testing.T) {
 		t.Errorf("incorrect number of statements: got %d, want %d", got, 1+3*4)
 	}
 
-	wantStatement := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(mem), cpus)
+	wantStatement := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(mem), cpus, pgMajor10)
 	if got := tp.statements[0]; got != wantStatement {
 		t.Errorf("incorrect first statement: got\n%s\nwant\n%s\n", got, wantStatement)
 	}
@@ -944,7 +1021,7 @@ func TestProcessTunablesSingleCPU(t *testing.T) {
 
 	cfs := &configFileState{lines: []string{}, tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner := newTunerWithDefaultFlags(handler, cfs)
-	tuner.processTunables(mem, cpus)
+	tuner.processTunables(pgMajor10, mem, cpus)
 
 	tp := handler.p.(*testPrinter)
 	// Total number of statements is intro statement and then 3 per group of settings;
@@ -954,7 +1031,7 @@ func TestProcessTunablesSingleCPU(t *testing.T) {
 		t.Errorf("incorrect number of statements: got %d, want %d", got, 1+3*3)
 	}
 
-	wantStatement := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(mem), cpus)
+	wantStatement := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(mem), cpus, pgMajor10)
 	if got := tp.statements[0]; got != wantStatement {
 		t.Errorf("incorrect first statement: got\n%s\nwant\n%s\n", got, wantStatement)
 	}
@@ -1087,7 +1164,7 @@ func TestTunerProcessQuiet(t *testing.T) {
 
 		tuner := newTunerWithDefaultFlags(handler, cfs)
 		tuner.flags.Quiet = true
-		err = tuner.processQuiet(mem, cpus)
+		err = tuner.processQuiet(pgMajor10, mem, cpus)
 
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
@@ -1109,7 +1186,7 @@ func TestTunerProcessQuiet(t *testing.T) {
 		if got := tp.statementCalls; got != 1 {
 			t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, 1)
 		} else {
-			want := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(mem), cpus)
+			want := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(mem), cpus, pgMajor10)
 			if got := tp.statements[0]; got != want {
 				t.Errorf("%s: incorrect statement: got\n%s\nwant\n%s", c.desc, got, want)
 			}

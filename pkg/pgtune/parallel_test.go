@@ -130,25 +130,34 @@ func TestParallelRecommenderRecommendPanics(t *testing.T) {
 func TestParallelSettingsGroup(t *testing.T) {
 	mem := uint64(1024)
 	cpus := 4
-	sg := GetSettingsGroup(ParallelLabel, mem, cpus)
-	// no matter how many calls, all calls should return the same
-	for i := 0; i < 1000; i++ {
-		if got := sg.Label(); got != ParallelLabel {
-			t.Errorf("incorrect label: got %s want %s", got, ParallelLabel)
-		}
-		if got := sg.Keys(); got != nil {
-			for i, k := range got {
-				if k != ParallelKeys[i] {
-					t.Errorf("incorrect key at %d: got %s want %s", i, k, ParallelKeys[i])
-				}
+	checkFn := func(sg SettingsGroup) {
+		// no matter how many calls, all calls should return the same
+		for i := 0; i < 1000; i++ {
+			if got := sg.Label(); got != ParallelLabel {
+				t.Errorf("incorrect label: got %s want %s", got, ParallelLabel)
 			}
-		} else {
-			t.Errorf("keys is nil")
-		}
-		r := sg.GetRecommender().(*ParallelRecommender)
-		// the above will panic if not true
-		if r.cpus != cpus {
-			t.Errorf("recommender has wrong number of cpus: got %d want %d", r.cpus, cpus)
+			if got := sg.Keys(); got != nil {
+				for i, k := range got {
+					if k != ParallelKeys[i] {
+						t.Errorf("incorrect key at %d: got %s want %s", i, k, ParallelKeys[i])
+					}
+				}
+			} else {
+				t.Errorf("keys is nil")
+			}
+			r := sg.GetRecommender().(*ParallelRecommender)
+			// the above will panic if not true
+			if r.cpus != cpus {
+				t.Errorf("recommender has wrong number of cpus: got %d want %d", r.cpus, cpus)
+			}
 		}
 	}
+
+	sg := GetSettingsGroup(ParallelLabel, "9.6", mem, cpus)
+	checkFn(sg)
+
+	// PG10 adds a key
+	sg = GetSettingsGroup(ParallelLabel, "10", mem, cpus)
+	checkFn(sg)
+
 }

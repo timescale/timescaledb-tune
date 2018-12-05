@@ -197,7 +197,7 @@ func TestMemoryRecommenderRecommendPanic(t *testing.T) {
 func TestMemorySettingsGroup(t *testing.T) {
 	mem := uint64(1024)
 	cpus := 4
-	sg := GetSettingsGroup(MemoryLabel, mem, cpus)
+	sg := GetSettingsGroup(MemoryLabel, "10", mem, cpus)
 	// no matter how many calls, all calls should return the same
 	for i := 0; i < 1000; i++ {
 		if got := sg.Label(); got != MemoryLabel {
