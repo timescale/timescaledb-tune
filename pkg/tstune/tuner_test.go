@@ -221,6 +221,101 @@ func TestPromptUntilValidInput(t *testing.T) {
 	}
 }
 
+func TestProcessConfFileCheck(t *testing.T) {
+	cases := []struct {
+		desc        string
+		input       string
+		promptCalls uint64
+		filePath    string
+		flagPath    string
+		errMsg      string
+	}{
+		{
+			desc:        "success - provided path",
+			input:       "",
+			promptCalls: 0,
+			filePath:    "/path/to/postgresql.conf",
+			flagPath:    "/path/to/postgresql.conf",
+		},
+		{
+			desc:        "success - input yes",
+			input:       "yeS\n",
+			promptCalls: 1,
+			filePath:    "/path/to/postgresql.conf",
+		},
+		{
+			desc:        "success - eventually yes",
+			input:       "si\nyes\n",
+			promptCalls: 2,
+			filePath:    "/path/to/postgresql.conf",
+		},
+		{
+			desc:        "error - said no",
+			input:       "maybe\nno\n",
+			promptCalls: 2,
+			filePath:    "/path/to/postgresql.conf",
+			errMsg:      errConfFileCheckNo,
+		},
+		{
+			desc:     "error - mismatch",
+			input:    "",
+			filePath: "/path/to/postgresql.conf",
+			flagPath: "postgresql.conf",
+			errMsg:   fmt.Sprintf(errConfFileMismatchFmt, "postgresql.conf", "/path/to/postgresql.conf"),
+		},
+	}
+
+	oldPrintFn := printFn
+
+	for _, c := range cases {
+		prints := []string{}
+		printFn = func(_ io.Writer, format string, args ...interface{}) (int, error) {
+			prints = append(prints, fmt.Sprintf(format, args...))
+			return 0, nil
+		}
+
+		buf := bytes.NewBufferString(c.input)
+		br := bufio.NewReader(buf)
+		handler := &ioHandler{
+			p:  &testPrinter{},
+			br: br,
+		}
+		cfs := &configFileState{lines: []string{}}
+		tuner := newTunerWithDefaultFlags(handler, cfs)
+		tuner.flags.ConfPath = c.flagPath
+
+		err := tuner.processConfFileCheck(c.filePath)
+		tp := handler.p.(*testPrinter)
+		if got := tp.statementCalls; got != 1 {
+			t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, 1)
+		} else if got := tp.statements[0]; got != statementConfFileCheck {
+			t.Errorf("%s: incorrect statement: got\n%s\nwant\n%s", c.desc, got, statementConfFileCheck)
+		}
+
+		if got := len(prints); got != 1 {
+			t.Errorf("%s: incorrect number of prints: got %d want %d", c.desc, got, 1)
+		} else if got := prints[0]; got != c.filePath+"\n\n" {
+			t.Errorf("%s: incorrect print: got\n%s\nwant\n%s", c.desc, got, c.filePath+"\n\n")
+		}
+
+		if got := tp.promptCalls; got != c.promptCalls {
+			t.Errorf("%s: incorrect number of prompt calls: got %d want %d", c.desc, got, c.promptCalls)
+		}
+
+		if len(c.errMsg) == 0 {
+			if err != nil {
+				t.Errorf("%s: unexpected error: got %v", c.desc, err)
+			}
+		} else {
+			if err == nil {
+				t.Errorf("%s: unexpected lack of error", c.desc)
+			}
+		}
+	}
+
+	printFn = oldPrintFn
+}
+
 func TestProcessNoSharedLibLine(t *testing.T) {
 	cases := []struct {
 		desc      string
