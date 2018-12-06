@@ -26,16 +26,33 @@ type SettingsGroup interface {
 	GetRecommender() Recommender
 }
 
+// SystemConfig represents a system's resource configuration, to be used when generating
+// recommendations for different SettingsGroups.
+type SystemConfig struct {
+	Memory         uint64
+	CPUs           int
+	PGMajorVersion string
+}
+
+// NewSystemConfig returns a new SystemConfig with the given parameters.
+func NewSystemConfig(totalMemory uint64, cpus int, pgVersion string) *SystemConfig {
+	return &SystemConfig{
+		Memory:         totalMemory,
+		CPUs:           cpus,
+		PGMajorVersion: pgVersion,
+	}
+}
+
 // GetSettingsGroup returns the corresponding SettingsGroup for a given label, initialized
 // according to the system resources of totalMemory and cpus. Panics if unknown label.
-func GetSettingsGroup(label string, pgVersion string, totalMemory uint64, cpus int) SettingsGroup {
+func GetSettingsGroup(label string, config *SystemConfig) SettingsGroup {
 	switch {
 	case label == MemoryLabel:
-		return &MemorySettingsGroup{totalMemory, cpus}
+		return &MemorySettingsGroup{config.Memory, config.CPUs}
 	case label == ParallelLabel:
-		return &ParallelSettingsGroup{pgVersion, cpus}
+		return &ParallelSettingsGroup{config.PGMajorVersion, config.CPUs}
 	case label == WALLabel:
-		return &WALSettingsGroup{totalMemory}
+		return &WALSettingsGroup{config.Memory}
 	case label == MiscLabel:
 		return &MiscSettingsGroup{}
 	}
