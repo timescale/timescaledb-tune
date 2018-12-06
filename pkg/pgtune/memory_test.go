@@ -195,9 +195,8 @@ func TestMemoryRecommenderRecommendPanic(t *testing.T) {
 }
 
 func TestMemorySettingsGroup(t *testing.T) {
-	mem := uint64(1024)
-	cpus := 4
-	sg := GetSettingsGroup(MemoryLabel, "10", mem, cpus)
+	config := NewSystemConfig(1024, 4, "10")
+	sg := GetSettingsGroup(MemoryLabel, config)
 	// no matter how many calls, all calls should return the same
 	for i := 0; i < 1000; i++ {
 		if got := sg.Label(); got != MemoryLabel {
@@ -214,11 +213,11 @@ func TestMemorySettingsGroup(t *testing.T) {
 		}
 		r := sg.GetRecommender().(*MemoryRecommender)
 		// the above will panic if not true
-		if r.cpus != cpus {
-			t.Errorf("recommender has wrong number of cpus: got %d want %d", r.cpus, cpus)
+		if r.cpus != config.CPUs {
+			t.Errorf("recommender has wrong number of cpus: got %d want %d", r.cpus, config.CPUs)
 		}
-		if r.totalMemory != mem {
-			t.Errorf("recommender has wrong number of mem: got %d want %d", r.totalMemory, mem)
+		if r.totalMemory != config.Memory {
+			t.Errorf("recommender has wrong number of mem: got %d want %d", r.totalMemory, config.Memory)
 		}
 	}
 }

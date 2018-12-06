@@ -128,8 +128,7 @@ func TestParallelRecommenderRecommendPanics(t *testing.T) {
 }
 
 func TestParallelSettingsGroup(t *testing.T) {
-	mem := uint64(1024)
-	cpus := 4
+	config := NewSystemConfig(1024, 4, "9.6")
 	checkFn := func(sg SettingsGroup) {
 		// no matter how many calls, all calls should return the same
 		for i := 0; i < 1000; i++ {
@@ -147,17 +146,18 @@ func TestParallelSettingsGroup(t *testing.T) {
 			}
 			r := sg.GetRecommender().(*ParallelRecommender)
 			// the above will panic if not true
-			if r.cpus != cpus {
-				t.Errorf("recommender has wrong number of cpus: got %d want %d", r.cpus, cpus)
+			if r.cpus != config.CPUs {
+				t.Errorf("recommender has wrong number of cpus: got %d want %d", r.cpus, config.CPUs)
 			}
 		}
 	}
 
-	sg := GetSettingsGroup(ParallelLabel, "9.6", mem, cpus)
+	sg := GetSettingsGroup(ParallelLabel, config)
 	checkFn(sg)
 
 	// PG10 adds a key
-	sg = GetSettingsGroup(ParallelLabel, "10", mem, cpus)
+	config.PGMajorVersion = "10"
+	sg = GetSettingsGroup(ParallelLabel, config)
 	checkFn(sg)
 
 }

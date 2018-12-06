@@ -154,9 +154,10 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 
 	totalMemory := memory.TotalMemory()
 	cpus := runtime.NumCPU()
+	config := pgtune.NewSystemConfig(totalMemory, cpus, pgVersion)
 
 	if t.flags.Quiet {
-		err = t.processQuiet(pgVersion, totalMemory, cpus)
+		err = t.processQuiet(config)
 		ifErrHandle(err)
 	} else {
 		err = t.processSharedLibLine()
@@ -165,7 +166,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		printFn(os.Stderr, "\n")
 		err = t.promptUntilValidInput(promptTune+promptYesNo, newYesNoChecker(""))
 		if err == nil {
-			err = t.processTunables(pgVersion, totalMemory, cpus)
+			err = t.processTunables(config)
 			ifErrHandle(err)
 		} else if err.Error() != "" { // error msg of "" is response when user selects no to tuning
 			t.handler.errorExit(err)
@@ -404,10 +405,10 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 
 // processTunables handles user interactions for updating the conf file when it comes
 // to parameters than be tuned, e.g. memory.
-func (t *Tuner) processTunables(pgVersion string, totalMemory uint64, cpus int) error {
+func (t *Tuner) processTunables(config *pgtune.SystemConfig) error {
 	quiet := t.flags.Quiet
 	if !quiet {
-		t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus, pgVersion)
+		t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.CPUs, config.PGMajorVersion)
 	}
 	tunables := []string{
 		pgtune.MemoryLabel,
@@ -417,7 +418,7 @@ func (t *Tuner) processTunables(pgVersion string, totalMemory uint64, cpus int) 
 	}
 
 	for _, label := range tunables {
-		sg := pgtune.GetSettingsGroup(label, pgVersion, totalMemory, cpus)
+		sg := pgtune.GetSettingsGroup(label, config)
 		r := sg.GetRecommender()
 		if !r.IsAvailable() {
 			continue
@@ -431,8 +432,8 @@ func (t *Tuner) processTunables(pgVersion string, totalMemory uint64, cpus int) 
 }
 
 // processQuiet handles the iteractions when the user wants "quiet" output.
-func (t *Tuner) processQuiet(pgVersion string, totalMemory uint64, cpus int) error {
-	t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(totalMemory), cpus, pgVersion)
+func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
+	t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.CPUs, config.PGMajorVersion)
 
 	// Replace the print function with a version that counts how many times it
 	// is invoked so we can know whether to prompt the user or not. It doesn't
@@ -463,7 +464,7 @@ func (t *Tuner) processQuiet(pgVersion string, totalMemory uint64, cpus int) err
 	}
 
 	// print out all tunables that need to be changed
-	err := t.processTunables(pgVersion, totalMemory, cpus)
+	err := t.processTunables(config)
 	if err != nil {
 		return err
 	}

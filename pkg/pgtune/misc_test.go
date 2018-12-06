@@ -122,9 +122,8 @@ func TestMiscRecommenderRecommendPanic(t *testing.T) {
 }
 
 func TestMiscSettingsGroup(t *testing.T) {
-	mem := uint64(1024)
-	cpus := 4
-	sg := GetSettingsGroup(MiscLabel, "10", mem, cpus)
+	config := NewSystemConfig(1024, 4, "10")
+	sg := GetSettingsGroup(MiscLabel, config)
 	// no matter how many calls, all calls should return the same
 	for i := 0; i < 1000; i++ {
 		if got := sg.Label(); got != MiscLabel {
