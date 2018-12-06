@@ -24,9 +24,14 @@ const (
 	currentLabel   = "Current:"
 	recommendLabel = "Recommended:"
 
-	promptOkay  = "Is this okay? "
-	promptYesNo = "[(y)es/(n)o]: "
-	promptSkip  = "[(y)es/(s)kip/(q)uit]: "
+	promptOkay    = "Is this okay? "
+	promptCorrect = "Is this correct? "
+	promptYesNo   = "[(y)es/(n)o]: "
+	promptSkip    = "[(y)es/(s)kip/(q)uit]: "
+
+	statementConfFileCheck = "Using postgresql.conf at this path:"
+	errConfFileCheckNo     = "please pass in the correct path to postgresql.conf using the --conf-path flag"
+	errConfFileMismatchFmt = "ambiguous conf file path: got both %s and %s"
 
 	errSharedLibNeeded             = "`timescaledb` needs to be added to shared_preload_libraries in order for it to work"
 	successSharedLibCorrect        = "shared_preload_libraries is set correctly"
@@ -121,13 +126,13 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	ifErrHandle(err)
 
 	// attempt to find the config file and open it for reading
-	fileName := t.flags.ConfPath
-	if len(fileName) == 0 {
-		fileName, err = getConfigFilePath(runtime.GOOS, pgVersion)
+	filePath := t.flags.ConfPath
+	if len(filePath) == 0 {
+		filePath, err = getConfigFilePath(runtime.GOOS, pgVersion)
 		ifErrHandle(err)
 	}
 
-	file, err := os.Open(fileName)
+	file, err := os.Open(filePath)
 	if err != nil {
 		t.handler.errorExit(fmt.Errorf("could not open config file for reading: %v", err))
 	}
@@ -136,15 +141,8 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	br := bufio.NewReader(in)
 	t.handler.br = br
 
-	t.handler.p.Statement("Using postgresql.conf at this path:")
-	printFn(os.Stderr, fileName+"\n\n")
-	if len(t.flags.ConfPath) == 0 {
-		checker := newYesNoChecker("please pass in the correct path to postgresql.conf using the --conf-path flag")
-		err = t.promptUntilValidInput("Is this the correct path? "+promptYesNo, checker)
-		if err != nil {
-			t.handler.exit(0, err.Error())
-		}
-	}
+	err = t.processConfFileCheck(filePath)
+	ifErrHandle(err)
 
 	// write backup
 
@@ -176,9 +174,9 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	if !t.flags.DryRun {
 		outPath := t.flags.DestPath
 		if len(outPath) == 0 {
-			outPath, err = filepath.Abs(fileName)
+			outPath, err = filepath.Abs(filePath)
 			if err != nil {
-				t.handler.exit(1, "could not open %s for writing: %v", fileName, err)
+				t.handler.exit(1, "could not open %s for writing: %v", filePath, err)
 			}
 		}
 
@@ -212,6 +210,25 @@ func (t *Tuner) promptUntilValidInput(prompt string, checker promptChecker) erro
 			return err
 		}
 	}
+}
+
+// processConfFileCheck handles the interactions for checking whether Tuner is
+// using the correct conf file. If provided by a flag, it should skip prompting
+// error if somehow the provided filePath differs from the flag value. Otherwise,
+// it prompts the user for input on whether the provided path is correct.
+func (t *Tuner) processConfFileCheck(filePath string) error {
+	t.handler.p.Statement(statementConfFileCheck)
+	printFn(os.Stderr, filePath+"\n\n")
+	if len(t.flags.ConfPath) == 0 {
+		checker := newYesNoChecker(errConfFileCheckNo)
+		err := t.promptUntilValidInput(promptCorrect+promptYesNo, checker)
+		if err != nil {
+			return err
+		}
+	} else if t.flags.ConfPath != filePath {
+		return fmt.Errorf(errConfFileMismatchFmt, t.flags.ConfPath, filePath)
+	}
+	return nil
 }
 
 // processNoSharedLibLine goes through interactions with the user if the
