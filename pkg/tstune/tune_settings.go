@@ -17,6 +17,19 @@ const tuneRegexFmt = "^(\\s*#+?\\s*)?(%s) = (\\S+?)(\\s*(?:#.*|))$"
 
 var regexes = make(map[string]*regexp.Regexp)
 
+func init() {
+	setup := func(arr []string) {
+		for _, k := range arr {
+			regexes[k] = keyToRegex(k)
+		}
+	}
+
+	setup(pgtune.MemoryKeys)
+	setup(pgtune.ParallelKeys)
+	setup(pgtune.WALKeys)
+	setup(pgtune.MiscKeys)
+}
+
 type floatParser interface {
 	ParseFloat(string) (float64, error)
 }
@@ -33,25 +46,28 @@ func (v *numericFloatParser) ParseFloat(s string) (float64, error) {
 	return strconv.ParseFloat(s, 64)
 }
 
+// getFloatParser returns the correct floatParser for a given pgtune.Recommender.
+func getFloatParser(r pgtune.Recommender) floatParser {
+	switch r.(type) {
+	case *pgtune.MemoryRecommender:
+		return &bytesFloatParser{}
+	case *pgtune.WALRecommender:
+		return &bytesFloatParser{}
+	default:
+		return &numericFloatParser{}
+	}
+}
+
 // keyToRegex takes a conf file key/param name and creates the correct regular
 // expression.
 func keyToRegex(key string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(tuneRegexFmt, key))
 }
 
-func init() {
-	setup := func(arr []string) {
-		for _, k := range arr {
-			regexes[k] = keyToRegex(k)
-		}
-	}
-
-	setup(pgtune.MemoryKeys)
-	setup(pgtune.ParallelKeys)
-	setup(pgtune.WALKeys)
-	setup(pgtune.MiscKeys)
-}
-
+// parseWithRegex takes a line and attempts to parse it using a given regular
+// expression regex. If succesfful, a tunableParseResult is returned based on
+// the contents of the line; otherwise, nil. Panics if the regex parsing returns
+// and unexpected result.
 func parseWithRegex(line string, regex *regexp.Regexp) *tunableParseResult {
 	res := regex.FindStringSubmatch(line)
 	if len(res) > 0 {

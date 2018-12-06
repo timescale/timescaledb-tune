@@ -426,32 +426,6 @@ func TestProcessSharedLibLine(t *testing.T) {
 	printFn = oldPrintFn
 }
 
-func TestGetFloatParser(t *testing.T) {
-	switch x := (getFloatParser(&pgtune.MemoryRecommender{})).(type) {
-	case *bytesFloatParser:
-	default:
-		t.Errorf("wrong validator type for MemoryRecommender: got %T", x)
-	}
-
-	switch x := (getFloatParser(&pgtune.WALRecommender{})).(type) {
-	case *bytesFloatParser:
-	default:
-		t.Errorf("wrong validator type for WALRecommender: got %T", x)
-	}
-
-	switch x := (getFloatParser(&pgtune.ParallelRecommender{})).(type) {
-	case *numericFloatParser:
-	default:
-		t.Errorf("wrong validator type for ParallelRecommender: got %T", x)
-	}
-
-	switch x := (getFloatParser(&pgtune.MiscRecommender{})).(type) {
-	case *numericFloatParser:
-	default:
-		t.Errorf("wrong validator type for MiscRecommender: got %T", x)
-	}
-}
-
 type badRecommender struct{}
 
 func (r *badRecommender) IsAvailable() bool       { return true }

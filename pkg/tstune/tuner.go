@@ -265,17 +265,6 @@ func (t *Tuner) processSharedLibLine() error {
 	return nil
 }
 
-func getFloatParser(r pgtune.Recommender) floatParser {
-	switch r.(type) {
-	case *pgtune.MemoryRecommender:
-		return &bytesFloatParser{}
-	case *pgtune.WALRecommender:
-		return &bytesFloatParser{}
-	default:
-		return &numericFloatParser{}
-	}
-}
-
 // checkIfShouldShowSetting iterates through a group of settings defined by keys
 // and checks whether the setting should be shown to the user for modification.
 // The criteria for being shown is either:
