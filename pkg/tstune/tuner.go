@@ -78,6 +78,8 @@ func getPGMajorVersion(binPath string) (string, error) {
 
 // TunerFlags are the flags that control how a Tuner object behaves when it is run.
 type TunerFlags struct {
+	Memory    string // amount of memory to base recommendations on
+	NumCPUs   uint   // number of CPUs to base recommendations on
 	PGConfig  string // path to pg_config binary
 	ConfPath  string // path to the postgresql.conf file
 	DestPath  string // path to output file
@@ -94,6 +96,9 @@ type Tuner struct {
 	flags   *TunerFlags
 }
 
+// initializeIOHandler sets up the printer to be used throughout the running of
+// the Tuner based on the Tuner's TunerFlags, while also setting the proper
+// io.Writers for basic output and error output.
 func (t *Tuner) initializeIOHandler(out io.Writer, outErr io.Writer) {
 	var p printer
 	if t.flags.UseColor {
@@ -102,6 +107,27 @@ func (t *Tuner) initializeIOHandler(out io.Writer, outErr io.Writer) {
 		p = &noColorPrinter{outErr}
 	}
 	t.handler = &ioHandler{p: p, out: out, outErr: outErr}
+}
+
+// initializeSystemConfig creates the pgtune.SystemConfig to be used for recommendations
+// based on the Tuner's TunerFlags (i.e., whether memory and/or number of CPU cores has
+// been overridden).
+func (t *Tuner) initializeSystemConfig(pgVersion string) (*pgtune.SystemConfig, error) {
+	var totalMemory uint64
+	if t.flags.Memory != "" {
+		temp, err := parse.PGFormatToBytes(t.flags.Memory)
+		if err != nil {
+			return nil, err
+		}
+		totalMemory = temp
+	} else {
+		totalMemory = memory.TotalMemory()
+	}
+	cpus := int(t.flags.NumCPUs)
+	if t.flags.NumCPUs == 0 {
+		cpus = runtime.NumCPU()
+	}
+	return pgtune.NewSystemConfig(totalMemory, cpus, pgVersion), nil
 }
 
 // Run executes the tuning process given the provided flags and looks for input
@@ -150,9 +176,8 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	ifErrHandle(err)
 	t.cfs = cfs
 
-	totalMemory := memory.TotalMemory()
-	cpus := runtime.NumCPU()
-	config := pgtune.NewSystemConfig(totalMemory, cpus, pgVersion)
+	config, err := t.initializeSystemConfig(pgVersion)
+	ifErrHandle(err)
 
 	if t.flags.Quiet {
 		err = t.processQuiet(config)

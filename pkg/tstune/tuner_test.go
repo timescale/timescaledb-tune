@@ -7,9 +7,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/pbnjay/memory"
 	"github.com/timescale/timescaledb-tune/internal/parse"
 	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
@@ -112,6 +114,77 @@ func TestTunerInitializeIOHandler(t *testing.T) {
 	case *noColorPrinter:
 	default:
 		t.Errorf("color printer for UseColor=false flag: got %T", x)
+	}
+}
+
+func TestTunerInitializeSystemConfig(t *testing.T) {
+	totalMemory := memory.TotalMemory()
+	cases := []struct {
+		desc        string
+		flagMemory  string
+		flagNumCPUs uint
+		wantMemory  uint64
+		wantCPUs    int
+		errMsg      string
+	}{
+		{
+			desc:       "bad memory flag",
+			flagMemory: "foo",
+			errMsg:     "incorrect PostgreSQL bytes format: 'foo'",
+		},
+		{
+			desc:       "use mem flag only",
+			flagMemory: "1" + parse.GB,
+			wantMemory: 1 * parse.Gigabyte,
+			wantCPUs:   runtime.NumCPU(),
+		},
+		{
+			desc:        "use cpu flag only",
+			flagNumCPUs: 2,
+			wantMemory:  totalMemory,
+			wantCPUs:    2,
+		},
+		{
+			desc:        "both flags",
+			flagMemory:  "128" + parse.GB,
+			flagNumCPUs: 1,
+			wantMemory:  128 * parse.Gigabyte,
+			wantCPUs:    1,
+		},
+		{
+			desc:       "neither flags",
+			wantMemory: totalMemory,
+			wantCPUs:   runtime.NumCPU(),
+		},
+	}
+
+	for _, c := range cases {
+		tuner := &Tuner{nil, nil, &TunerFlags{
+			Memory:  c.flagMemory,
+			NumCPUs: c.flagNumCPUs,
+		}}
+		config, err := tuner.initializeSystemConfig(pgMajor10)
+		if len(c.errMsg) == 0 {
+			if err != nil {
+				t.Errorf("%s: unexpected error: got %v", c.desc, err)
+			}
+
+			if got := config.Memory; got != c.wantMemory {
+				t.Errorf("%s: incorrect amount of memory: got %d want %d", c.desc, got, c.wantMemory)
+			}
+
+			if got := config.CPUs; got != c.wantCPUs {
+				t.Errorf("%s: incorrect number of CPUs: got %d want %d", c.desc, got, c.wantCPUs)
+			}
+		} else {
+			if err == nil {
+				t.Errorf("%s: unexpected lack of error", c.desc)
+			}
+
+			if got := err.Error(); got != c.errMsg {
+				t.Errorf("%s: incorrect error: got\n%s\nwant\n%s", c.desc, got, c.errMsg)
+			}
+		}
 	}
 }
 
@@ -697,8 +770,8 @@ func TestCheckIfShouldShowSetting(t *testing.T) {
 			if err != nil {
 				t.Errorf("%s: unexpected err in parsing: %v", c.desc, err)
 			}
-			temp = temp + float64(temp)*(fudgeFactor-.01)
-			c.parseResults[k].value = parse.BytesToPGFormat(uint64(temp))
+			temp = temp + uint64(float64(temp)*(fudgeFactor-.01))
+			c.parseResults[k].value = parse.BytesToPGFormat(temp)
 		}
 		// change values to higher fudge factor, so it should be shown
 		for _, k := range c.highFudge {
@@ -706,8 +779,8 @@ func TestCheckIfShouldShowSetting(t *testing.T) {
 			if err != nil {
 				t.Errorf("%s: unexpected err in parsing: %v", c.desc, err)
 			}
-			temp = temp + float64(temp)*(fudgeFactor+.01)
-			c.parseResults[k].value = parse.BytesToPGFormat(uint64(temp))
+			temp = temp + uint64(float64(temp)*(fudgeFactor+.01))
+			c.parseResults[k].value = parse.BytesToPGFormat(temp)
 		}
 		// change values to lower fudge factor, so it should be shown
 		for _, k := range c.lowFudge {
@@ -715,8 +788,8 @@ func TestCheckIfShouldShowSetting(t *testing.T) {
 			if err != nil {
 				t.Errorf("%s: unexpected err in parsing: %v", c.desc, err)
 			}
-			temp = temp - float64(temp)*(fudgeFactor+.01)
-			c.parseResults[k].value = parse.BytesToPGFormat(uint64(temp))
+			temp = temp - uint64(float64(temp)*(fudgeFactor+.01))
+			c.parseResults[k].value = parse.BytesToPGFormat(temp)
 		}
 		mr := pgtune.NewMemoryRecommender(8*parse.Gigabyte, 1)
 		show, err := checkIfShouldShowSetting(pgtune.MemoryKeys, c.parseResults, mr)

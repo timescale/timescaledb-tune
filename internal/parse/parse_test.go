@@ -256,13 +256,13 @@ func TestBytesToPGFormat(t *testing.T) {
 	}
 }
 
-func TestParsePGFormatToBytes(t *testing.T) {
+func TestPGFormatToBytes(t *testing.T) {
 	tooBigInt := "9223372036854775808"
 	_, tooBigErr := strconv.ParseInt(tooBigInt, 10, 64)
 	cases := []struct {
 		desc   string
 		input  string
-		want   float64
+		want   uint64
 		errMsg string
 	}{
 		{
@@ -289,6 +289,11 @@ func TestParsePGFormatToBytes(t *testing.T) {
 			desc:   "incorrect format #5",
 			input:  tooBigInt + MB,
 			errMsg: fmt.Sprintf(errCouldNotParseBytesFmt, tooBigErr),
+		},
+		{
+			desc:   "incorrect format #6",
+			input:  "5.5" + MB, // decimal memory is a no-no
+			errMsg: fmt.Sprintf(errIncorrectFormatFmt, "5.5"+MB),
 		},
 		{
 			desc:  "valid kilobytes",
@@ -345,7 +350,7 @@ func TestParsePGFormatToBytes(t *testing.T) {
 				t.Errorf("%s: unexpected err: got %v", c.desc, err)
 			}
 			if got := bytes; got != c.want {
-				t.Errorf("%s: incorrect bytes: got %f want %f", c.desc, got, c.want)
+				t.Errorf("%s: incorrect bytes: got %d want %d", c.desc, got, c.want)
 			}
 		}
 

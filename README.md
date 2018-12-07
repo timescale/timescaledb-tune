@@ -37,7 +37,7 @@ Is this okay? [(y)es/(n)o]: y
 success: shared_preload_libraries will be updated
 
 Tune memory/parallelism/WAL and other settings?[(y)es/(n)o]: y
-Recommendations based on 8.00 GB of available memory and 4 CPUs
+Recommendations based on 8.00 GB of available memory and 4 CPUs for PostgreSQL 10
 
 Memory settings recommendations
 Current:
@@ -64,6 +64,11 @@ At the end, your `postgresql.conf` will be overwritten with the changes that you
 accepted from the prompts.
 
 #### Other invocations
+
+If you want recommendations for a specific amount of memory and/or CPUs:
+```bash
+$ timescaledb-tune --memory="4GB" --cpus=2
+```
 
 If you want to accept all recommendations, you can use `--yes`:
 ```bash

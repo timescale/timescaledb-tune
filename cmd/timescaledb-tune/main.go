@@ -19,6 +19,8 @@ var f tstune.TunerFlags
 
 // Parse args
 func init() {
+	flag.StringVar(&f.Memory, "memory", "", "Amount of memory to base recommendations on in the PostgreSQL format <int value><units>, e.g., 4GB. Default is to use all memory")
+	flag.UintVar(&f.NumCPUs, "cpus", 0, "Number of CPU cores to base recommendations on. Default is equal to number of cores")
 	flag.StringVar(&f.ConfPath, "conf-path", "", "Path to postgresql.conf. If blank, heuristics will be used to find it")
 	flag.StringVar(&f.DestPath, "out-path", "", "Path to write the new configuration file. If blank, will use the same file that is read from")
 	flag.StringVar(&f.PGConfig, "pg-config", "pg_config", "Path to the pg_config binary")
