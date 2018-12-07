@@ -27,7 +27,7 @@ const (
 )
 
 const (
-	errIncorrectFormatFmt      = "incorrect format for '%s'"
+	errIncorrectFormatFmt      = "incorrect PostgreSQL bytes format: '%s'"
 	errCouldNotParseBytesFmt   = "could not parse bytes number: %v"
 	errCouldNotParseVersionFmt = "unable to parse PG version string: %s"
 	errUnknownMajorVersionFmt  = "unknown major PG version: %s"
@@ -94,8 +94,8 @@ func BytesToPGFormat(bytes uint64) string {
 }
 
 // PGFormatToBytes parses a string to match it to the PostgreSQL byte string format,
-// which is <float value><string suffix>, e.g., 10.0GB, 15.2MB, 20.5kB, etc.
-func PGFormatToBytes(val string) (float64, error) {
+// which is <int value><string suffix>, e.g., 10GB, 1520MB, 20kB, etc.
+func PGFormatToBytes(val string) (uint64, error) {
 	res := pgBytesRegex.FindStringSubmatch(val)
 	if len(res) != 3 {
 		return 0.0, fmt.Errorf(errIncorrectFormatFmt, val)
@@ -117,7 +117,7 @@ func PGFormatToBytes(val string) (float64, error) {
 	} else {
 		return 0, fmt.Errorf("unknown units: %s", units)
 	}
-	return float64(ret), nil
+	return ret, nil
 }
 
 // ToPGMajorVersion returns the major PostgreSQL version associated with a given

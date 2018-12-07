@@ -37,7 +37,8 @@ type floatParser interface {
 type bytesFloatParser struct{}
 
 func (v *bytesFloatParser) ParseFloat(s string) (float64, error) {
-	return parse.PGFormatToBytes(s)
+	temp, err := parse.PGFormatToBytes(s)
+	return float64(temp), err
 }
 
 type numericFloatParser struct{}
