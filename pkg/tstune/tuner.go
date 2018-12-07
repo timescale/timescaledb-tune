@@ -99,20 +99,33 @@ type Tuner struct {
 // initializeIOHandler sets up the printer to be used throughout the running of
 // the Tuner based on the Tuner's TunerFlags, while also setting the proper
 // io.Writers for basic output and error output.
-func (t *Tuner) initializeIOHandler(out io.Writer, outErr io.Writer) {
+func (t *Tuner) initializeIOHandler(in io.Reader, out io.Writer, outErr io.Writer) {
 	var p printer
 	if t.flags.UseColor {
 		p = &colorPrinter{outErr}
 	} else {
 		p = &noColorPrinter{outErr}
 	}
-	t.handler = &ioHandler{p: p, out: out, outErr: outErr}
+	t.handler = &ioHandler{
+		p:      p,
+		br:     bufio.NewReader(in),
+		out:    out,
+		outErr: outErr,
+	}
 }
 
 // initializeSystemConfig creates the pgtune.SystemConfig to be used for recommendations
 // based on the Tuner's TunerFlags (i.e., whether memory and/or number of CPU cores has
 // been overridden).
-func (t *Tuner) initializeSystemConfig(pgVersion string) (*pgtune.SystemConfig, error) {
+func (t *Tuner) initializeSystemConfig() (*pgtune.SystemConfig, error) {
+	// Some settings are not applicable in some versions,
+	// e.g. max_parallel_workers is not available in 9.6
+	pgVersion, err := getPGMajorVersion(t.flags.PGConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Memory flag needs to be in PostgreSQL format, default is all memory
 	var totalMemory uint64
 	if t.flags.Memory != "" {
 		temp, err := parse.PGFormatToBytes(t.flags.Memory)
@@ -123,10 +136,13 @@ func (t *Tuner) initializeSystemConfig(pgVersion string) (*pgtune.SystemConfig, 
 	} else {
 		totalMemory = memory.TotalMemory()
 	}
+
+	// Default to the number of cores
 	cpus := int(t.flags.NumCPUs)
 	if t.flags.NumCPUs == 0 {
 		cpus = runtime.NumCPU()
 	}
+
 	return pgtune.NewSystemConfig(totalMemory, cpus, pgVersion), nil
 }
 
@@ -138,7 +154,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	if t.flags == nil {
 		t.flags = &TunerFlags{}
 	}
-	t.initializeIOHandler(out, outErr)
+	t.initializeIOHandler(in, out, outErr)
 
 	ifErrHandle := func(err error) {
 		if err != nil {
@@ -146,15 +162,14 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		}
 	}
 
-	// Some settings are not applicable in some versions,
-	// e.g. max_parallel_workers is not available in 9.6
-	pgVersion, err := getPGMajorVersion(t.flags.PGConfig)
+	// Before proceeding, make sure we have a valid system config
+	config, err := t.initializeSystemConfig()
 	ifErrHandle(err)
 
-	// attempt to find the config file and open it for reading
+	// Attempt to find the config file and open it for reading
 	filePath := t.flags.ConfPath
 	if len(filePath) == 0 {
-		filePath, err = getConfigFilePath(runtime.GOOS, pgVersion)
+		filePath, err = getConfigFilePath(runtime.GOOS, config.PGMajorVersion)
 		ifErrHandle(err)
 	}
 
@@ -164,21 +179,16 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	}
 	defer file.Close()
 
-	br := bufio.NewReader(in)
-	t.handler.br = br
-
+	// Do user verification of the found conf file (if not provided via a flag)
 	err = t.processConfFileCheck(filePath)
 	ifErrHandle(err)
 
-	// write backup
-
+	// Generate current conf file state
 	cfs, err := getConfigFileState(file)
 	ifErrHandle(err)
 	t.cfs = cfs
 
-	config, err := t.initializeSystemConfig(pgVersion)
-	ifErrHandle(err)
-
+	// Process the tuning of settings
 	if t.flags.Quiet {
 		err = t.processQuiet(config)
 		ifErrHandle(err)
@@ -196,6 +206,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		}
 	}
 
+	// Wrap up: Either write it out, or show success in --dry-run
 	if !t.flags.DryRun {
 		outPath := t.flags.DestPath
 		if len(outPath) == 0 {

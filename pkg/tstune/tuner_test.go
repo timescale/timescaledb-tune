@@ -99,7 +99,7 @@ func newTunerWithDefaultFlags(handler *ioHandler, cfs *configFileState) *Tuner {
 func TestTunerInitializeIOHandler(t *testing.T) {
 	tuner := &Tuner{nil, nil, &TunerFlags{}}
 	tuner.flags.UseColor = true
-	tuner.initializeIOHandler(os.Stdout, os.Stderr)
+	tuner.initializeIOHandler(os.Stdin, os.Stdout, os.Stderr)
 
 	switch x := tuner.handler.p.(type) {
 	case *colorPrinter:
@@ -108,7 +108,7 @@ func TestTunerInitializeIOHandler(t *testing.T) {
 	}
 
 	tuner.flags.UseColor = false
-	tuner.initializeIOHandler(os.Stdout, os.Stderr)
+	tuner.initializeIOHandler(os.Stdin, os.Stdout, os.Stderr)
 
 	switch x := tuner.handler.p.(type) {
 	case *noColorPrinter:
@@ -119,51 +119,72 @@ func TestTunerInitializeIOHandler(t *testing.T) {
 
 func TestTunerInitializeSystemConfig(t *testing.T) {
 	totalMemory := memory.TotalMemory()
+	okPGConfig := "pg_config"
 	cases := []struct {
-		desc        string
-		flagMemory  string
-		flagNumCPUs uint
-		wantMemory  uint64
-		wantCPUs    int
-		errMsg      string
+		desc         string
+		flagPGConfig string
+		flagMemory   string
+		flagNumCPUs  uint
+		wantMemory   uint64
+		wantCPUs     int
+		errMsg       string
 	}{
 		{
-			desc:       "bad memory flag",
-			flagMemory: "foo",
-			errMsg:     "incorrect PostgreSQL bytes format: 'foo'",
+			desc:         "bad pgconfig flag",
+			flagPGConfig: "foo",
+			errMsg:       "could not execute `foo --version`: executable file not found in $PATH",
 		},
 		{
-			desc:       "use mem flag only",
-			flagMemory: "1" + parse.GB,
-			wantMemory: 1 * parse.Gigabyte,
-			wantCPUs:   runtime.NumCPU(),
+			desc:         "bad memory flag",
+			flagPGConfig: okPGConfig,
+			flagMemory:   "foo",
+			errMsg:       "incorrect PostgreSQL bytes format: 'foo'",
 		},
 		{
-			desc:        "use cpu flag only",
-			flagNumCPUs: 2,
-			wantMemory:  totalMemory,
-			wantCPUs:    2,
+			desc:         "use mem flag only",
+			flagPGConfig: okPGConfig,
+			flagMemory:   "1" + parse.GB,
+			wantMemory:   1 * parse.Gigabyte,
+			wantCPUs:     runtime.NumCPU(),
 		},
 		{
-			desc:        "both flags",
-			flagMemory:  "128" + parse.GB,
-			flagNumCPUs: 1,
-			wantMemory:  128 * parse.Gigabyte,
-			wantCPUs:    1,
+			desc:         "use cpu flag only",
+			flagPGConfig: okPGConfig,
+			flagNumCPUs:  2,
+			wantMemory:   totalMemory,
+			wantCPUs:     2,
 		},
 		{
-			desc:       "neither flags",
-			wantMemory: totalMemory,
-			wantCPUs:   runtime.NumCPU(),
+			desc:         "both flags",
+			flagPGConfig: okPGConfig,
+			flagMemory:   "128" + parse.GB,
+			flagNumCPUs:  1,
+			wantMemory:   128 * parse.Gigabyte,
+			wantCPUs:     1,
 		},
+		{
+			desc:         "neither flags",
+			flagPGConfig: okPGConfig,
+			wantMemory:   totalMemory,
+			wantCPUs:     runtime.NumCPU(),
+		},
+	}
+
+	oldVersionFn := getPGConfigVersionFn
+	getPGConfigVersionFn = func(binPath string) ([]byte, error) {
+		if binPath == okPGConfig {
+			return []byte("PostgreSQL 10.5"), nil
+		}
+		return nil, exec.ErrNotFound
 	}
 
 	for _, c := range cases {
 		tuner := &Tuner{nil, nil, &TunerFlags{
-			Memory:  c.flagMemory,
-			NumCPUs: c.flagNumCPUs,
+			PGConfig: c.flagPGConfig,
+			Memory:   c.flagMemory,
+			NumCPUs:  c.flagNumCPUs,
 		}}
-		config, err := tuner.initializeSystemConfig(pgMajor10)
+		config, err := tuner.initializeSystemConfig()
 		if len(c.errMsg) == 0 {
 			if err != nil {
 				t.Errorf("%s: unexpected error: got %v", c.desc, err)
@@ -186,6 +207,8 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			}
 		}
 	}
+
+	getPGConfigVersionFn = oldVersionFn
 }
 
 type limitChecker struct {
