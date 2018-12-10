@@ -54,6 +54,7 @@ const (
 
 	pgMajor96 = "9.6"
 	pgMajor10 = "10"
+	pgMajor11 = "11"
 )
 
 var (
@@ -61,7 +62,7 @@ var (
 	getPGConfigVersionFn = getPGConfigVersion
 
 	pgVersionRegex = regexp.MustCompile("^PostgreSQL ([0-9]+?).([0-9]+?).*")
-	pgVersions     = []string{pgMajor10, pgMajor96}
+	pgVersions     = []string{pgMajor11, pgMajor10, pgMajor96}
 )
 
 func getPGMajorVersion(binPath string) (string, error) {
