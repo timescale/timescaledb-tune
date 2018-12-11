@@ -98,7 +98,7 @@ func (sg *MiscSettingsGroup) Label() string { return MiscLabel }
 
 // Keys should always return the MiscKeys slice.
 func (sg *MiscSettingsGroup) Keys() []string {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS != "linux" {
 		return MiscKeys[:len(MiscKeys)-1]
 	}
 	return MiscKeys

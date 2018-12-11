@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/pbnjay/memory"
 	"github.com/timescale/timescaledb-tune/internal/parse"
@@ -46,7 +47,9 @@ const (
 	successQuiet = "all settings tuned, no changes needed"
 
 	fmtTunableParam = "%s = %s%s\n"
+	fmtLastTuned    = "timescaledb.last_tuned = '%s'"
 
+	dateFmt     = "2006-01-02 15:04"
 	fudgeFactor = 0.05
 
 	pgMajor96 = "9.6"
@@ -205,6 +208,10 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 			t.handler.errorExit(err)
 		}
 	}
+
+	// Append the current time to mark when database was last tuned
+	lastTunedLine := fmt.Sprintf(fmtLastTuned, time.Now().Format(dateFmt))
+	cfs.lines = append(cfs.lines, lastTunedLine)
 
 	// Wrap up: Either write it out, or show success in --dry-run
 	if !t.flags.DryRun {
@@ -511,6 +518,7 @@ func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
 		return err
 	}
 	if changedSettings > 0 {
+		printFn(os.Stdout, fmtLastTuned+"\n", time.Now().Format(dateFmt))
 		checker := newYesNoChecker("not using these settings could lead to suboptimal performance")
 		err = t.promptUntilValidInput("Use these recommendations? "+promptYesNo, checker)
 		if err != nil {
