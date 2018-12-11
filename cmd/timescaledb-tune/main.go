@@ -10,12 +10,19 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/timescale/timescaledb-tune/pkg/tstune"
 )
 
-var f tstune.TunerFlags
+const version = "0.1.0"
+
+var (
+	f           tstune.TunerFlags
+	showVersion bool
+)
 
 // Parse args
 func init() {
@@ -28,10 +35,16 @@ func init() {
 	flag.BoolVar(&f.Quiet, "quiet", false, "Show only the total recommendations at the end")
 	flag.BoolVar(&f.UseColor, "color", true, "Use color in output (works best on dark terminals)")
 	flag.BoolVar(&f.DryRun, "dry-run", false, "Whether to just show the changes without overwriting the configuration file")
+
+	flag.BoolVar(&showVersion, "version", false, "Show the version of this tool")
 	flag.Parse()
 }
 
 func main() {
-	tuner := tstune.Tuner{}
-	tuner.Run(&f, os.Stdin, os.Stdout, os.Stderr)
+	if showVersion {
+		fmt.Printf("%s (%s %s)\n", version, runtime.GOOS, runtime.GOARCH)
+	} else {
+		tuner := tstune.Tuner{}
+		tuner.Run(&f, os.Stdin, os.Stdout, os.Stderr)
+	}
 }
