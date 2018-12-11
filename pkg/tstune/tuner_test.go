@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pbnjay/memory"
 	"github.com/timescale/timescaledb-tune/internal/parse"
@@ -1257,6 +1258,7 @@ var (
 )
 
 func TestTunerProcessQuiet(t *testing.T) {
+	lastTuned := fmt.Sprintf(fmtLastTuned, time.Now().Format(dateFmt))
 	cases := []struct {
 		desc          string
 		lines         []string
@@ -1342,13 +1344,18 @@ func TestTunerProcessQuiet(t *testing.T) {
 			t.Errorf("%s: unexpected lack of an error", c.desc)
 		}
 
-		if got := len(prints); got != len(c.wantedPrints) {
+		if got := len(prints); len(c.wantedPrints) == 0 && got != 0 {
+			t.Errorf("%s: incorrect prints len: got %d want %d", c.desc, got, 0)
+		} else if got := len(prints); len(c.wantedPrints) > 0 && got != len(c.wantedPrints)+1 {
 			t.Errorf("%s: incorrect prints len: got %d want %d", c.desc, got, len(c.wantedPrints))
-		} else {
+		} else if len(c.wantedPrints) > 0 {
 			for i, want := range c.wantedPrints {
 				if got := prints[i]; got != want+"\n" {
 					t.Errorf("%s: incorrect print at idx %d: got\n%s\nwant\n%s", c.desc, i, got, want+"\n")
 				}
+			}
+			if got := prints[len(c.wantedPrints)]; got != lastTuned+"\n" {
+				t.Errorf("%s: lastTuned print is missing: got\n%s\nwant\n%s", c.desc, got, lastTuned+"\n")
 			}
 		}
 
