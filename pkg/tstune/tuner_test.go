@@ -1266,7 +1266,7 @@ var (
 )
 
 func TestTunerProcessQuiet(t *testing.T) {
-	lastTuned := fmt.Sprintf(fmtLastTuned, time.Now().Format(dateFmt))
+	lastTuned := fmt.Sprintf(fmtLastTuned, time.Now().Format(lastTunedDateFmt))
 	cases := []struct {
 		desc          string
 		lines         []string
