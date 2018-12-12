@@ -17,7 +17,10 @@ import (
 	"github.com/timescale/timescaledb-tune/pkg/tstune"
 )
 
-const version = "0.1.0"
+const (
+	binName = "timescaledb-tune"
+	version = "0.1.0"
+)
 
 var (
 	f           tstune.TunerFlags
@@ -42,7 +45,7 @@ func init() {
 
 func main() {
 	if showVersion {
-		fmt.Printf("%s (%s %s)\n", version, runtime.GOOS, runtime.GOARCH)
+		fmt.Printf("%s %s (%s %s)\n", binName, version, runtime.GOOS, runtime.GOARCH)
 	} else {
 		tuner := tstune.Tuner{}
 		tuner.Run(&f, os.Stdin, os.Stdout, os.Stderr)
