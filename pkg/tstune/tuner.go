@@ -49,8 +49,7 @@ const (
 	fmtTunableParam = "%s = %s%s\n"
 	fmtLastTuned    = "timescaledb.last_tuned = '%s'"
 
-	lastTunedDateFmt = "2006-01-02 15:04"
-	fudgeFactor      = 0.05
+	fudgeFactor = 0.05
 
 	pgMajor96 = "9.6"
 	pgMajor10 = "10"
@@ -217,7 +216,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	}
 
 	// Append the current time to mark when database was last tuned
-	lastTunedLine := fmt.Sprintf(fmtLastTuned, time.Now().Format(lastTunedDateFmt))
+	lastTunedLine := fmt.Sprintf(fmtLastTuned, time.Now().Format(time.RFC3339))
 	cfs.lines = append(cfs.lines, lastTunedLine)
 
 	// Wrap up: Either write it out, or show success in --dry-run
@@ -525,7 +524,7 @@ func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
 		return err
 	}
 	if changedSettings > 0 {
-		printFn(os.Stdout, fmtLastTuned+"\n", time.Now().Format(lastTunedDateFmt))
+		printFn(os.Stdout, fmtLastTuned+"\n", time.Now().Format(time.RFC3339))
 		checker := newYesNoChecker("not using these settings could lead to suboptimal performance")
 		err = t.promptUntilValidInput("Use these recommendations? "+promptYesNo, checker)
 		if err != nil {

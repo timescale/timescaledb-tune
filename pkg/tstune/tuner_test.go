@@ -1266,7 +1266,11 @@ var (
 )
 
 func TestTunerProcessQuiet(t *testing.T) {
-	lastTuned := fmt.Sprintf(fmtLastTuned, time.Now().Format(lastTunedDateFmt))
+	// We should only expect the first part of the timestamps to be the same,
+	// since the number of seconds + milliseconds will change on each invocation
+	// inside the function (which we cannot control). Therefore, only compare a defined prefix.
+	timeMatchIdx := len("timescaledb.last_tuned = '") + 16
+	lastTuned := fmt.Sprintf(fmtLastTuned, time.Now().Format(time.RFC3339))[:timeMatchIdx]
 	cases := []struct {
 		desc          string
 		lines         []string
@@ -1362,8 +1366,8 @@ func TestTunerProcessQuiet(t *testing.T) {
 					t.Errorf("%s: incorrect print at idx %d: got\n%s\nwant\n%s", c.desc, i, got, want+"\n")
 				}
 			}
-			if got := prints[len(c.wantedPrints)]; got != lastTuned+"\n" {
-				t.Errorf("%s: lastTuned print is missing: got\n%s\nwant\n%s", c.desc, got, lastTuned+"\n")
+			if got := prints[len(c.wantedPrints)][:timeMatchIdx]; got != lastTuned {
+				t.Errorf("%s: lastTuned print is missing/incorrect: got\n%s\nwant\n%s", c.desc, got, lastTuned+"\n")
 			}
 		}
 
