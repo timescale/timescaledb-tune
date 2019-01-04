@@ -19,6 +19,9 @@ import (
 )
 
 const (
+	// Version is the version of this library
+	Version = "0.2.0-dev"
+
 	errCouldNotExecuteFmt  = "could not execute `%s --version`: %v"
 	errUnsupportedMajorFmt = "unsupported major PG version: %s"
 
@@ -46,8 +49,9 @@ const (
 
 	successQuiet = "all settings tuned, no changes needed"
 
-	fmtTunableParam = "%s = %s%s\n"
-	fmtLastTuned    = "timescaledb.last_tuned = '%s'"
+	fmtTunableParam     = "%s = %s%s\n"
+	fmtLastTuned        = "timescaledb.last_tuned = '%s'"
+	fmtLastTunedVersion = "timescaledb.last_tuned_version = '%s'"
 
 	fudgeFactor = 0.05
 
@@ -217,7 +221,8 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 
 	// Append the current time to mark when database was last tuned
 	lastTunedLine := fmt.Sprintf(fmtLastTuned, time.Now().Format(time.RFC3339))
-	cfs.lines = append(cfs.lines, lastTunedLine)
+	lastTunedVersionLine := fmt.Sprintf(fmtLastTunedVersion, Version)
+	cfs.lines = append(cfs.lines, lastTunedLine, lastTunedVersionLine)
 
 	// Wrap up: Either write it out, or show success in --dry-run
 	if !t.flags.DryRun {
@@ -525,6 +530,7 @@ func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
 	}
 	if changedSettings > 0 {
 		printFn(os.Stdout, fmtLastTuned+"\n", time.Now().Format(time.RFC3339))
+		printFn(os.Stdout, fmtLastTunedVersion+"\n", Version)
 		checker := newYesNoChecker("not using these settings could lead to suboptimal performance")
 		err = t.promptUntilValidInput("Use these recommendations? "+promptYesNo, checker)
 		if err != nil {

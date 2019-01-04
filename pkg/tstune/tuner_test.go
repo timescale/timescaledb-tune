@@ -1271,6 +1271,7 @@ func TestTunerProcessQuiet(t *testing.T) {
 	// inside the function (which we cannot control). Therefore, only compare a defined prefix.
 	timeMatchIdx := len("timescaledb.last_tuned = '") + 16
 	lastTuned := fmt.Sprintf(fmtLastTuned, time.Now().Format(time.RFC3339))[:timeMatchIdx]
+	lastTunedVersion := fmt.Sprintf(fmtLastTunedVersion+"\n", Version)
 	cases := []struct {
 		desc          string
 		lines         []string
@@ -1356,18 +1357,30 @@ func TestTunerProcessQuiet(t *testing.T) {
 			t.Errorf("%s: unexpected lack of an error", c.desc)
 		}
 
-		if got := len(prints); len(c.wantedPrints) == 0 && got != 0 {
-			t.Errorf("%s: incorrect prints len: got %d want %d", c.desc, got, 0)
-		} else if got := len(prints); len(c.wantedPrints) > 0 && got != len(c.wantedPrints)+1 {
-			t.Errorf("%s: incorrect prints len: got %d want %d", c.desc, got, len(c.wantedPrints))
+		// If there are no prints, then our "extra" prints for last_tuned GUCs
+		// are not printed either, so the default is 0. However, if any other
+		// setting is printed, then we add our GUCs too, therefore upping the
+		// wanted prints len by 2.
+		wantPrintsLen := 0
+		if len(c.wantedPrints) > 0 {
+			wantPrintsLen = len(c.wantedPrints) + 2
+		}
+
+		if got := len(prints); got != wantPrintsLen {
+			t.Errorf("%s: incorrect prints len: got %d want %d", c.desc, got, wantPrintsLen)
 		} else if len(c.wantedPrints) > 0 {
 			for i, want := range c.wantedPrints {
 				if got := prints[i]; got != want+"\n" {
 					t.Errorf("%s: incorrect print at idx %d: got\n%s\nwant\n%s", c.desc, i, got, want+"\n")
 				}
 			}
-			if got := prints[len(c.wantedPrints)][:timeMatchIdx]; got != lastTuned {
-				t.Errorf("%s: lastTuned print is missing/incorrect: got\n%s\nwant\n%s", c.desc, got, lastTuned+"\n")
+			lastTuneIdx := len(c.wantedPrints)
+			lastTuneVersionIdx := len(c.wantedPrints) + 1
+			if got := prints[lastTuneIdx][:timeMatchIdx]; got != lastTuned {
+				t.Errorf("%s: lastTuned print is missing/incorrect: got\n%s\nwant\n%s", c.desc, got, lastTuned)
+			}
+			if got := prints[lastTuneVersionIdx]; got != lastTunedVersion {
+				t.Errorf("%s: lastTunedVersion print is missing/incorrect: got\n%s\nwant\n%s", c.desc, got, lastTunedVersion)
 			}
 		}
 

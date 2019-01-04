@@ -19,7 +19,7 @@ import (
 
 const (
 	binName = "timescaledb-tune"
-	version = "0.1.0"
+	version = tstune.Version
 )
 
 var (
