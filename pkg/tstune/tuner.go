@@ -45,7 +45,7 @@ const (
 	plainSharedLibLineWithComments = plainSharedLibLine + "	# (change requires restart)"
 
 	statementTunableIntro = "Recommendations based on %s of available memory and %d CPUs for PostgreSQL %s"
-	promptTune            = "Tune memory/parallelism/WAL and other settings?"
+	promptTune            = "Tune memory/parallelism/WAL and other settings? "
 
 	successQuiet = "all settings tuned, no changes needed"
 

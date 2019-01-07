@@ -27,29 +27,32 @@ make sure your config file is up to date:
 Using postgresql.conf at this path:
 /usr/local/var/postgres/postgresql.conf
 
-Is this the correct path? [(y)es/(n)o]: y
+Is this correct? [(y)es/(n)o]: y
+Writing backup to:
+/var/folders/cr/zpgdkv194vz1g5smxl_5tggm0000gn/T/timescaledb_tune.backup201901071520
+
 shared_preload_libraries needs to be updated
 Current:
-#shared_preload_libraries = 'timescaledb'		# (change requires restart)
+#shared_preload_libraries = 'timescaledb'
 Recommended:
-shared_preload_libraries = 'timescaledb'		# (change requires restart)
+shared_preload_libraries = 'timescaledb'
 Is this okay? [(y)es/(n)o]: y
 success: shared_preload_libraries will be updated
 
-Tune memory/parallelism/WAL and other settings?[(y)es/(n)o]: y
-Recommendations based on 8.00 GB of available memory and 4 CPUs for PostgreSQL 10
+Tune memory/parallelism/WAL and other settings? [(y)es/(n)o]: y
+Recommendations based on 8.00 GB of available memory and 4 CPUs for PostgreSQL 11
 
 Memory settings recommendations
 Current:
-shared_buffers = 128MB			# min 128kB
+shared_buffers = 128MB
 #effective_cache_size = 4GB
-#maintenance_work_mem = 64MB		# min 1MB
-#work_mem = 4MB				# min 64kB
+#maintenance_work_mem = 64MB
+#work_mem = 4MB
 Recommended:
-shared_buffers = 2GB			# min 128kB
+shared_buffers = 2GB
 effective_cache_size = 6GB
-maintenance_work_mem = 1GB		# min 1MB
-work_mem = 26214kB				# min 64kB
+maintenance_work_mem = 1GB
+work_mem = 26214kB
 Is this okay? [(y)es/(s)kip/(q)uit]:
 ```
 
