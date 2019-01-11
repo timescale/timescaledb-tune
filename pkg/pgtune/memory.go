@@ -15,7 +15,10 @@ const (
 	MaintenanceWorkMemKey = "maintenance_work_mem"
 	WorkMemKey            = "work_mem"
 
-	sharedBuffersWindows = 512 * parse.Megabyte
+	sharedBuffersWindows        = 512 * parse.Megabyte
+	baseConns                   = 20
+	workMemPerGigPerConn        = 6.4 * baseConns     // derived from pgtune results
+	workMemPerGigPerConnWindows = 8.53336 * baseConns // derived from pgtune results
 )
 
 // MemoryLabel is the label used to refer to the memory settings group
@@ -33,12 +36,17 @@ var MemoryKeys = []string{
 type MemoryRecommender struct {
 	totalMemory uint64
 	cpus        int
+	conns       uint64
 }
 
 // NewMemoryRecommender returns a MemoryRecommender that recommends based on the given
 // number of cpus and system memory
-func NewMemoryRecommender(totalMemory uint64, cpus int) *MemoryRecommender {
-	return &MemoryRecommender{totalMemory, cpus}
+func NewMemoryRecommender(totalMemory uint64, cpus int, maxConns uint64) *MemoryRecommender {
+	conns := maxConns
+	if conns == 0 {
+		conns = MaxConnectionsDefault
+	}
+	return &MemoryRecommender{totalMemory, cpus, conns}
 }
 
 // IsAvailable returns whether this Recommender is usable given the system resources. Always true.
@@ -69,7 +77,8 @@ func (r *MemoryRecommender) Recommend(key string) string {
 			val = r.recommendWindows()
 		} else {
 			cpuFactor := math.Round(float64(r.cpus) / 2.0)
-			temp := (float64(r.totalMemory) / float64(parse.Gigabyte)) * (6.4 * float64(parse.Megabyte)) / cpuFactor
+			gigs := float64(r.totalMemory) / float64(parse.Gigabyte)
+			temp := gigs * (workMemPerGigPerConn * float64(parse.Megabyte) / float64(r.conns)) / cpuFactor
 			val = parse.BytesToPGFormat(uint64(temp))
 		}
 	} else {
@@ -80,12 +89,15 @@ func (r *MemoryRecommender) Recommend(key string) string {
 
 func (r *MemoryRecommender) recommendWindows() string {
 	cpuFactor := math.Round(float64(r.cpus) / 2.0)
+
 	if r.totalMemory <= 2*parse.Gigabyte {
-		temp := (float64(r.totalMemory) / float64(parse.Gigabyte)) * (6.4 * float64(parse.Megabyte)) / cpuFactor
+		gigs := float64(r.totalMemory) / float64(parse.Gigabyte)
+		temp := gigs * (workMemPerGigPerConn * float64(parse.Megabyte) / float64(r.conns)) / cpuFactor
 		return parse.BytesToPGFormat(uint64(temp))
 	}
-	base := 2.0 * 6.4 * float64(parse.Megabyte)
-	temp := ((float64(r.totalMemory)/float64(parse.Gigabyte)-2)*(8.53336*float64(parse.Megabyte)) + base) / cpuFactor
+	base := 2.0 * workMemPerGigPerConn * float64(parse.Megabyte)
+	gigs := float64(r.totalMemory)/float64(parse.Gigabyte) - 2.0
+	temp := ((gigs*(workMemPerGigPerConnWindows*float64(parse.Megabyte)) + base) / float64(r.conns)) / cpuFactor
 	return parse.BytesToPGFormat(uint64(temp))
 }
 
@@ -93,6 +105,7 @@ func (r *MemoryRecommender) recommendWindows() string {
 type MemorySettingsGroup struct {
 	totalMemory uint64
 	cpus        int
+	maxConns    uint64
 }
 
 // Label should always return the value MemoryLabel.
@@ -103,5 +116,5 @@ func (sg *MemorySettingsGroup) Keys() []string { return MemoryKeys }
 
 // GetRecommender should return a new MemoryRecommender.
 func (sg *MemorySettingsGroup) GetRecommender() Recommender {
-	return NewMemoryRecommender(sg.totalMemory, sg.cpus)
+	return NewMemoryRecommender(sg.totalMemory, sg.cpus, sg.maxConns)
 }

@@ -986,7 +986,7 @@ func TestCheckIfShouldShowSetting(t *testing.T) {
 			temp = temp - uint64(float64(temp)*(fudgeFactor+.01))
 			c.parseResults[k].value = parse.BytesToPGFormat(temp)
 		}
-		mr := pgtune.NewMemoryRecommender(8*parse.Gigabyte, 1)
+		mr := pgtune.NewMemoryRecommender(8*parse.Gigabyte, 1, 20)
 		show, err := checkIfShouldShowSetting(pgtune.MemoryKeys, c.parseResults, mr)
 		if len(c.errMsg) > 0 {
 
@@ -1077,7 +1077,11 @@ func (sg *testSettingsGroup) GetRecommender() pgtune.Recommender { return &badRe
 func TestProcessSettingsGroup(t *testing.T) {
 	mem := uint64(8 * parse.Gigabyte)
 	cpus := 4
-	config := pgtune.NewSystemConfig(mem, cpus, pgMajor10)
+	maxConns := uint64(20)
+	config, err := pgtune.NewSystemConfig(mem, cpus, pgMajor10, maxConns)
+	if err != nil {
+		t.Errorf("unexpected error in config creation: got %v", err)
+	}
 	cases := []struct {
 		desc           string
 		ts             pgtune.SettingsGroup
@@ -1284,7 +1288,11 @@ func TestProcessSettingsGroup(t *testing.T) {
 func TestProcessTunables(t *testing.T) {
 	mem := uint64(10 * parse.Gigabyte)
 	cpus := 6
-	config := pgtune.NewSystemConfig(mem, cpus, pgMajor10)
+	maxConns := uint64(10)
+	config, err := pgtune.NewSystemConfig(mem, cpus, pgMajor10, maxConns)
+	if err != nil {
+		t.Errorf("unexpected error in system config creation: got %v", err)
+	}
 
 	oldPrintFn := printFn
 	printFn = func(_ io.Writer, _ string, _ ...interface{}) (int, error) {
@@ -1346,7 +1354,11 @@ func TestProcessTunables(t *testing.T) {
 func TestProcessTunablesSingleCPU(t *testing.T) {
 	mem := uint64(10 * parse.Gigabyte)
 	cpus := 1
-	config := pgtune.NewSystemConfig(mem, cpus, pgMajor10)
+	maxConns := uint64(10)
+	config, err := pgtune.NewSystemConfig(mem, cpus, pgMajor10, maxConns)
+	if err != nil {
+		t.Errorf("unexpected error in system config creation: got %v", err)
+	}
 
 	oldPrintFn := printFn
 	printFn = func(_ io.Writer, _ string, _ ...interface{}) (int, error) {
@@ -1423,7 +1435,7 @@ var (
 		"default_statistics_target = 500",
 		"random_page_cost = 1.1",
 		"checkpoint_completion_target = 0.9",
-		"max_connections = 20",
+		fmt.Sprintf("max_connections = %d", pgtune.MaxConnectionsDefault),
 		"max_locks_per_transaction = 64",
 		"effective_io_concurrency = 200",
 		"max_locks_per_transaction = 128",
@@ -1495,7 +1507,11 @@ func TestTunerProcessQuiet(t *testing.T) {
 
 		mem := uint64(8 * parse.Gigabyte)
 		cpus := 4
-		config := pgtune.NewSystemConfig(mem, cpus, pgMajor10)
+		maxConns := uint64(20)
+		config, err := pgtune.NewSystemConfig(mem, cpus, pgMajor10, maxConns)
+		if err != nil {
+			t.Errorf("unexpected error in system config creation: got %v", err)
+		}
 		input := "y\n"
 		if c.shouldErr {
 			input = "n\n"

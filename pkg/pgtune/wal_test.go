@@ -68,7 +68,8 @@ func TestWALRecommenderRecommendPanic(t *testing.T) {
 
 func TestWALSettingsGroup(t *testing.T) {
 	for totalMemory, matrix := range walSettingsMatrix {
-		config := NewSystemConfig(totalMemory, 4, "10")
+		config := getDefaultTestSystemConfig(t)
+		config.Memory = totalMemory
 		sg := GetSettingsGroup(WALLabel, config)
 		testSettingGroup(t, sg, matrix, WALLabel, WALKeys)
 	}

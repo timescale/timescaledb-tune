@@ -14,15 +14,17 @@ const (
 	StatsTargetKey    = "default_statistics_target"
 	MaxConnectionsKey = "max_connections"
 	RandomPageCostKey = "random_page_cost"
-	MaxLocksPerTx     = "max_locks_per_transaction"
+	MaxLocksPerTxKey  = "max_locks_per_transaction"
 	EffectiveIOKey    = "effective_io_concurrency" // linux only
 
 	checkpointDefault     = "0.9"
 	statsTargetDefault    = "500"
-	maxConnectionsDefault = "20"
 	randomPageCostDefault = "1.1"
 	effectiveIODefault    = "200"
 )
+
+// MaxConnectionsDefault is the recommended default value for max_connections.
+const MaxConnectionsDefault uint64 = 50
 
 // maxLocksValues gives the number of locks for a power-2 memory starting
 // with sub-8GB. i.e.:
@@ -41,18 +43,19 @@ var MiscKeys = []string{
 	RandomPageCostKey,
 	CheckpointKey,
 	MaxConnectionsKey,
-	MaxLocksPerTx,
+	MaxLocksPerTxKey,
 	EffectiveIOKey,
 }
 
 // MiscRecommender gives recommendations for MiscKeys based on system resources.
 type MiscRecommender struct {
 	totalMemory uint64
+	maxConns    uint64
 }
 
 // NewMiscRecommender returns a MiscRecommender (unaffected by system resources).
-func NewMiscRecommender(totalMemory uint64) *MiscRecommender {
-	return &MiscRecommender{totalMemory}
+func NewMiscRecommender(totalMemory, maxConns uint64) *MiscRecommender {
+	return &MiscRecommender{totalMemory, maxConns}
 }
 
 // IsAvailable returns whether this Recommender is usable given the system resources. Always true.
@@ -69,10 +72,14 @@ func (r *MiscRecommender) Recommend(key string) string {
 	} else if key == StatsTargetKey {
 		val = statsTargetDefault
 	} else if key == MaxConnectionsKey {
-		val = maxConnectionsDefault
+		conns := MaxConnectionsDefault
+		if r.maxConns > conns {
+			conns = r.maxConns
+		}
+		val = fmt.Sprintf("%d", conns)
 	} else if key == RandomPageCostKey {
 		val = randomPageCostDefault
-	} else if key == MaxLocksPerTx {
+	} else if key == MaxLocksPerTxKey {
 		for i := len(maxLocksValues) - 1; i >= 1; i-- {
 			limit := uint64(math.Pow(2.0, float64(2+i)))
 			if r.totalMemory >= limit*parse.Gigabyte {
@@ -91,6 +98,7 @@ func (r *MiscRecommender) Recommend(key string) string {
 // MiscSettingsGroup is the SettingsGroup to represent settings that do not fit in other SettingsGroups.
 type MiscSettingsGroup struct {
 	totalMemory uint64
+	maxConns    uint64
 }
 
 // Label should always return the value MiscLabel.
@@ -106,5 +114,5 @@ func (sg *MiscSettingsGroup) Keys() []string {
 
 // GetRecommender should return a new MiscRecommender.
 func (sg *MiscSettingsGroup) GetRecommender() Recommender {
-	return NewMiscRecommender(sg.totalMemory)
+	return NewMiscRecommender(sg.totalMemory, sg.maxConns)
 }
