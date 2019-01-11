@@ -1262,6 +1262,7 @@ var (
 		"max_connections = 20",
 		"max_locks_per_transaction = 64",
 		"effective_io_concurrency = 200",
+		"max_locks_per_transaction = 128",
 	}
 )
 
