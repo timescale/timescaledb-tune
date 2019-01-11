@@ -3,7 +3,12 @@
 // for groups of settings in a PostgreSQL conf file.
 package pgtune
 
-const osWindows = "windows"
+import "fmt"
+
+const (
+	osWindows            = "windows"
+	errMaxConnsTooLowFmt = "maxConns must be 0 OR >= 10: got %d"
+)
 
 // Recommender is an interface that gives setting recommendations for a given
 // key, usually grouped by logical settings groups (e.g. MemoryRecommender for memory settings).
@@ -32,15 +37,20 @@ type SystemConfig struct {
 	Memory         uint64
 	CPUs           int
 	PGMajorVersion string
+	maxConns       uint64
 }
 
 // NewSystemConfig returns a new SystemConfig with the given parameters.
-func NewSystemConfig(totalMemory uint64, cpus int, pgVersion string) *SystemConfig {
+func NewSystemConfig(totalMemory uint64, cpus int, pgVersion string, maxConns uint64) (*SystemConfig, error) {
+	if maxConns != 0 && maxConns < 10 {
+		return nil, fmt.Errorf(errMaxConnsTooLowFmt, maxConns)
+	}
 	return &SystemConfig{
 		Memory:         totalMemory,
 		CPUs:           cpus,
 		PGMajorVersion: pgVersion,
-	}
+		maxConns:       maxConns,
+	}, nil
 }
 
 // GetSettingsGroup returns the corresponding SettingsGroup for a given label, initialized
@@ -48,13 +58,13 @@ func NewSystemConfig(totalMemory uint64, cpus int, pgVersion string) *SystemConf
 func GetSettingsGroup(label string, config *SystemConfig) SettingsGroup {
 	switch {
 	case label == MemoryLabel:
-		return &MemorySettingsGroup{config.Memory, config.CPUs}
+		return &MemorySettingsGroup{config.Memory, config.CPUs, config.maxConns}
 	case label == ParallelLabel:
 		return &ParallelSettingsGroup{config.PGMajorVersion, config.CPUs}
 	case label == WALLabel:
 		return &WALSettingsGroup{config.Memory}
 	case label == MiscLabel:
-		return &MiscSettingsGroup{config.Memory}
+		return &MiscSettingsGroup{config.Memory, config.maxConns}
 	}
 	panic("unknown label: " + label)
 }

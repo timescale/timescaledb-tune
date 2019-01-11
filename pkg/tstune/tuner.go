@@ -22,7 +22,7 @@ import (
 
 const (
 	// Version is the version of this library
-	Version = "0.3.0"
+	Version = "0.4.0-dev"
 
 	errCouldNotExecuteFmt  = "could not execute `%s --version`: %v"
 	errUnsupportedMajorFmt = "unsupported major PG version: %s"
@@ -98,6 +98,7 @@ type TunerFlags struct {
 	Memory    string // amount of memory to base recommendations on
 	NumCPUs   uint   // number of CPUs to base recommendations on
 	PGConfig  string // path to pg_config binary
+	MaxConns  uint64 // max number of database connections
 	ConfPath  string // path to the postgresql.conf file
 	DestPath  string // path to output file
 	YesAlways bool   // always respond yes to prompts
@@ -161,7 +162,7 @@ func (t *Tuner) initializeSystemConfig() (*pgtune.SystemConfig, error) {
 		cpus = runtime.NumCPU()
 	}
 
-	return pgtune.NewSystemConfig(totalMemory, cpus, pgVersion), nil
+	return pgtune.NewSystemConfig(totalMemory, cpus, pgVersion, t.flags.MaxConns)
 }
 
 func (t *Tuner) restore(r restorer, filePath string) error {

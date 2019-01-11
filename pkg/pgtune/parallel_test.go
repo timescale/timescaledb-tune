@@ -88,7 +88,9 @@ func TestParallelRecommenderRecommendPanics(t *testing.T) {
 
 func TestParallelSettingsGroup(t *testing.T) {
 	for cpus, matrix := range parallelSettingsMatrix {
-		config := NewSystemConfig(1024, cpus, "9.6")
+		config := getDefaultTestSystemConfig(t)
+		config.CPUs = cpus
+		config.PGMajorVersion = "9.6" // 9.6 lacks one key
 		sg := GetSettingsGroup(ParallelLabel, config)
 		testSettingGroup(t, sg, matrix, ParallelLabel, ParallelKeys)
 

@@ -1,9 +1,24 @@
 package pgtune
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 )
+
+const (
+	testMaxConnsSpecial = 0
+	testMaxConnsBad     = 1
+	testMaxConns        = 10
+)
+
+func getDefaultTestSystemConfig(t *testing.T) *SystemConfig {
+	config, err := NewSystemConfig(1024, 4, "10", testMaxConns)
+	if err != nil {
+		t.Errorf("unexpected error: got %v", err)
+	}
+	return config
+}
 
 func TestNewSystemConfig(t *testing.T) {
 	for i := 0; i < 1000; i++ {
@@ -14,7 +29,10 @@ func TestNewSystemConfig(t *testing.T) {
 			pgVersion = "9.6"
 		}
 
-		config := NewSystemConfig(mem, cpus, pgVersion)
+		config, err := NewSystemConfig(mem, cpus, pgVersion, testMaxConns)
+		if err != nil {
+			t.Errorf("unexpected error: got %v", err)
+		}
 		if config.Memory != mem {
 			t.Errorf("incorrect memory: got %d want %d", config.Memory, mem)
 		}
@@ -24,12 +42,32 @@ func TestNewSystemConfig(t *testing.T) {
 		if config.PGMajorVersion != pgVersion {
 			t.Errorf("incorrect pg version: got %s want %s", config.PGMajorVersion, pgVersion)
 		}
+		if config.maxConns != testMaxConns {
+			t.Errorf("incorrect max conns: got %d want %d", config.maxConns, testMaxConns)
+		}
+
+		config, err = NewSystemConfig(mem, cpus, pgVersion, testMaxConnsBad)
+		wantErr := fmt.Sprintf(errMaxConnsTooLowFmt, testMaxConnsBad)
+		if err == nil {
+			t.Errorf("unexpected lack of error")
+		} else if got := err.Error(); got != wantErr {
+			t.Errorf("unexpected error: got\n%s\nwant\n%s", got, wantErr)
+		}
+
+		config, err = NewSystemConfig(mem, cpus, pgVersion, testMaxConnsSpecial)
+		if err != nil {
+			t.Errorf("unexpected error: got %v", err)
+		}
+		if config.maxConns != testMaxConnsSpecial {
+			t.Errorf("incorrect max conns: got %d want %d", config.maxConns, testMaxConnsSpecial)
+		}
+
 	}
 }
 
 func TestGetSettingsGroup(t *testing.T) {
 	okLabels := []string{MemoryLabel, ParallelLabel, WALLabel, MiscLabel}
-	config := NewSystemConfig(1024, 4, "10")
+	config := getDefaultTestSystemConfig(t)
 	for _, label := range okLabels {
 		sg := GetSettingsGroup(label, config)
 		if sg == nil {
