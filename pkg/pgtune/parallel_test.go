@@ -5,6 +5,24 @@ import (
 	"testing"
 )
 
+var parallelSettingsMatrix = map[int]map[string]string{
+	2: map[string]string{
+		MaxWorkerProcessesKey:       "2",
+		MaxParallelWorkersGatherKey: "1",
+		MaxParallelWorkers:          "2",
+	},
+	4: map[string]string{
+		MaxWorkerProcessesKey:       "4",
+		MaxParallelWorkersGatherKey: "2",
+		MaxParallelWorkers:          "4",
+	},
+	5: map[string]string{
+		MaxWorkerProcessesKey:       "5",
+		MaxParallelWorkersGatherKey: "3",
+		MaxParallelWorkers:          "5",
+	},
+}
+
 func TestNewParallelRecommender(t *testing.T) {
 	for i := 0; i < 1000000; i++ {
 		cpus := rand.Intn(128)
@@ -34,74 +52,9 @@ func TestParallelRecommenderIsAvailable(t *testing.T) {
 }
 
 func TestParallelRecommenderRecommend(t *testing.T) {
-	cases := []struct {
-		desc string
-		key  string
-		cpus int
-		want string
-	}{
-		{
-			desc: "max_worker_processes, 2",
-			key:  MaxWorkerProcessesKey,
-			cpus: 2,
-			want: "2",
-		},
-		{
-			desc: "max_worker_processes, 4",
-			key:  MaxWorkerProcessesKey,
-			cpus: 4,
-			want: "4",
-		},
-		{
-			desc: "max_worker_processes, 5",
-			key:  MaxWorkerProcessesKey,
-			cpus: 5,
-			want: "5",
-		},
-		{
-			desc: "max_parallel_workers, 2",
-			key:  MaxParallelWorkers,
-			cpus: 2,
-			want: "2",
-		},
-		{
-			desc: "max_parallel_workers, 4",
-			key:  MaxParallelWorkers,
-			cpus: 4,
-			want: "4",
-		},
-		{
-			desc: "max_parallel_workers, 5",
-			key:  MaxParallelWorkers,
-			cpus: 5,
-			want: "5",
-		},
-		{
-			desc: "max_parallel_workers_per_gather, 2",
-			key:  MaxParallelWorkersGatherKey,
-			cpus: 2,
-			want: "1",
-		},
-		{
-			desc: "max_parallel_workers_per_gather, 4",
-			key:  MaxParallelWorkersGatherKey,
-			cpus: 4,
-			want: "2",
-		},
-		{
-			desc: "max_parallel_workers_per_gather, 5",
-			key:  MaxParallelWorkersGatherKey,
-			cpus: 5,
-			want: "3",
-		},
-	}
-
-	for _, c := range cases {
-		r := &ParallelRecommender{c.cpus}
-		got := r.Recommend(c.key)
-		if got != c.want {
-			t.Errorf("%s: incorrect result: got\n%s\nwant\n%s", c.desc, got, c.want)
-		}
+	for cpus, matrix := range parallelSettingsMatrix {
+		r := &ParallelRecommender{cpus}
+		testRecommender(t, r, matrix)
 	}
 }
 
@@ -128,36 +81,15 @@ func TestParallelRecommenderRecommendPanics(t *testing.T) {
 }
 
 func TestParallelSettingsGroup(t *testing.T) {
-	config := NewSystemConfig(1024, 4, "9.6")
-	checkFn := func(sg SettingsGroup) {
-		// no matter how many calls, all calls should return the same
-		for i := 0; i < 1000; i++ {
-			if got := sg.Label(); got != ParallelLabel {
-				t.Errorf("incorrect label: got %s want %s", got, ParallelLabel)
-			}
-			if got := sg.Keys(); got != nil {
-				for i, k := range got {
-					if k != ParallelKeys[i] {
-						t.Errorf("incorrect key at %d: got %s want %s", i, k, ParallelKeys[i])
-					}
-				}
-			} else {
-				t.Errorf("keys is nil")
-			}
-			r := sg.GetRecommender().(*ParallelRecommender)
-			// the above will panic if not true
-			if r.cpus != config.CPUs {
-				t.Errorf("recommender has wrong number of cpus: got %d want %d", r.cpus, config.CPUs)
-			}
-		}
+	for cpus, matrix := range parallelSettingsMatrix {
+		config := NewSystemConfig(1024, cpus, "9.6")
+		sg := GetSettingsGroup(ParallelLabel, config)
+		testSettingGroup(t, sg, matrix, ParallelLabel, ParallelKeys)
+
+		// PG10 adds a key
+		config.PGMajorVersion = "10"
+		sg = GetSettingsGroup(ParallelLabel, config)
+		testSettingGroup(t, sg, matrix, ParallelLabel, ParallelKeys)
 	}
-
-	sg := GetSettingsGroup(ParallelLabel, config)
-	checkFn(sg)
-
-	// PG10 adds a key
-	config.PGMajorVersion = "10"
-	sg = GetSettingsGroup(ParallelLabel, config)
-	checkFn(sg)
 
 }

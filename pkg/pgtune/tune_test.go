@@ -67,3 +67,32 @@ func TestGetSettingsGroup(t *testing.T) {
 		GetSettingsGroup("foo", config)
 	}()
 }
+
+func testSettingGroup(t *testing.T, sg SettingsGroup, cases map[string]string, wantLabel string, wantKeys []string) {
+	// No matter how many calls, all calls should return the same
+	for i := 0; i < 1000; i++ {
+		if got := sg.Label(); got != wantLabel {
+			t.Errorf("incorrect label: got %s want %s", got, wantLabel)
+		}
+		if got := sg.Keys(); got != nil {
+			for i, k := range got {
+				if k != wantKeys[i] {
+					t.Errorf("incorrect key at %d: got %s want %s", i, k, wantKeys[i])
+				}
+			}
+		} else {
+			t.Errorf("keys is nil")
+		}
+		r := sg.GetRecommender()
+
+		testRecommender(t, r, cases)
+	}
+}
+
+func testRecommender(t *testing.T, r Recommender, cases map[string]string) {
+	for key, want := range cases {
+		if got := r.Recommend(key); got != want {
+			t.Errorf("incorrect result for key %s: got\n%s\nwant\n%s", key, got, want)
+		}
+	}
+}

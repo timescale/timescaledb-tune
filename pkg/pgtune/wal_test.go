@@ -1,12 +1,34 @@
 package pgtune
 
 import (
-	"fmt"
 	"math/rand"
 	"testing"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
 )
+
+// memoryToWALBuffers provides a mapping from test case memory levels to the
+// expected WAL buffers setting. This is used to generate the test cases for
+// WALRecommender, stored in walSettingsMatrix.
+var memoryToWALBuffers = map[uint64]uint64{
+	1 * parse.Gigabyte:                    7864 * parse.Kilobyte,
+	uint64(1.5 * float64(parse.Gigabyte)): 11796 * parse.Kilobyte,
+	2 * parse.Gigabyte:                    walBuffersDefault,
+	10 * parse.Gigabyte:                   walBuffersDefault,
+}
+
+// walSettingsMatrix stores the test cases for WALRecommender along with the
+// expected values for WAL keys.
+var walSettingsMatrix = map[uint64]map[string]string{}
+
+func init() {
+	for memory, walBuffers := range memoryToWALBuffers {
+		walSettingsMatrix[memory] = make(map[string]string)
+		walSettingsMatrix[memory][MinWALKey] = parse.BytesToPGFormat(minWALBytes)
+		walSettingsMatrix[memory][MaxWALKey] = parse.BytesToPGFormat(maxWALBytes)
+		walSettingsMatrix[memory][WALBuffersKey] = parse.BytesToPGFormat(walBuffers)
+	}
+}
 
 func TestNewWALRecommender(t *testing.T) {
 	for i := 0; i < 1000000; i++ {
@@ -26,69 +48,9 @@ func TestNewWALRecommender(t *testing.T) {
 }
 
 func TestWALRecommenderRecommend(t *testing.T) {
-	valFmt := "%d%s"
-	cases := []struct {
-		desc        string
-		key         string
-		totalMemory uint64
-		want        string
-	}{
-		{
-			desc:        "wal_buffers, 1GB",
-			key:         WALBuffersKey,
-			totalMemory: parse.Gigabyte,
-			want:        fmt.Sprintf(valFmt, 7864, parse.KB), // from pgtune
-		},
-		{
-			desc:        "wal_buffers, 1.5GB",
-			key:         WALBuffersKey,
-			totalMemory: uint64(1.5 * float64(parse.Gigabyte)),
-			want:        fmt.Sprintf(valFmt, 11796, parse.KB), // from pgtune
-		},
-		{
-			desc:        "wal_buffers, 2GB",
-			key:         WALBuffersKey,
-			totalMemory: 2 * parse.Gigabyte,
-			want:        fmt.Sprintf(valFmt, 16, parse.MB),
-		},
-		{
-			desc:        "wal_buffers, > 2GB",
-			key:         WALBuffersKey,
-			totalMemory: 10 * parse.Gigabyte,
-			want:        fmt.Sprintf(valFmt, walBuffersDefault/parse.Megabyte, parse.MB),
-		},
-		{
-			desc:        "min_wal_size is constant #1",
-			key:         MinWALKey,
-			totalMemory: parse.Gigabyte,
-			want:        fmt.Sprintf(valFmt, minWalBytes/parse.Gigabyte, parse.GB),
-		},
-		{
-			desc:        "min_wal_size is constant #2",
-			key:         MinWALKey,
-			totalMemory: 10 * parse.Gigabyte,
-			want:        fmt.Sprintf(valFmt, minWalBytes/parse.Gigabyte, parse.GB),
-		},
-		{
-			desc:        "max_wal_size is constant #1",
-			key:         MaxWALKey,
-			totalMemory: 1 * parse.Gigabyte,
-			want:        fmt.Sprintf(valFmt, maxWalBytes/parse.Gigabyte, parse.GB),
-		},
-		{
-			desc:        "max_wal_size is constant #2",
-			key:         MaxWALKey,
-			totalMemory: 10 * parse.Gigabyte,
-			want:        fmt.Sprintf(valFmt, maxWalBytes/parse.Gigabyte, parse.GB),
-		},
-	}
-
-	for _, c := range cases {
-		r := &WALRecommender{c.totalMemory}
-		got := r.Recommend(c.key)
-		if got != c.want {
-			t.Errorf("%s: incorrect result: got\n%s\nwant\n%s", c.desc, got, c.want)
-		}
+	for totalMemory, matrix := range walSettingsMatrix {
+		r := &WALRecommender{totalMemory}
+		testRecommender(t, r, matrix)
 	}
 }
 
@@ -105,27 +67,9 @@ func TestWALRecommenderRecommendPanic(t *testing.T) {
 }
 
 func TestWALSettingsGroup(t *testing.T) {
-	config := NewSystemConfig(1024, 4, "10")
-	sg := GetSettingsGroup(WALLabel, config)
-	// no matter how many calls, all calls should return the same
-	for i := 0; i < 1000; i++ {
-		if got := sg.Label(); got != WALLabel {
-			t.Errorf("incorrect label: got %s want %s", got, WALLabel)
-		}
-		if got := sg.Keys(); got != nil {
-			for i, k := range got {
-				if k != WALKeys[i] {
-					t.Errorf("incorrect key at %d: got %s want %s", i, k, WALKeys[i])
-				}
-			}
-		} else {
-			t.Errorf("keys is nil")
-		}
-		r := sg.GetRecommender().(*WALRecommender)
-		// the above will panic if not true
-
-		if r.totalMemory != config.Memory {
-			t.Errorf("recommender has wrong number of mem: got %d want %d", r.totalMemory, config.Memory)
-		}
+	for totalMemory, matrix := range walSettingsMatrix {
+		config := NewSystemConfig(totalMemory, 4, "10")
+		sg := GetSettingsGroup(WALLabel, config)
+		testSettingGroup(t, sg, matrix, WALLabel, WALKeys)
 	}
 }
