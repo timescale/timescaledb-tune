@@ -7,6 +7,8 @@ import (
 	"github.com/timescale/timescaledb-tune/internal/parse"
 )
 
+// miscSettingsMatrix stores the test cases for MiscRecommender along with the
+// expected values for its keys
 var miscSettingsMatrix = map[uint64]map[string]string{
 	7 * parse.Gigabyte:  map[string]string{MaxLocksPerTx: maxLocksValues[0]},
 	8 * parse.Gigabyte:  map[string]string{MaxLocksPerTx: maxLocksValues[1]},
