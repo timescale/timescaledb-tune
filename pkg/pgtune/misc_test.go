@@ -7,7 +7,7 @@ import (
 	"github.com/timescale/timescaledb-tune/internal/parse"
 )
 
-var memSettingsMatrix = map[uint64]map[string]string{
+var miscSettingsMatrix = map[uint64]map[string]string{
 	7 * parse.Gigabyte:  map[string]string{MaxLocksPerTx: maxLocksValues[0]},
 	8 * parse.Gigabyte:  map[string]string{MaxLocksPerTx: maxLocksValues[1]},
 	15 * parse.Gigabyte: map[string]string{MaxLocksPerTx: maxLocksValues[1]},
@@ -18,12 +18,12 @@ var memSettingsMatrix = map[uint64]map[string]string{
 }
 
 func init() {
-	for level := range memSettingsMatrix {
-		memSettingsMatrix[level][CheckpointKey] = checkpointDefault
-		memSettingsMatrix[level][StatsTargetKey] = statsTargetDefault
-		memSettingsMatrix[level][MaxConnectionsKey] = maxConnectionsDefault
-		memSettingsMatrix[level][RandomPageCostKey] = randomPageCostDefault
-		memSettingsMatrix[level][EffectiveIOKey] = effectiveIODefault
+	for level := range miscSettingsMatrix {
+		miscSettingsMatrix[level][CheckpointKey] = checkpointDefault
+		miscSettingsMatrix[level][StatsTargetKey] = statsTargetDefault
+		miscSettingsMatrix[level][MaxConnectionsKey] = maxConnectionsDefault
+		miscSettingsMatrix[level][RandomPageCostKey] = randomPageCostDefault
+		miscSettingsMatrix[level][EffectiveIOKey] = effectiveIODefault
 	}
 }
 
@@ -45,13 +45,9 @@ func TestNewMiscRecommender(t *testing.T) {
 }
 
 func TestMiscRecommenderRecommend(t *testing.T) {
-	for totalMemory, kvs := range memSettingsMatrix {
+	for totalMemory, matrix := range miscSettingsMatrix {
 		r := &MiscRecommender{totalMemory}
-		for key, want := range kvs {
-			if got := r.Recommend(key); got != want {
-				t.Errorf("%d-%s: incorrect result: got\n%s\nwant\n%s", totalMemory, key, got, want)
-			}
-		}
+		testRecommender(t, r, matrix)
 	}
 }
 
@@ -68,31 +64,9 @@ func TestMiscRecommenderRecommendPanic(t *testing.T) {
 }
 
 func TestMiscSettingsGroup(t *testing.T) {
-	for totalMemory, kvs := range memSettingsMatrix {
+	for totalMemory, matrix := range miscSettingsMatrix {
 		config := NewSystemConfig(totalMemory, 8, "10")
 		sg := GetSettingsGroup(MiscLabel, config)
-		// no matter how many calls, all calls should return the same
-		for i := 0; i < 1000; i++ {
-			if got := sg.Label(); got != MiscLabel {
-				t.Errorf("incorrect label: got %s want %s", got, MiscLabel)
-			}
-			if got := sg.Keys(); got != nil {
-				for i, k := range got {
-					if k != MiscKeys[i] {
-						t.Errorf("incorrect key at %d: got %s want %s", i, k, MiscKeys[i])
-					}
-				}
-			} else {
-				t.Errorf("keys is nil")
-			}
-			r := sg.GetRecommender().(*MiscRecommender)
-			// the above will panic if not true
-
-			for key, want := range kvs {
-				if got := r.Recommend(key); got != want {
-					t.Errorf("%d-%s: incorrect result: got\n%s\nwant\n%s", totalMemory, key, got, want)
-				}
-			}
-		}
+		testSettingGroup(t, sg, matrix, MiscLabel, MiscKeys)
 	}
 }

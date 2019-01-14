@@ -14,8 +14,8 @@ const (
 
 	walBuffersThreshold = 2 * parse.Gigabyte
 	walBuffersDefault   = 16 * parse.Megabyte
-	minWalBytes         = 4 * parse.Gigabyte
-	maxWalBytes         = 8 * parse.Gigabyte
+	minWALBytes         = 4 * parse.Gigabyte
+	maxWALBytes         = 8 * parse.Gigabyte
 )
 
 // WALLabel is the label used to refer to the WAL settings group
@@ -56,9 +56,9 @@ func (r *WALRecommender) Recommend(key string) string {
 			val = parse.BytesToPGFormat(walBuffersDefault)
 		}
 	} else if key == MinWALKey {
-		val = parse.BytesToPGFormat(minWalBytes)
+		val = parse.BytesToPGFormat(minWALBytes)
 	} else if key == MaxWALKey {
-		val = parse.BytesToPGFormat(maxWalBytes)
+		val = parse.BytesToPGFormat(maxWALBytes)
 	} else {
 		panic(fmt.Sprintf("unknown key: %s", key))
 	}
