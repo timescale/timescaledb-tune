@@ -1,12 +1,60 @@
 package pgtune
 
 import (
-	"fmt"
+	"math"
 	"math/rand"
 	"testing"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
 )
+
+// memoryToBaseVals provides a memory from test memory levels to expected "base"
+// memory settings. These "base" values are the values if there is only 1 CPU.
+// Most settings are unaffected by number of CPUs; the exception is work_mem,
+// so the adjustment is done in the init function
+var memoryToBaseVals = map[uint64]map[string]uint64{
+	10 * parse.Gigabyte: map[string]uint64{
+		SharedBuffersKey:      2560 * parse.Megabyte,
+		EffectiveCacheKey:     7680 * parse.Megabyte,
+		MaintenanceWorkMemKey: 1280 * parse.Megabyte,
+		WorkMemKey:            64 * parse.Megabyte,
+	},
+	12 * parse.Gigabyte: map[string]uint64{
+		SharedBuffersKey:      3 * parse.Gigabyte,
+		EffectiveCacheKey:     9 * parse.Gigabyte,
+		MaintenanceWorkMemKey: 1536 * parse.Megabyte,
+		WorkMemKey:            78643 * parse.Kilobyte,
+	},
+	32 * parse.Gigabyte: map[string]uint64{
+
+		SharedBuffersKey:      8 * parse.Gigabyte,
+		EffectiveCacheKey:     24 * parse.Gigabyte,
+		MaintenanceWorkMemKey: 2 * parse.Gigabyte,
+		WorkMemKey:            209715 * parse.Kilobyte,
+	},
+}
+
+// cpuVals is the different amounts of CPUs to test
+var cpuVals = []int{1, 4, 5}
+
+// memorySettingsMatrix stores the test cases for MemoryRecommend along with
+// the expected values
+var memorySettingsMatrix = map[uint64]map[int]map[string]string{}
+
+func init() {
+	for mem, baseMatrix := range memoryToBaseVals {
+		memorySettingsMatrix[mem] = make(map[int]map[string]string)
+		for _, cpus := range cpuVals {
+			memorySettingsMatrix[mem][cpus] = make(map[string]string)
+			cpuFactor := uint64(math.Round(float64(cpus) / 2.0))
+
+			memorySettingsMatrix[mem][cpus][SharedBuffersKey] = parse.BytesToPGFormat(baseMatrix[SharedBuffersKey])
+			memorySettingsMatrix[mem][cpus][EffectiveCacheKey] = parse.BytesToPGFormat(baseMatrix[EffectiveCacheKey])
+			memorySettingsMatrix[mem][cpus][MaintenanceWorkMemKey] = parse.BytesToPGFormat(baseMatrix[MaintenanceWorkMemKey])
+			memorySettingsMatrix[mem][cpus][WorkMemKey] = parse.BytesToPGFormat(baseMatrix[WorkMemKey] / cpuFactor)
+		}
+	}
+}
 
 func TestNewMemoryRecommender(t *testing.T) {
 	for i := 0; i < 1000000; i++ {
@@ -107,77 +155,10 @@ func TestMemoryRecommenderRecommendWindows(t *testing.T) {
 }
 
 func TestMemoryRecommenderRecommend(t *testing.T) {
-	valFmt := "%d%s"
-	cases := []struct {
-		desc        string
-		key         string
-		totalMemory uint64
-		cpus        int
-		want        string
-	}{
-		{
-			desc:        "shared_buffers, uneven divide",
-			key:         SharedBuffersKey,
-			totalMemory: 10 * parse.Gigabyte,
-			cpus:        1,
-			want:        fmt.Sprintf(valFmt, 2560, parse.MB),
-		},
-		{
-			desc:        "shared_buffers, even divide",
-			key:         SharedBuffersKey,
-			totalMemory: 8 * parse.Gigabyte,
-			cpus:        1,
-			want:        fmt.Sprintf(valFmt, 2, parse.GB),
-		},
-		{
-			desc:        "effective key, uneven divide",
-			key:         EffectiveCacheKey,
-			totalMemory: 10 * parse.Gigabyte,
-			cpus:        1,
-			want:        fmt.Sprintf(valFmt, uint64(7.5*1024.0), parse.MB),
-		},
-		{
-			desc:        "effective key, even divide",
-			key:         EffectiveCacheKey,
-			totalMemory: 12 * parse.Gigabyte,
-			cpus:        1,
-			want:        fmt.Sprintf(valFmt, 9, parse.GB),
-		},
-		{
-			desc:        "maintenance_work_mem",
-			key:         MaintenanceWorkMemKey,
-			totalMemory: 6 * parse.Gigabyte,
-			cpus:        1,
-			want:        fmt.Sprintf(valFmt, 768, parse.MB),
-		},
-		{
-			desc:        "maintenance_work_mem, over max",
-			key:         MaintenanceWorkMemKey,
-			totalMemory: 32 * parse.Gigabyte,
-			cpus:        1,
-			want:        fmt.Sprintf(valFmt, 2, parse.GB),
-		},
-		{
-			desc:        "work_mem",
-			key:         WorkMemKey,
-			totalMemory: 8 * parse.Gigabyte,
-			cpus:        1,
-			want:        fmt.Sprintf(valFmt, 52428, parse.KB),
-		},
-		{
-			desc:        "work_mem, multiple CPUs",
-			key:         WorkMemKey,
-			totalMemory: 8 * parse.Gigabyte,
-			cpus:        4,
-			want:        fmt.Sprintf(valFmt, 26214, parse.KB),
-		},
-	}
-
-	for _, c := range cases {
-		mr := &MemoryRecommender{c.totalMemory, c.cpus}
-		got := mr.Recommend(c.key)
-		if got != c.want {
-			t.Fatalf("%s: incorrect result: got\n%s\nwant\n%s", c.desc, got, c.want)
+	for totalMemory, outerMatrix := range memorySettingsMatrix {
+		for cpus, cases := range outerMatrix {
+			mr := &MemoryRecommender{totalMemory, cpus}
+			testRecommender(t, mr, cases)
 		}
 	}
 }
@@ -195,29 +176,11 @@ func TestMemoryRecommenderRecommendPanic(t *testing.T) {
 }
 
 func TestMemorySettingsGroup(t *testing.T) {
-	config := NewSystemConfig(1024, 4, "10")
-	sg := GetSettingsGroup(MemoryLabel, config)
-	// no matter how many calls, all calls should return the same
-	for i := 0; i < 1000; i++ {
-		if got := sg.Label(); got != MemoryLabel {
-			t.Errorf("incorrect label: got %s want %s", got, MemoryLabel)
-		}
-		if got := sg.Keys(); got != nil {
-			for i, k := range got {
-				if k != MemoryKeys[i] {
-					t.Errorf("incorrect key at %d: got %s want %s", i, k, MemoryKeys[i])
-				}
-			}
-		} else {
-			t.Errorf("keys is nil")
-		}
-		r := sg.GetRecommender().(*MemoryRecommender)
-		// the above will panic if not true
-		if r.cpus != config.CPUs {
-			t.Errorf("recommender has wrong number of cpus: got %d want %d", r.cpus, config.CPUs)
-		}
-		if r.totalMemory != config.Memory {
-			t.Errorf("recommender has wrong number of mem: got %d want %d", r.totalMemory, config.Memory)
+	for totalMemory, outerMatrix := range memorySettingsMatrix {
+		for cpus, matrix := range outerMatrix {
+			config := NewSystemConfig(totalMemory, cpus, "10")
+			sg := GetSettingsGroup(MemoryLabel, config)
+			testSettingGroup(t, sg, matrix, MemoryLabel, MemoryKeys)
 		}
 	}
 }

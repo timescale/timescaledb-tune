@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+// parallelSettingsMatrix stores the test cases for ParallelRecommender along
+// with the expected values for its keys
 var parallelSettingsMatrix = map[int]map[string]string{
 	2: map[string]string{
 		MaxWorkerProcessesKey:       "2",

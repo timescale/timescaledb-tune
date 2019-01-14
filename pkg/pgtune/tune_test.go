@@ -92,7 +92,7 @@ func testSettingGroup(t *testing.T, sg SettingsGroup, cases map[string]string, w
 func testRecommender(t *testing.T, r Recommender, cases map[string]string) {
 	for key, want := range cases {
 		if got := r.Recommend(key); got != want {
-			t.Errorf("incorrect result for key %s: got\n%s\nwant\n%s", key, got, want)
+			t.Errorf("%v: incorrect result for key %s: got\n%s\nwant\n%s", r, key, got, want)
 		}
 	}
 }
