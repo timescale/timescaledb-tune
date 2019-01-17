@@ -96,7 +96,7 @@ $ timescaledb-tune --quiet --yes
 And if you want to append the recommendations to the end of your conf file
 instead of in-place replacement:
 ```bash
-$ timescaledb-tune --quiet --yes --dry-run > /path/to/postgresql.conf
+$ timescaledb-tune --quiet --yes --dry-run >> /path/to/postgresql.conf
 ```
 
 ### Contributing
