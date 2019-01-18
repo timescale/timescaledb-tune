@@ -1,6 +1,7 @@
 package pgtune
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 )
@@ -9,17 +10,20 @@ import (
 // with the expected values for its keys
 var parallelSettingsMatrix = map[int]map[string]string{
 	2: map[string]string{
-		MaxWorkerProcessesKey:       "2",
+		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers),
+		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 2+minBuiltInProcesses+defaultMaxBackgroundWorkers),
 		MaxParallelWorkersGatherKey: "1",
 		MaxParallelWorkers:          "2",
 	},
 	4: map[string]string{
-		MaxWorkerProcessesKey:       "4",
+		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers),
+		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 4+minBuiltInProcesses+defaultMaxBackgroundWorkers),
 		MaxParallelWorkersGatherKey: "2",
 		MaxParallelWorkers:          "4",
 	},
 	5: map[string]string{
-		MaxWorkerProcessesKey:       "5",
+		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers),
+		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 5+minBuiltInProcesses+defaultMaxBackgroundWorkers),
 		MaxParallelWorkersGatherKey: "3",
 		MaxParallelWorkers:          "5",
 	},

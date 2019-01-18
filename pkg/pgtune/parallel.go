@@ -7,9 +7,13 @@ import (
 
 // Keys in the conf file that are tuned related to parallelism
 const (
+	MaxBackgroundWorkers        = "timescaledb.max_background_workers"
 	MaxWorkerProcessesKey       = "max_worker_processes"
 	MaxParallelWorkersGatherKey = "max_parallel_workers_per_gather"
 	MaxParallelWorkers          = "max_parallel_workers" // pg10+
+
+	defaultMaxBackgroundWorkers = 4 // This may be more dynamic in the future
+	minBuiltInProcesses         = 3 // at least checkpointer, WALwriter, vacuum
 
 	errOneCPU = "cannot make recommendations with just 1 CPU"
 )
@@ -19,23 +23,25 @@ const ParallelLabel = "parallelism"
 
 // ParallelKeys is an array of keys that are tunable for parallelism
 var ParallelKeys = []string{
+	MaxBackgroundWorkers,
 	MaxWorkerProcessesKey,
 	MaxParallelWorkersGatherKey,
 	MaxParallelWorkers,
 }
 
-// ParallelRecommender gives recommendations for ParallelKeys based on system resources
+// ParallelRecommender gives recommendations for ParallelKeys based on system resources.
 type ParallelRecommender struct {
 	cpus int
 }
 
-// NewParallelRecommender returns a ParallelRecommender that recommends based on the given
-// number of cpus.
+// NewParallelRecommender returns a ParallelRecommender that recommends based on
+// the given number of cpus.
 func NewParallelRecommender(cpus int) *ParallelRecommender {
 	return &ParallelRecommender{cpus}
 }
 
-// IsAvailable returns whether this Recommender is usable given the system resources. True when number of CPUS > 1.
+// IsAvailable returns whether this Recommender is usable given the system
+// resources. True when number of CPUS > 1.
 func (r *ParallelRecommender) IsAvailable() bool {
 	return r.cpus > 1
 }
@@ -47,10 +53,17 @@ func (r *ParallelRecommender) Recommend(key string) string {
 	if r.cpus <= 1 {
 		panic(errOneCPU)
 	}
-	if key == MaxWorkerProcessesKey || key == MaxParallelWorkers {
+	if key == MaxWorkerProcessesKey {
+		// Need enough processes to handle built-ins (e.g., autovacuum),
+		// TimescaleDB background workers, and the number of parallel workers
+		// (equal to the number of CPUs).
+		val = fmt.Sprintf("%d", minBuiltInProcesses+defaultMaxBackgroundWorkers+r.cpus)
+	} else if key == MaxParallelWorkers {
 		val = fmt.Sprintf("%d", r.cpus)
 	} else if key == MaxParallelWorkersGatherKey {
 		val = fmt.Sprintf("%d", int(math.Round(float64(r.cpus)/2.0)))
+	} else if key == MaxBackgroundWorkers {
+		val = fmt.Sprintf("%d", defaultMaxBackgroundWorkers)
 	} else {
 		panic(fmt.Sprintf("unknown key: %s", key))
 	}
