@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"strings"
-	"time"
 )
 
 const (
@@ -19,18 +17,11 @@ const (
 	fileNameRPMFmt    = "/var/lib/pgsql/%s/data/postgresql.conf"
 	fileNameArch      = "/var/lib/postgres/data/postgresql.conf"
 
-	errConfigNotFoundFmt   = "could not find postgresql.conf at any of these locations:\n%v"
-	errBackupNotCreatedFmt = "could not create backup at %s: %v"
-
-	backupFilePrefix = "timescaledb_tune.backup"
-	backupDateFmt    = "200601021504"
+	errConfigNotFoundFmt = "could not find postgresql.conf at any of these locations:\n%v"
 )
 
 // allows us to substitute mock versions in tests
 var osStatFn = os.Stat
-var osCreateFn = func(path string) (io.Writer, error) {
-	return os.Create(path)
-}
 
 // fileExists is a simple check for stating if a file exists and if any error
 // occurs it returns false.
@@ -128,19 +119,6 @@ func getConfigFileState(r io.Reader) (*configFileState, error) {
 		i++
 	}
 	return cfs, nil
-}
-
-// Backup writes the conf file state to the system's temporary directory
-// with a well known name format so it can potentially be restored.
-func (cfs *configFileState) Backup() (string, error) {
-	backupName := backupFilePrefix + time.Now().Format(backupDateFmt)
-	backupPath := path.Join(os.TempDir(), backupName)
-	bf, err := osCreateFn(backupPath)
-	if err != nil {
-		return backupPath, fmt.Errorf(errBackupNotCreatedFmt, backupPath, err)
-	}
-	_, err = cfs.WriteTo(bf)
-	return backupPath, err
 }
 
 func (cfs *configFileState) WriteTo(w io.Writer) (int64, error) {

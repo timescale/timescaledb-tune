@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,7 +22,7 @@ import (
 
 const (
 	// Version is the version of this library
-	Version = "0.2.0"
+	Version = "0.3.0"
 
 	errCouldNotExecuteFmt  = "could not execute `%s --version`: %v"
 	errUnsupportedMajorFmt = "unsupported major PG version: %s"
@@ -36,6 +38,14 @@ const (
 	statementConfFileCheck = "Using postgresql.conf at this path:"
 	errConfFileCheckNo     = "please pass in the correct path to postgresql.conf using the --conf-path flag"
 	errConfFileMismatchFmt = "ambiguous conf file path: got both %s and %s"
+
+	errCouldNotGetBackupsFmt = "could not get list of backup files: %v"
+	errNoBackupsFound        = "no backup files found"
+	errNoBackupRestored      = "no backup restored"
+	errCouldNotRestoreFmt    = "could not restore %s: %v"
+	backupListFmt            = "%d) %s (%v ago)\n"
+	promptBackupNumber       = "Use which backup? Number or (q)uit: "
+	successRestore           = "restored successfully"
 
 	errSharedLibNeeded             = "`timescaledb` needs to be added to shared_preload_libraries in order for it to work"
 	successSharedLibCorrect        = "shared_preload_libraries is set correctly"
@@ -94,6 +104,7 @@ type TunerFlags struct {
 	Quiet     bool   // show only the bare necessities
 	UseColor  bool   // use color in output
 	DryRun    bool   // whether to actual persist changes to disk
+	Restore   bool   // whether to restore a backup
 }
 
 // Tuner represents the tuning program for TimescaleDB.
@@ -153,6 +164,53 @@ func (t *Tuner) initializeSystemConfig() (*pgtune.SystemConfig, error) {
 	return pgtune.NewSystemConfig(totalMemory, cpus, pgVersion), nil
 }
 
+func (t *Tuner) restore(r restorer, filePath string) error {
+	files, err := getBackups()
+	if err != nil {
+		return fmt.Errorf(errCouldNotGetBackupsFmt, err)
+	}
+
+	if len(files) == 0 {
+		return fmt.Errorf(errNoBackupsFound)
+	}
+
+	// Reverse sort the list so most recent backups are first
+	sort.Strings(files)
+	for i := len(files)/2 - 1; i >= 0; i-- {
+		opp := len(files) - 1 - i
+		files[i], files[opp] = files[opp], files[i]
+	}
+	t.handler.p.Statement("Available backups (most recent first):")
+	for i, file := range files {
+		now := time.Now()
+		name := path.Base(file)
+		datePart := strings.Replace(name, backupFilePrefix, "", -1)
+		// no need to check the error, as getBackups does that for us
+		when, _ := time.ParseInLocation(backupDateFmt, datePart, now.Location())
+		ago := now.Sub(when)
+		printFn(t.handler.out, backupListFmt, i+1, name, parse.PrettyDuration(ago))
+	}
+	printFn(t.handler.out, "\n")
+	checker := newNumberedListChecker(len(files), errNoBackupRestored)
+	// call directly to forcePromptUntilValidInput since --yes should not apply here
+	err = t.forcePromptUntilValidInput(promptBackupNumber, checker)
+	if err != nil {
+		return err
+	}
+
+	backupPath := files[checker.response-1]
+	shortBackupName := path.Base(backupPath)
+
+	t.handler.p.Statement("Restoring '%s'...", shortBackupName)
+	err = r.Restore(backupPath, filePath)
+	if err != nil {
+		return fmt.Errorf(errCouldNotRestoreFmt, shortBackupName, err)
+	}
+	t.handler.p.Success(successRestore)
+
+	return nil
+}
+
 // Run executes the tuning process given the provided flags and looks for input
 // on the in io.Reader. Informational messages are written to outErr while
 // actual recommendations are written to out.
@@ -190,16 +248,26 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	err = t.processConfFileCheck(filePath)
 	ifErrHandle(err)
 
+	// If restore flag, restore and that's it
+	if t.flags.Restore {
+		r := &fsRestorer{}
+		err = t.restore(r, filePath)
+		ifErrHandle(err)
+		return // do nothing else!
+	}
+
 	// Generate current conf file state
 	cfs, err := getConfigFileState(file)
 	ifErrHandle(err)
 	t.cfs = cfs
 
 	// Write backup
-	backupPath, err := cfs.Backup()
-	t.handler.p.Statement("Writing backup to:")
-	printFn(os.Stderr, backupPath+"\n\n")
-	ifErrHandle(err)
+	if !t.flags.DryRun {
+		backupPath, err := backup(cfs)
+		t.handler.p.Statement("Writing backup to:")
+		printFn(os.Stderr, backupPath+"\n\n")
+		ifErrHandle(err)
+	}
 
 	// Process the tuning of settings
 	if t.flags.Quiet {
@@ -239,6 +307,18 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		if err != nil {
 			t.handler.exit(1, "could not open %s for writing: %v", outPath, err)
 		}
+		defer f.Close()
+
+		// in case new file is shorter than old, need to truncate first
+		err = f.Truncate(0)
+		if err != nil {
+			t.handler.exit(1, "could not open %s for writing: %v", outPath, err)
+		}
+		_, err = f.Seek(0, 0)
+		if err != nil {
+			t.handler.exit(1, "could not open %s for writing: %v", outPath, err)
+		}
+
 		_, err = t.cfs.WriteTo(f)
 		ifErrHandle(err)
 	} else {
@@ -247,11 +327,19 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 }
 
 // promptUntilValidInput continually prompts the user via handler's output to
-// answer a question provided in prompt until an acceptable answer is given.
+// answer a question provided in prompt until an acceptable answer is given, or
+// returns immediately if the Yes flag is passed in.
 func (t *Tuner) promptUntilValidInput(prompt string, checker promptChecker) error {
 	if t.flags.YesAlways {
 		return nil
 	}
+	return t.forcePromptUntilValidInput(prompt, checker)
+}
+
+// forcePromptUntilValidInput continually prompts the user to answer a question
+// provided in prompt until an acceptable answer is given. It is not affected by
+// the presence of the Yes flag.
+func (t *Tuner) forcePromptUntilValidInput(prompt string, checker promptChecker) error {
 	for {
 		t.handler.p.Prompt(prompt)
 		resp, err := t.handler.br.ReadString('\n')

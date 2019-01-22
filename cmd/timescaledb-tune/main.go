@@ -38,6 +38,7 @@ func init() {
 	flag.BoolVar(&f.Quiet, "quiet", false, "Show only the total recommendations at the end")
 	flag.BoolVar(&f.UseColor, "color", true, "Use color in output (works best on dark terminals)")
 	flag.BoolVar(&f.DryRun, "dry-run", false, "Whether to just show the changes without overwriting the configuration file")
+	flag.BoolVar(&f.Restore, "restore", false, "Whether to restore a previously made conf file backup")
 
 	flag.BoolVar(&showVersion, "version", false, "Show the version of this tool")
 	flag.Parse()
