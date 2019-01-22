@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"runtime"
 	"strings"
 	"testing"
@@ -220,6 +221,168 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 	getPGConfigVersionFn = oldVersionFn
 }
 
+type testRestorer struct {
+	errMsg string
+}
+
+func (r *testRestorer) Restore(backupPath, confPath string) error {
+	if r.errMsg != "" {
+		return fmt.Errorf(r.errMsg)
+	}
+	return nil
+}
+
+func TestRestore(t *testing.T) {
+	errGlob := "glob error"
+	now := time.Now()
+	baseFile := path.Join(os.TempDir(), backupFilePrefix)
+	time1 := now.Add(-5 * time.Minute).Format(backupDateFmt)
+	time2 := now.Add(-3 * time.Hour).Format(backupDateFmt)
+	correctFile1 := baseFile + time1
+	correctFile2 := baseFile + time2
+	shortFile1 := backupFilePrefix + time1
+	wantPrint1 := fmt.Sprintf(backupListFmt, 1, backupFilePrefix+time1, parse.PrettyDuration(now.Sub(now.Add(-5*time.Minute))))
+	wantPrint2 := fmt.Sprintf(backupListFmt, 2, backupFilePrefix+time2, parse.PrettyDuration(now.Sub(now.Add(-3*time.Hour))))
+
+	cases := []struct {
+		desc          string
+		filePath      string
+		onDiskFiles   []string
+		responses     string
+		statements    uint64
+		prompts       uint64
+		successes     uint64
+		wantPrints    []string
+		globErr       bool
+		errMsg        string
+		restoreErrMsg string
+	}{
+		{
+			desc:        "error in getBackups makes error",
+			onDiskFiles: []string{"foo"},
+			globErr:     true,
+			errMsg:      fmt.Sprintf(errCouldNotGetBackupsFmt, errGlob),
+		},
+		{
+			desc:        "no backups returned",
+			onDiskFiles: []string{},
+			errMsg:      errNoBackupsFound,
+		},
+		{
+			desc:        "only one backup",
+			onDiskFiles: []string{correctFile1},
+			responses:   "1\n",
+			statements:  2,
+			prompts:     1,
+			successes:   1,
+			wantPrints:  []string{wantPrint1},
+		},
+		{
+			desc:        "two backups in order",
+			onDiskFiles: []string{correctFile1, correctFile2},
+			responses:   "1\n",
+			statements:  2,
+			prompts:     1,
+			successes:   1,
+			wantPrints:  []string{wantPrint1, wantPrint2},
+		},
+		{
+			desc:        "two backups wrong order",
+			onDiskFiles: []string{correctFile1, correctFile2},
+			responses:   "1\n",
+			statements:  2,
+			prompts:     1,
+			successes:   1,
+			wantPrints:  []string{wantPrint1, wantPrint2},
+		},
+		{
+			desc:        "quit after backups list",
+			onDiskFiles: []string{correctFile1},
+			responses:   "q\n",
+			statements:  1,
+			prompts:     1,
+			wantPrints:  []string{wantPrint1},
+			errMsg:      errNoBackupRestored,
+		},
+		{
+			desc:        "two backups, incorrect numbers",
+			onDiskFiles: []string{correctFile1, correctFile2},
+			responses:   "0\n5\n2\n",
+			statements:  2,
+			prompts:     3,
+			successes:   1,
+			wantPrints:  []string{wantPrint1, wantPrint2},
+		},
+		{
+			desc:          "one backup, failed restore",
+			onDiskFiles:   []string{correctFile1},
+			responses:     "1\n",
+			statements:    2,
+			prompts:       1,
+			wantPrints:    []string{wantPrint1},
+			restoreErrMsg: "no restore",
+			errMsg:        fmt.Sprintf(errCouldNotRestoreFmt, shortFile1, "no restore"),
+		},
+	}
+
+	oldFilepathGlobFn := filepathGlobFn
+	oldPrintFn := printFn
+	for _, c := range cases {
+		prints := []string{}
+		printFn = func(_ io.Writer, format string, args ...interface{}) (int, error) {
+			prints = append(prints, fmt.Sprintf(format, args...))
+			return 0, nil
+		}
+		filepathGlobFn = func(_ string) ([]string, error) {
+			if c.globErr {
+				return nil, fmt.Errorf(errGlob)
+			}
+			return c.onDiskFiles, nil
+		}
+
+		buf := bytes.NewBufferString(c.responses)
+		br := bufio.NewReader(buf)
+		handler := &ioHandler{
+			p:  &testPrinter{},
+			br: br,
+		}
+		tuner := newTunerWithDefaultFlags(handler, nil)
+
+		err := tuner.restore(&testRestorer{c.restoreErrMsg}, c.filePath)
+		if c.errMsg == "" && err != nil {
+			t.Errorf("%s: unexpected error: got %v", c.desc, err)
+		} else if c.errMsg != "" {
+			if err == nil {
+				t.Errorf("%s: unexpected lack of error", c.desc)
+			} else if got := err.Error(); got != c.errMsg {
+				t.Errorf("%s: incorrect error: got\n%s\nwant\n%s", c.desc, got, c.errMsg)
+			}
+		}
+
+		tp := tuner.handler.p.(*testPrinter)
+		if got := tp.statementCalls; got != c.statements {
+			t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, c.statements)
+		}
+
+		if c.errMsg == "" {
+			// subtract one for the ending newline
+			if got := len(prints) - 1; got != len(c.wantPrints) {
+				t.Errorf("%s: incorrect number of prints: got %d want %d", c.desc, got, len(c.wantPrints))
+			}
+
+			if got := tp.promptCalls; got != c.prompts {
+				t.Errorf("%s: incorrect number of prompts: got %d want %d", c.desc, got, c.prompts)
+			}
+
+			if got := tp.successCalls; got != c.successes {
+				t.Errorf("%s: incorrect number of successes: got %d want %d", c.desc, got, c.successes)
+			}
+		}
+	}
+	printFn = oldPrintFn
+	filepathGlobFn = oldFilepathGlobFn
+}
+
 type limitChecker struct {
 	limit     uint64
 	calls     uint64
@@ -279,7 +442,7 @@ func TestPromptUntilValidInput(t *testing.T) {
 
 	testString := "foo\nFoo\nFOO\nfOo\nfOO\n\n"
 	for _, c := range cases {
-		buf := bytes.NewBuffer([]byte(testString))
+		buf := bytes.NewBufferString(testString)
 		br := bufio.NewReader(buf)
 		handler := &ioHandler{
 			p:  &testPrinter{},
@@ -311,7 +474,7 @@ func TestPromptUntilValidInput(t *testing.T) {
 
 	// check --yes case works
 	for _, c := range cases {
-		buf := bytes.NewBuffer([]byte(testString))
+		buf := bytes.NewBufferString(testString)
 		br := bufio.NewReader(buf)
 		handler := &ioHandler{
 			p:  &testPrinter{},
@@ -472,7 +635,7 @@ func TestProcessNoSharedLibLine(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		buf := bytes.NewBuffer([]byte(c.input))
+		buf := bytes.NewBufferString(c.input)
 		br := bufio.NewReader(buf)
 		handler := &ioHandler{
 			p:  &testPrinter{},
@@ -1052,7 +1215,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 	oldPrintFn := printFn
 
 	for _, c := range cases {
-		buf := bytes.NewBuffer([]byte(c.stdin))
+		buf := bytes.NewBufferString(c.stdin)
 		br := bufio.NewReader(buf)
 		handler := &ioHandler{
 			p:  &testPrinter{},
@@ -1128,7 +1291,7 @@ func TestProcessTunables(t *testing.T) {
 		return 0, nil
 	}
 
-	buf := bytes.NewBuffer([]byte("y\ny\ny\ny\n"))
+	buf := bytes.NewBufferString("y\ny\ny\ny\n")
 	br := bufio.NewReader(buf)
 	handler := &ioHandler{
 		p:  &testPrinter{},
@@ -1190,7 +1353,7 @@ func TestProcessTunablesSingleCPU(t *testing.T) {
 		return 0, nil
 	}
 
-	buf := bytes.NewBuffer([]byte("y\ny\ny\ny\n"))
+	buf := bytes.NewBufferString("y\ny\ny\ny\n")
 	br := bufio.NewReader(buf)
 	handler := &ioHandler{
 		p:  &testPrinter{},

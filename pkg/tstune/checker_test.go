@@ -1,6 +1,9 @@
 package tstune
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 type isCases struct {
 	s    string
@@ -161,4 +164,61 @@ func TestIsQuit(t *testing.T) {
 	}
 
 	testIsFunc(t, cases, isQuit)
+}
+
+func TestNewNumberedListCheckerCheck(t *testing.T) {
+	defaultErrMsg := "default error"
+	defaultLimit := 3
+	cases := []struct {
+		s      string
+		want   bool
+		errMsg string
+	}{
+		{
+			s:      "q",
+			want:   false,
+			errMsg: defaultErrMsg,
+		},
+		{
+			s:      "not a number",
+			want:   false,
+			errMsg: "strconv.ParseInt: parsing \"not a number\": invalid syntax",
+		},
+		{
+			s:    "0",
+			want: false,
+		},
+		{
+			s:    fmt.Sprintf("%d", defaultLimit+1),
+			want: false,
+		},
+		{
+			s:    "1",
+			want: true,
+		},
+		{
+			s:    "2",
+			want: true,
+		},
+		{
+			s:    fmt.Sprintf("%d", defaultLimit),
+			want: true,
+		},
+	}
+
+	for _, c := range cases {
+		checker := newNumberedListChecker(defaultLimit, defaultErrMsg)
+		got, err := checker.Check(c.s)
+		if c.errMsg == "" && err != nil {
+			t.Errorf("%s: unexpected err: got %v", c.s, err)
+		} else if c.errMsg != "" {
+			if err == nil {
+				t.Errorf("%s: unexpected lack of error", c.s)
+			} else if got := err.Error(); got != c.errMsg {
+				t.Errorf("%s: incorrect error: got %s want %s", c.s, got, c.errMsg)
+			}
+		} else if got != c.want {
+			t.Errorf("%s: incorrect value: got %v want %v", c.s, got, c.want)
+		}
+	}
 }

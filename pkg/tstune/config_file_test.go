@@ -1,15 +1,11 @@
 package tstune
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
-	"io"
 	"os"
-	"path"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
@@ -326,61 +322,6 @@ func (w *testWriter) Write(buf []byte) (int, error) {
 	}
 	w.lines = append(w.lines, string(buf))
 	return 0, nil
-}
-
-func TestConfigFileStateBackup(t *testing.T) {
-	oldOSCreateFn := osCreateFn
-	now := time.Now()
-	lines := []string{"foo", "bar", "baz", "quaz"}
-	cfs := &configFileState{lines: lines}
-	wantFileName := backupFilePrefix + now.Format(backupDateFmt)
-	wantPath := path.Join(os.TempDir(), wantFileName)
-
-	osCreateFn = func(_ string) (io.Writer, error) {
-		return nil, fmt.Errorf("erroring")
-	}
-
-	path, err := cfs.Backup()
-	if path != wantPath {
-		t.Errorf("incorrect path in error case: got\n%s\nwant\n%s", path, wantPath)
-	}
-	if err == nil {
-		t.Errorf("unexpected lack of error for bad create")
-	}
-	want := fmt.Sprintf(errBackupNotCreatedFmt, wantPath, "erroring")
-	if got := err.Error(); got != want {
-		t.Errorf("incorrect error: got\n%s\nwant\n%s", got, want)
-	}
-
-	var buf bytes.Buffer
-	osCreateFn = func(p string) (io.Writer, error) {
-		if p != wantPath {
-			t.Errorf("incorrect backup path: got %s want %s", p, wantPath)
-		}
-		return &buf, nil
-	}
-	path, err = cfs.Backup()
-	if path != wantPath {
-		t.Errorf("incorrect path in correct case: got\n%s\nwant\n%s", path, wantPath)
-	}
-	if err != nil {
-		t.Errorf("unexpected error for backup: %v", err)
-	}
-
-	scanner := bufio.NewScanner(bytes.NewReader(buf.Bytes()))
-	i := 0
-	for scanner.Scan() {
-		if scanner.Err() != nil {
-			t.Errorf("unexpected error while scanning: %v", scanner.Err())
-		}
-		got := scanner.Text()
-		if want := lines[i]; got != want {
-			t.Errorf("incorrect line at %d: got\n%s\nwant\n%s", i, got, want)
-		}
-		i++
-	}
-
-	osCreateFn = oldOSCreateFn
 }
 
 func TestConfigFileStateWriteTo(t *testing.T) {

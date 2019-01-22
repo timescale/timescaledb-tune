@@ -2,6 +2,7 @@ package tstune
 
 import (
 	"fmt"
+	"strconv"
 )
 
 var (
@@ -63,4 +64,28 @@ func (c *skipChecker) Check(r string) (bool, error) {
 		return true, errSkip
 	}
 	return false, nil
+}
+
+type numberedListChecker struct {
+	limit    int
+	err      error
+	response int
+}
+
+func newNumberedListChecker(limit int, errMsg string, args ...interface{}) *numberedListChecker {
+	return &numberedListChecker{limit, fmt.Errorf(errMsg, args...), 0}
+}
+
+func (c *numberedListChecker) Check(r string) (bool, error) {
+	if isQuit(r) {
+		return false, c.err
+	}
+	num, err := strconv.ParseInt(r, 10, 0)
+	if err != nil {
+		return false, err
+	} else if num < 1 || int(num) > c.limit {
+		return false, nil
+	}
+	c.response = int(num)
+	return true, nil
 }
