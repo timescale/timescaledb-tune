@@ -99,5 +99,30 @@ instead of in-place replacement:
 $ timescaledb-tune --quiet --yes --dry-run >> /path/to/postgresql.conf
 ```
 
+### Restoring backups
+
+`timescaledb-tune` makes a backup of your `postgresql.conf` file each time it
+runs (without the `--dry-run` flag) in your temp directory. If you find that
+the configuration given is not working well, you can restore a backup by
+using the `--restore` flag:
+```bash
+$ timescaledb-tune --restore
+```
+```text
+Using postgresql.conf at this path:
+/usr/local/var/postgres/postgresql.conf
+
+Is this correct? [(y)es/(n)o]: y
+Available backups (most recent first):
+1) timescaledb_tune.backup201901222056 (14 hours ago)
+2) timescaledb_tune.backup201901221640 (18 hours ago)
+3) timescaledb_tune.backup201901221050 (24 hours ago)
+4) timescaledb_tune.backup201901211817 (41 hours ago)
+
+Use which backup? Number or (q)uit: 1
+Restoring 'timescaledb_tune.backup201901222056'...
+success: restored successfully
+```
+
 ### Contributing
 We welcome contributions to this utility, which like TimescaleDB is released under the Apache2 Open Source License.  The same [Contributors Agreement](//github.com/timescale/timescaledb/blob/master/CONTRIBUTING.md) applies; please sign the [Contributor License Agreement](https://cla-assistant.io/timescale/timescaledb-tune) (CLA) if you're a new contributor.
