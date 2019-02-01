@@ -19,8 +19,6 @@ var (
 	promptColor    = color.New(color.FgMagenta, color.Bold) // color for prompt/questions requiring user input
 	successColor   = color.New(color.FgGreen, color.Bold)
 	errorColor     = color.New(color.FgRed, color.Bold)
-
-	printFn = fmt.Fprintf
 )
 
 type printer interface {
@@ -49,12 +47,12 @@ func (p *colorPrinter) Prompt(format string, args ...interface{}) {
 
 func (p *colorPrinter) Success(format string, args ...interface{}) {
 	p.printWithColor(successColor, successLabel)
-	printFn(p.w, format+"\n", args...)
+	fmt.Fprintf(p.w, format+"\n", args...)
 }
 
 func (p *colorPrinter) Error(label string, format string, args ...interface{}) {
 	p.printWithColor(errorColor, label+": ")
-	printFn(p.w, format+"\n", args...)
+	fmt.Fprintf(p.w, format+"\n", args...)
 }
 
 type noColorPrinter struct {
@@ -62,17 +60,17 @@ type noColorPrinter struct {
 }
 
 func (p *noColorPrinter) Statement(format string, args ...interface{}) {
-	printFn(p.w, noColorPrefixStatement+format+"\n", args...)
+	fmt.Fprintf(p.w, noColorPrefixStatement+format+"\n", args...)
 }
 
 func (p *noColorPrinter) Prompt(format string, args ...interface{}) {
-	printFn(p.w, noColorPrefixPrompt+format, args...)
+	fmt.Fprintf(p.w, noColorPrefixPrompt+format, args...)
 }
 
 func (p *noColorPrinter) Success(format string, args ...interface{}) {
-	printFn(p.w, strings.ToUpper(successLabel)+format+"\n", args...)
+	fmt.Fprintf(p.w, strings.ToUpper(successLabel)+format+"\n", args...)
 }
 
 func (p *noColorPrinter) Error(label string, format string, args ...interface{}) {
-	printFn(p.w, strings.ToUpper(label)+": "+format+"\n", args...)
+	fmt.Fprintf(p.w, strings.ToUpper(label)+": "+format+"\n", args...)
 }
