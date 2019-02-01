@@ -189,9 +189,9 @@ func (t *Tuner) restore(r restorer, filePath string) error {
 		// no need to check the error, as getBackups does that for us
 		when, _ := time.ParseInLocation(backupDateFmt, datePart, now.Location())
 		ago := now.Sub(when)
-		printFn(t.handler.out, backupListFmt, i+1, name, parse.PrettyDuration(ago))
+		fmt.Fprintf(t.handler.out, backupListFmt, i+1, name, parse.PrettyDuration(ago))
 	}
-	printFn(t.handler.out, "\n")
+	fmt.Fprintf(t.handler.out, "\n")
 	checker := newNumberedListChecker(len(files), errNoBackupRestored)
 	// call directly to forcePromptUntilValidInput since --yes should not apply here
 	err = t.forcePromptUntilValidInput(promptBackupNumber, checker)
@@ -266,7 +266,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	if !t.flags.DryRun {
 		backupPath, err := backup(cfs)
 		t.handler.p.Statement("Writing backup to:")
-		printFn(os.Stderr, backupPath+"\n\n")
+		fmt.Fprintf(t.handler.outErr, backupPath+"\n\n")
 		ifErrHandle(err)
 	}
 
@@ -278,7 +278,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		err = t.processSharedLibLine()
 		ifErrHandle(err)
 
-		printFn(os.Stderr, "\n")
+		fmt.Fprintf(t.handler.outErr, "\n")
 		err = t.promptUntilValidInput(promptTune+promptYesNo, newYesNoChecker(""))
 		if err == nil {
 			err = t.processTunables(config)
@@ -361,7 +361,7 @@ func (t *Tuner) forcePromptUntilValidInput(prompt string, checker promptChecker)
 // it prompts the user for input on whether the provided path is correct.
 func (t *Tuner) processConfFileCheck(filePath string) error {
 	t.handler.p.Statement(statementConfFileCheck)
-	printFn(os.Stderr, filePath+"\n\n")
+	fmt.Fprintf(t.handler.outErr, filePath+"\n\n")
 	if len(t.flags.ConfPath) == 0 {
 		checker := newYesNoChecker(errConfFileCheckNo)
 		err := t.promptUntilValidInput(promptCorrect+promptYesNo, checker)
@@ -407,12 +407,12 @@ func (t *Tuner) processSharedLibLine() error {
 		t.handler.p.Statement(currentLabel)
 		// want to print without trailing comments to reduce clutter
 		currWithoutComments := fmt.Sprintf("%sshared_preload_libraries = '%s'", res.commentGroup, res.libs)
-		printFn(t.handler.out, currWithoutComments+"\n")
+		fmt.Fprintf(t.handler.out, currWithoutComments+"\n")
 
 		t.handler.p.Statement(recommendLabel)
 		// want to print without trailing comments to reduce clutter
 		recWithoutComments := updateSharedLibLine(currWithoutComments, res)
-		printFn(t.handler.out, recWithoutComments+"\n")
+		fmt.Fprintf(t.handler.out, recWithoutComments+"\n")
 
 		checker := newYesNoChecker(errSharedLibNeeded)
 		err := t.promptUntilValidInput(promptOkay+promptYesNo, checker)
@@ -470,7 +470,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 	label := sg.Label()
 	quiet := t.flags.Quiet
 	if !quiet {
-		printFn(os.Stdout, "\n")
+		fmt.Fprintf(t.handler.out, "\n")
 		t.handler.p.Statement(fmt.Sprintf("%s%s settings recommendations", strings.ToUpper(label[:1]), label[1:]))
 	}
 	keys := sg.Keys()
@@ -512,7 +512,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 				if r.commented {
 					format = "#" + format
 				}
-				printFn(os.Stdout, format, r.key, r.value, "") // don't print comment, too cluttered
+				fmt.Fprintf(t.handler.out, format, r.key, r.value, "") // don't print comment, too cluttered
 			})
 
 			// Now display recommendations, but only those with new recommendations
@@ -520,7 +520,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 		}
 		// Recommendations are always displayed, but the label above may not be
 		doWithVisibile(func(r *tunableParseResult) {
-			printFn(os.Stdout, fmtTunableParam, r.key, recommender.Recommend(r.key), "") // don't print comment, too cluttered
+			fmt.Fprintf(t.handler.out, fmtTunableParam, r.key, recommender.Recommend(r.key), "") // don't print comment, too cluttered
 		})
 
 		// Prompt the user for input (only in non-quiet mode)
@@ -580,6 +580,18 @@ func (t *Tuner) processTunables(config *pgtune.SystemConfig) error {
 	return nil
 }
 
+// counterWriter is used to count how many writes are done, to determine whether
+// to show additional dialog during the CLI
+type counterWriter struct {
+	count uint64
+	w     io.Writer
+}
+
+func (w *counterWriter) Write(p []byte) (int, error) {
+	w.count++
+	return w.w.Write(p)
+}
+
 // processQuiet handles the iteractions when the user wants "quiet" output.
 func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
 	t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.CPUs, config.PGMajorVersion)
@@ -587,19 +599,14 @@ func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
 	// Replace the print function with a version that counts how many times it
 	// is invoked so we can know whether to prompt the user or not. It doesn't
 	// make sense to ask for a yes/no if nothing would change.
-	changedSettings := uint64(0)
-	oldPrintFn := printFn
-	printFn = func(w io.Writer, format string, args ...interface{}) (int, error) {
-		changedSettings++
-		return oldPrintFn(w, format, args...)
-	}
-	// Need to restore the old printFn whenever this returns
+	newWriter := &counterWriter{0, t.handler.out}
+	t.handler.out = newWriter
 	defer func() {
-		printFn = oldPrintFn
+		t.handler.out = newWriter.w
 	}()
 
 	if t.cfs.sharedLibResult == nil { // shared lib line is missing completely
-		printFn(os.Stdout, plainSharedLibLine+"\n")
+		fmt.Fprintf(t.handler.out, plainSharedLibLine+"\n")
 		t.cfs.lines = append(t.cfs.lines, plainSharedLibLine)
 		t.cfs.sharedLibResult = parseLineForSharedLibResult(plainSharedLibLineWithComments)
 		t.cfs.sharedLibResult.idx = len(t.cfs.lines) - 1
@@ -607,7 +614,7 @@ func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
 		sharedIdx := t.cfs.sharedLibResult.idx
 		newLine := updateSharedLibLine(t.cfs.lines[sharedIdx], t.cfs.sharedLibResult)
 		if newLine != t.cfs.lines[sharedIdx] {
-			printFn(os.Stdout, newLine+"\n")
+			fmt.Fprintf(t.handler.out, newLine+"\n")
 			t.cfs.lines[sharedIdx] = newLine
 		}
 	}
@@ -617,9 +624,9 @@ func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
 	if err != nil {
 		return err
 	}
-	if changedSettings > 0 {
-		printFn(os.Stdout, fmtLastTuned+"\n", time.Now().Format(time.RFC3339))
-		printFn(os.Stdout, fmtLastTunedVersion+"\n", Version)
+	if newWriter.count > 0 {
+		fmt.Fprintf(t.handler.out, fmtLastTuned+"\n", time.Now().Format(time.RFC3339))
+		fmt.Fprintf(t.handler.out, fmtLastTunedVersion+"\n", Version)
 		checker := newYesNoChecker("not using these settings could lead to suboptimal performance")
 		err = t.promptUntilValidInput("Use these recommendations? "+promptYesNo, checker)
 		if err != nil {

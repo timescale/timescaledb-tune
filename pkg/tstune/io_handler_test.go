@@ -5,6 +5,21 @@ import (
 	"testing"
 )
 
+const errTestWriter = "erroring"
+
+type testWriter struct {
+	shouldErr bool
+	lines     []string
+}
+
+func (w *testWriter) Write(buf []byte) (int, error) {
+	if w.shouldErr {
+		return 0, fmt.Errorf(errTestWriter)
+	}
+	w.lines = append(w.lines, string(buf))
+	return 0, nil
+}
+
 func TestIOHandlerExit(t *testing.T) {
 	p := &testPrinter{}
 

@@ -309,21 +309,6 @@ func TestGetConfigFileStateErr(t *testing.T) {
 	}
 }
 
-var errDefault = fmt.Errorf("erroring")
-
-type testWriter struct {
-	shouldErr bool
-	lines     []string
-}
-
-func (w *testWriter) Write(buf []byte) (int, error) {
-	if w.shouldErr {
-		return 0, errDefault
-	}
-	w.lines = append(w.lines, string(buf))
-	return 0, nil
-}
-
 func TestConfigFileStateWriteTo(t *testing.T) {
 	cases := []struct {
 		desc      string
@@ -360,7 +345,7 @@ func TestConfigFileStateWriteTo(t *testing.T) {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {
 			t.Errorf("%s: unexpected lack of error", c.desc)
-		} else if c.shouldErr && err != errDefault {
+		} else if c.shouldErr && err.Error() != errTestWriter {
 			t.Errorf("%s: unexpected type of error: %v", c.desc, err)
 		}
 
