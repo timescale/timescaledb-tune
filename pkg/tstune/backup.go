@@ -81,16 +81,6 @@ func (r *fsRestorer) Restore(backupPath, confPath string) error {
 	}
 	defer confFile.Close()
 
-	// in case new file is shorter than old, need to truncate first
-	err = confFile.Truncate(0)
-	if err != nil {
-		return err
-	}
-	_, err = confFile.Seek(0, 0)
-	if err != nil {
-		return err
-	}
-
 	_, err = backupCFS.WriteTo(confFile)
 	if err != nil {
 		return err

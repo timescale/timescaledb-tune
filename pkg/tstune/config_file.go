@@ -33,6 +33,12 @@ func fileExists(name string) bool {
 	return true
 }
 
+type truncateWriter interface {
+	io.Writer
+	Seek(int64, int) (int64, error)
+	Truncate(int64) error
+}
+
 // getConfigFilePath attempts to find the postgresql.conf file using path heuristics
 // for different operating systems. If successful it returns the full path to
 // the file; otherwise, it returns with an empty path and error.
@@ -122,6 +128,18 @@ func getConfigFileState(r io.Reader) (*configFileState, error) {
 }
 
 func (cfs *configFileState) WriteTo(w io.Writer) (int64, error) {
+	// in case new output is shorter than old, need to truncate first
+	switch t := w.(type) {
+	case truncateWriter:
+		err := t.Truncate(0)
+		if err != nil {
+			return 0, err
+		}
+		_, err = t.Seek(0, 0)
+		if err != nil {
+			return 0, err
+		}
+	}
 	ret := int64(0)
 	for _, l := range cfs.lines {
 		n, err := w.Write([]byte(l + "\n"))

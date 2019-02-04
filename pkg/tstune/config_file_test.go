@@ -3,6 +3,7 @@ package tstune
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -220,14 +221,14 @@ func TestGetConfigFileState(t *testing.T) {
 			want: &configFileState{
 				lines: []string{"foo", sharedLibLine, "bar", memoryLine, walLine, "baz"},
 				tuneParseResults: map[string]*tunableParseResult{
-					pgtune.SharedBuffersKey: &tunableParseResult{
+					pgtune.SharedBuffersKey: {
 						idx:       3,
 						commented: true,
 						key:       pgtune.SharedBuffersKey,
 						value:     "64MB",
 						extra:     "",
 					},
-					pgtune.MinWALKey: &tunableParseResult{
+					pgtune.MinWALKey: {
 						idx:       4,
 						commented: false,
 						key:       pgtune.MinWALKey,
@@ -309,47 +310,106 @@ func TestGetConfigFileStateErr(t *testing.T) {
 	}
 }
 
+const (
+	errTestTruncate = "truncate error"
+	errTestSeek     = "seek error"
+)
+
+type testTruncateWriter struct {
+	*testWriter
+	seekErr     bool
+	truncateErr bool
+}
+
+func (w *testTruncateWriter) Seek(_ int64, _ int) (int64, error) {
+	if w.seekErr {
+		return 0, fmt.Errorf(errTestSeek)
+	}
+	return 0, nil
+}
+
+func (w *testTruncateWriter) Truncate(_ int64) error {
+	if w.truncateErr {
+		return fmt.Errorf(errTestTruncate)
+	}
+	return nil
+}
+
 func TestConfigFileStateWriteTo(t *testing.T) {
 	cases := []struct {
-		desc      string
-		lines     []string
-		shouldErr bool
+		desc   string
+		lines  []string
+		errMsg string
+		w      io.Writer
 	}{
 		{
-			desc:      "empty",
-			lines:     []string{},
-			shouldErr: false,
+			desc:  "empty",
+			lines: []string{},
+			w:     &testWriter{false, []string{}},
 		},
 		{
-			desc:      "one line",
-			lines:     []string{"foo"},
-			shouldErr: false,
+			desc:  "one line",
+			lines: []string{"foo"},
+			w:     &testWriter{false, []string{}},
 		},
 		{
-			desc:      "many lines",
-			lines:     []string{"foo", "bar", "baz", "quaz"},
-			shouldErr: false,
+			desc:  "many lines",
+			lines: []string{"foo", "bar", "baz", "quaz"},
+			w:     &testWriter{false, []string{}},
 		},
 		{
-			desc:      "error",
-			lines:     []string{"foo"},
-			shouldErr: true,
+			desc:  "many lines w/ truncating",
+			lines: []string{"foo", "bar", "baz", "quaz"},
+			w:     &testTruncateWriter{&testWriter{false, []string{}}, false, false},
+		},
+		{
+			desc:   "error in truncate",
+			lines:  []string{"foo"},
+			errMsg: errTestTruncate,
+			w:      &testTruncateWriter{&testWriter{true, []string{}}, false, true},
+		},
+		{
+			desc:   "error in seek",
+			lines:  []string{"foo"},
+			errMsg: errTestSeek,
+			w:      &testTruncateWriter{&testWriter{true, []string{}}, true, false},
+		},
+		{
+			desc:   "error in write w/o truncating",
+			lines:  []string{"foo"},
+			errMsg: errTestWriter,
+			w:      &testWriter{true, []string{}},
+		},
+		{
+			desc:   "error in write w/ truncating",
+			lines:  []string{"foo"},
+			errMsg: errTestWriter,
+			w:      &testTruncateWriter{&testWriter{true, []string{}}, false, false},
 		},
 	}
 
 	for _, c := range cases {
 		cfs := &configFileState{lines: c.lines}
-		w := &testWriter{c.shouldErr, []string{}}
-		_, err := cfs.WriteTo(w)
-		if err != nil && !c.shouldErr {
+		_, err := cfs.WriteTo(c.w)
+		if c.errMsg == "" && err != nil {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
-		} else if err == nil && c.shouldErr {
-			t.Errorf("%s: unexpected lack of error", c.desc)
-		} else if c.shouldErr && err.Error() != errTestWriter {
-			t.Errorf("%s: unexpected type of error: %v", c.desc, err)
+		} else if c.errMsg != "" {
+			if err == nil {
+				t.Errorf("%s: unexpected lack of error", c.desc)
+			} else if got := err.Error(); got != c.errMsg {
+				t.Errorf("%s: unexpected type of error: %v", c.desc, err)
+			}
 		}
 
-		if len(c.lines) > 0 && !c.shouldErr {
+		var w *testWriter
+		switch temp := c.w.(type) {
+		case *testWriter:
+			w = temp
+		case *testTruncateWriter:
+			w = temp.testWriter
+		}
+
+		if len(c.lines) > 0 && c.errMsg == "" {
 			if got := len(w.lines); got != len(c.lines) {
 				t.Errorf("%s: incorrect output len: got %d want %d", c.desc, got, len(c.lines))
 			}
