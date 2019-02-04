@@ -310,16 +310,6 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		}
 		defer f.Close()
 
-		// in case new file is shorter than old, need to truncate first
-		err = f.Truncate(0)
-		if err != nil {
-			t.handler.exit(1, "could not open %s for writing: %v", outPath, err)
-		}
-		_, err = f.Seek(0, 0)
-		if err != nil {
-			t.handler.exit(1, "could not open %s for writing: %v", outPath, err)
-		}
-
 		_, err = t.cfs.WriteTo(f)
 		ifErrHandle(err)
 	} else {
