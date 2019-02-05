@@ -59,6 +59,8 @@ const (
 
 	successQuiet = "all settings tuned, no changes needed"
 
+	errCouldNotWriteFmt = "could not open %s for writing: %v"
+
 	fmtTunableParam     = "%s = %s%s\n"
 	fmtLastTuned        = "timescaledb.last_tuned = '%s'"
 	fmtLastTunedVersion = "timescaledb.last_tuned_version = '%s'"
@@ -73,6 +75,7 @@ const (
 var (
 	// allows us to substitute mock versions in tests
 	getPGConfigVersionFn = getPGConfigVersion
+	filepathAbsFn        = filepath.Abs
 
 	pgVersionRegex = regexp.MustCompile("^PostgreSQL ([0-9]+?).([0-9]+?).*")
 	pgVersions     = []string{pgMajor11, pgMajor10, pgMajor96}
@@ -295,22 +298,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 
 	// Wrap up: Either write it out, or show success in --dry-run
 	if !t.flags.DryRun {
-		outPath := t.flags.DestPath
-		if len(outPath) == 0 {
-			outPath, err = filepath.Abs(filePath)
-			if err != nil {
-				t.handler.exit(1, "could not open %s for writing: %v", filePath, err)
-			}
-		}
-
-		t.handler.p.Statement("Saving changes to: " + outPath)
-		f, err := os.Create(outPath)
-		if err != nil {
-			t.handler.exit(1, "could not open %s for writing: %v", outPath, err)
-		}
-		defer f.Close()
-
-		_, err = t.cfs.WriteTo(f)
+		err = t.writeConfFile(filePath)
 		ifErrHandle(err)
 	} else {
 		t.handler.p.Statement("Success, but not writing due to --dry-run flag")
@@ -626,5 +614,29 @@ func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
 		t.handler.p.Success(successQuiet)
 	}
 
+	return nil
+}
+
+func (t *Tuner) writeConfFile(confPath string) error {
+	var err error
+	outPath := t.flags.DestPath
+	if len(outPath) == 0 {
+		outPath, err = filepathAbsFn(confPath)
+		if err != nil {
+			return fmt.Errorf(errCouldNotWriteFmt, confPath, err)
+		}
+	}
+
+	t.handler.p.Statement("Saving changes to: " + outPath)
+	f, err := osCreateFn(outPath)
+	if err != nil {
+		return fmt.Errorf(errCouldNotWriteFmt, outPath, err)
+	}
+	defer f.Close()
+
+	_, err = t.cfs.WriteTo(f)
+	if err != nil {
+		return fmt.Errorf(errCouldNotWriteFmt, outPath, err)
+	}
 	return nil
 }
