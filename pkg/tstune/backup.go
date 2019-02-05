@@ -19,7 +19,7 @@ const (
 
 // allows us to substitute mock versions in tests
 var filepathGlobFn = filepath.Glob
-var osCreateFn = func(path string) (io.Writer, error) {
+var osCreateFn = func(path string) (io.WriteCloser, error) {
 	return os.Create(path)
 }
 

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -1551,4 +1552,113 @@ func TestTunerProcessQuiet(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestTunerWriteConfFile(t *testing.T) {
+	wantPath := "postgresql.conf"
+	errCreateFmt := "path does not exist: %s"
+	errAbsPath := "could not get absolute path"
+	confFileLines := []string{"shared_preload_libraries = 'timescaledb'", "foo"}
+	wantConfFile := strings.Join(confFileLines, "\n")
+
+	cases := []struct {
+		desc             string
+		destPath         string
+		confPath         string
+		statements       uint64
+		shouldErrOnWrite bool
+		errMsg           string
+	}{
+		{
+			desc:       "success",
+			destPath:   wantPath,
+			statements: 1,
+		},
+		{
+			desc:       "success with derived path",
+			confPath:   wantPath,
+			statements: 1,
+		},
+		{
+			desc:     "error on absolute path",
+			confPath: "foo.out",
+			errMsg:   fmt.Sprintf(errCouldNotWriteFmt, "foo.out", errAbsPath),
+		},
+		{
+			desc:     "error on create",
+			destPath: "foo.out",
+			errMsg:   fmt.Sprintf(errCouldNotWriteFmt, "foo.out", fmt.Sprintf(errCreateFmt, "foo.out")),
+		},
+		{
+			desc:             "error on writeTo",
+			destPath:         wantPath,
+			shouldErrOnWrite: true,
+			errMsg:           fmt.Sprintf(errCouldNotWriteFmt, wantPath, errTestWriter),
+		},
+	}
+
+	oldOSCreateFn := osCreateFn
+	oldFilepathAbsFn := filepathAbsFn
+	filepathAbsFn = func(p string) (string, error) {
+		if p == wantPath {
+			return p, nil
+		}
+		return "", fmt.Errorf(errAbsPath)
+	}
+
+	for _, c := range cases {
+		var buf testBufferCloser
+		buf.shouldErr = c.shouldErrOnWrite
+		osCreateFn = func(p string) (io.WriteCloser, error) {
+			if !fileExists(p) && p != wantPath {
+				return nil, fmt.Errorf(errCreateFmt, p)
+			}
+			return &buf, nil
+		}
+
+		out := &testWriter{}
+		handler := &ioHandler{
+			p:      &testPrinter{},
+			out:    out,
+			outErr: out,
+		}
+		confFile := bytes.NewBufferString(wantConfFile)
+		cfs, err := getConfigFileState(confFile)
+		if err != nil {
+			t.Fatalf("could not parse config lines")
+		}
+		tuner := newTunerWithDefaultFlags(handler, cfs)
+		tuner.flags.DestPath = c.destPath
+		err = tuner.writeConfFile(c.confPath)
+		if c.errMsg == "" && err != nil {
+			t.Errorf("%s: unexpected error: got %v", c.desc, err)
+		} else if c.errMsg != "" {
+			if err == nil {
+				t.Errorf("%s: unexpected lack of error", c.desc)
+			} else if got := err.Error(); got != c.errMsg {
+				t.Errorf("%s: incorrect error:\ngot\n%s\nwant\n%s", c.desc, got, c.errMsg)
+			}
+		} else {
+			tp := handler.p.(*testPrinter)
+			if got := tp.statementCalls; got != c.statements {
+				t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, c.statements)
+			}
+
+			scanner := bufio.NewScanner(bytes.NewReader(buf.b.Bytes()))
+			i := 0
+			for scanner.Scan() {
+				if scanner.Err() != nil {
+					t.Errorf("%s: unexpected error while scanning: %v", c.desc, scanner.Err())
+				}
+				got := scanner.Text()
+				if want := confFileLines[i]; got != want {
+					t.Errorf("%s: incorrect line at %d:\ngot\n%s\nwant\n%s", c.desc, i, got, want)
+				}
+				i++
+			}
+		}
+	}
+
+	filepathAbsFn = oldFilepathAbsFn
+	osCreateFn = oldOSCreateFn
 }

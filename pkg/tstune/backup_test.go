@@ -12,6 +12,20 @@ import (
 	"time"
 )
 
+type testBufferCloser struct {
+	b         bytes.Buffer
+	shouldErr bool
+}
+
+func (b *testBufferCloser) Write(p []byte) (int, error) {
+	if b.shouldErr {
+		return 0, fmt.Errorf(errTestWriter)
+	}
+	return b.b.Write(p)
+}
+
+func (b *testBufferCloser) Close() error { return nil }
+
 func TestBackup(t *testing.T) {
 	oldOSCreateFn := osCreateFn
 	now := time.Now()
@@ -20,7 +34,7 @@ func TestBackup(t *testing.T) {
 	wantFileName := backupFilePrefix + now.Format(backupDateFmt)
 	wantPath := path.Join(os.TempDir(), wantFileName)
 
-	osCreateFn = func(_ string) (io.Writer, error) {
+	osCreateFn = func(_ string) (io.WriteCloser, error) {
 		return nil, fmt.Errorf("erroring")
 	}
 
@@ -36,8 +50,8 @@ func TestBackup(t *testing.T) {
 		t.Errorf("incorrect error: got\n%s\nwant\n%s", got, want)
 	}
 
-	var buf bytes.Buffer
-	osCreateFn = func(p string) (io.Writer, error) {
+	var buf testBufferCloser
+	osCreateFn = func(p string) (io.WriteCloser, error) {
 		if p != wantPath {
 			t.Errorf("incorrect backup path: got %s want %s", p, wantPath)
 		}
@@ -51,7 +65,7 @@ func TestBackup(t *testing.T) {
 		t.Errorf("unexpected error for backup: %v", err)
 	}
 
-	scanner := bufio.NewScanner(bytes.NewReader(buf.Bytes()))
+	scanner := bufio.NewScanner(bytes.NewReader(buf.b.Bytes()))
 	i := 0
 	for scanner.Scan() {
 		if scanner.Err() != nil {

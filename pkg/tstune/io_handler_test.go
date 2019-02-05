@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-const errTestWriter = "erroring"
+const errTestWriter = "error on write"
 
 type testWriter struct {
 	shouldErr bool
