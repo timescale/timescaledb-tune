@@ -78,7 +78,10 @@ var (
 	filepathAbsFn        = filepath.Abs
 
 	pgVersionRegex = regexp.MustCompile("^PostgreSQL ([0-9]+?).([0-9]+?).*")
-	pgVersions     = []string{pgMajor11, pgMajor10, pgMajor96}
+
+	// ValidPGVersions is a slice representing the major versions of PostgreSQL
+	// for which recommendations can be generated.
+	ValidPGVersions = []string{pgMajor11, pgMajor10, pgMajor96}
 )
 
 func getPGMajorVersion(binPath string) (string, error) {
@@ -90,16 +93,24 @@ func getPGMajorVersion(binPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if !isIn(majorVersion, pgVersions) {
-		return "", fmt.Errorf(errUnsupportedMajorFmt, majorVersion)
+	if err = validatePGMajorVersion(majorVersion); err != nil {
+		return "", err
 	}
 	return majorVersion, nil
+}
+
+func validatePGMajorVersion(majorVersion string) error {
+	if !isIn(majorVersion, ValidPGVersions) {
+		return fmt.Errorf(errUnsupportedMajorFmt, majorVersion)
+	}
+	return nil
 }
 
 // TunerFlags are the flags that control how a Tuner object behaves when it is run.
 type TunerFlags struct {
 	Memory    string // amount of memory to base recommendations on
 	NumCPUs   uint   // number of CPUs to base recommendations on
+	PGVersion string // major version of PostgreSQL to base recommendations on
 	PGConfig  string // path to pg_config binary
 	MaxConns  uint64 // max number of database connections
 	ConfPath  string // path to the postgresql.conf file
@@ -140,11 +151,21 @@ func (t *Tuner) initializeIOHandler(in io.Reader, out io.Writer, outErr io.Write
 // based on the Tuner's TunerFlags (i.e., whether memory and/or number of CPU cores has
 // been overridden).
 func (t *Tuner) initializeSystemConfig() (*pgtune.SystemConfig, error) {
+	var err error
+
 	// Some settings are not applicable in some versions,
 	// e.g. max_parallel_workers is not available in 9.6
-	pgVersion, err := getPGMajorVersion(t.flags.PGConfig)
-	if err != nil {
-		return nil, err
+	var pgVersion string
+	if t.flags.PGVersion != "" {
+		if err = validatePGMajorVersion(t.flags.PGVersion); err != nil {
+			return nil, err
+		}
+		pgVersion = t.flags.PGVersion
+	} else {
+		pgVersion, err = getPGMajorVersion(t.flags.PGConfig)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Memory flag needs to be in PostgreSQL format, default is all memory

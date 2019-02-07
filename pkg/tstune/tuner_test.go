@@ -102,6 +102,34 @@ func TestGetPGMajorVersion(t *testing.T) {
 	getPGConfigVersionFn = oldVersionFn
 }
 
+func TestValidatePGMajorVersion(t *testing.T) {
+	cases := map[string]bool{
+		pgMajor96: true,
+		pgMajor10: true,
+		pgMajor11: true,
+		"12":      false,
+		"9.5":     false,
+		"1.2.3":   false,
+		"9.6.6":   false,
+		"10.2":    false,
+		"11.0":    false,
+	}
+	for majorVersion, valid := range cases {
+		err := validatePGMajorVersion(majorVersion)
+		if valid && err != nil {
+			t.Errorf("unexpected error: got %v", err)
+		} else if !valid {
+			if err == nil {
+				t.Errorf("unexpected lack of error")
+			}
+			want := fmt.Errorf(errUnsupportedMajorFmt, majorVersion).Error()
+			if got := err.Error(); got != want {
+				t.Errorf("unexpected error: got %v want %v", got, want)
+			}
+		}
+	}
+}
+
 func newTunerWithDefaultFlags(handler *ioHandler, cfs *configFileState) *Tuner {
 	return &Tuner{handler, cfs, &TunerFlags{}}
 }
@@ -130,14 +158,17 @@ func TestTunerInitializeIOHandler(t *testing.T) {
 func TestTunerInitializeSystemConfig(t *testing.T) {
 	totalMemory := memory.TotalMemory()
 	okPGConfig := "pg_config"
+	okPGVersion := pgMajor11
 	cases := []struct {
-		desc         string
-		flagPGConfig string
-		flagMemory   string
-		flagNumCPUs  uint
-		wantMemory   uint64
-		wantCPUs     int
-		errMsg       string
+		desc          string
+		flagPGConfig  string
+		flagMemory    string
+		flagNumCPUs   uint
+		flagPGVersion string
+		wantMemory    uint64
+		wantCPUs      int
+		wantPGVersion string
+		errMsg        string
 	}{
 		{
 			desc:         "bad pgconfig flag",
@@ -151,48 +182,66 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			errMsg:       "incorrect PostgreSQL bytes format: 'foo'",
 		},
 		{
-			desc:         "use mem flag only",
-			flagPGConfig: okPGConfig,
-			flagMemory:   "1" + parse.GB,
-			wantMemory:   1 * parse.Gigabyte,
-			wantCPUs:     runtime.NumCPU(),
+			desc:          "bad pgversion flag",
+			flagPGVersion: "9.5",
+			errMsg:        fmt.Sprintf(errUnsupportedMajorFmt, "9.5"),
 		},
 		{
-			desc:         "use cpu flag only",
-			flagPGConfig: okPGConfig,
-			flagNumCPUs:  2,
-			wantMemory:   totalMemory,
-			wantCPUs:     2,
+			desc:          "use mem flag only",
+			flagPGConfig:  okPGConfig,
+			flagMemory:    "1" + parse.GB,
+			wantMemory:    1 * parse.Gigabyte,
+			wantCPUs:      runtime.NumCPU(),
+			wantPGVersion: okPGVersion,
 		},
 		{
-			desc:         "both flags",
-			flagPGConfig: okPGConfig,
-			flagMemory:   "128" + parse.GB,
-			flagNumCPUs:  1,
-			wantMemory:   128 * parse.Gigabyte,
-			wantCPUs:     1,
+			desc:          "use cpu flag only",
+			flagPGConfig:  okPGConfig,
+			flagNumCPUs:   2,
+			wantMemory:    totalMemory,
+			wantCPUs:      2,
+			wantPGVersion: okPGVersion,
 		},
 		{
-			desc:         "neither flags",
-			flagPGConfig: okPGConfig,
-			wantMemory:   totalMemory,
-			wantCPUs:     runtime.NumCPU(),
+			desc:          "use pg-version flag only",
+			flagPGVersion: pgMajor10,
+			wantMemory:    totalMemory,
+			wantCPUs:      runtime.NumCPU(),
+			wantPGVersion: pgMajor10,
+		},
+		{
+			desc:          "all flags",
+			flagPGConfig:  okPGConfig,
+			flagMemory:    "128" + parse.GB,
+			flagNumCPUs:   1,
+			flagPGVersion: pgMajor96,
+			wantMemory:    128 * parse.Gigabyte,
+			wantCPUs:      1,
+			wantPGVersion: pgMajor96,
+		},
+		{
+			desc:          "none flags",
+			flagPGConfig:  okPGConfig,
+			wantMemory:    totalMemory,
+			wantCPUs:      runtime.NumCPU(),
+			wantPGVersion: okPGVersion,
 		},
 	}
 
 	oldVersionFn := getPGConfigVersionFn
 	getPGConfigVersionFn = func(binPath string) ([]byte, error) {
 		if binPath == okPGConfig {
-			return []byte("PostgreSQL 10.5"), nil
+			return []byte(fmt.Sprintf("PostgreSQL %s.0", okPGVersion)), nil
 		}
 		return nil, exec.ErrNotFound
 	}
 
 	for _, c := range cases {
 		tuner := &Tuner{nil, nil, &TunerFlags{
-			PGConfig: c.flagPGConfig,
-			Memory:   c.flagMemory,
-			NumCPUs:  c.flagNumCPUs,
+			PGConfig:  c.flagPGConfig,
+			PGVersion: c.flagPGVersion,
+			Memory:    c.flagMemory,
+			NumCPUs:   c.flagNumCPUs,
 		}}
 		config, err := tuner.initializeSystemConfig()
 		if len(c.errMsg) == 0 {
@@ -206,6 +255,9 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 
 			if got := config.CPUs; got != c.wantCPUs {
 				t.Errorf("%s: incorrect number of CPUs: got %d want %d", c.desc, got, c.wantCPUs)
+			}
+			if got := config.PGMajorVersion; got != c.wantPGVersion {
+				t.Errorf("%s: incorrect pg version: got %s want %s", c.desc, got, c.wantPGVersion)
 			}
 		} else {
 			if err == nil {
