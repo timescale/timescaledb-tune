@@ -232,6 +232,18 @@ func (r *testRestorer) Restore(backupPath, confPath string) error {
 	return nil
 }
 
+func setupDefaultTestIO(input string) *ioHandler {
+	buf := bytes.NewBufferString(input)
+	br := bufio.NewReader(buf)
+	out := &testWriter{}
+	return &ioHandler{
+		p:      &testPrinter{},
+		br:     br,
+		out:    out,
+		outErr: out,
+	}
+}
+
 func TestRestore(t *testing.T) {
 	errGlob := "glob error"
 	now := time.Now()
@@ -248,7 +260,7 @@ func TestRestore(t *testing.T) {
 		desc          string
 		filePath      string
 		onDiskFiles   []string
-		responses     string
+		input         string
 		statements    uint64
 		prompts       uint64
 		successes     uint64
@@ -271,7 +283,7 @@ func TestRestore(t *testing.T) {
 		{
 			desc:        "only one backup",
 			onDiskFiles: []string{correctFile1},
-			responses:   "1\n",
+			input:       "1\n",
 			statements:  2,
 			prompts:     1,
 			successes:   1,
@@ -280,7 +292,7 @@ func TestRestore(t *testing.T) {
 		{
 			desc:        "two backups in order",
 			onDiskFiles: []string{correctFile1, correctFile2},
-			responses:   "1\n",
+			input:       "1\n",
 			statements:  2,
 			prompts:     1,
 			successes:   1,
@@ -289,7 +301,7 @@ func TestRestore(t *testing.T) {
 		{
 			desc:        "two backups wrong order",
 			onDiskFiles: []string{correctFile1, correctFile2},
-			responses:   "1\n",
+			input:       "1\n",
 			statements:  2,
 			prompts:     1,
 			successes:   1,
@@ -298,7 +310,7 @@ func TestRestore(t *testing.T) {
 		{
 			desc:        "quit after backups list",
 			onDiskFiles: []string{correctFile1},
-			responses:   "q\n",
+			input:       "q\n",
 			statements:  1,
 			prompts:     1,
 			wantPrints:  []string{wantPrint1},
@@ -307,7 +319,7 @@ func TestRestore(t *testing.T) {
 		{
 			desc:        "two backups, incorrect numbers",
 			onDiskFiles: []string{correctFile1, correctFile2},
-			responses:   "0\n5\n2\n",
+			input:       "0\n5\n2\n",
 			statements:  2,
 			prompts:     3,
 			successes:   1,
@@ -316,7 +328,7 @@ func TestRestore(t *testing.T) {
 		{
 			desc:          "one backup, failed restore",
 			onDiskFiles:   []string{correctFile1},
-			responses:     "1\n",
+			input:         "1\n",
 			statements:    2,
 			prompts:       1,
 			wantPrints:    []string{wantPrint1},
@@ -334,15 +346,7 @@ func TestRestore(t *testing.T) {
 			return c.onDiskFiles, nil
 		}
 
-		buf := bytes.NewBufferString(c.responses)
-		br := bufio.NewReader(buf)
-		out := &testWriter{}
-		handler := &ioHandler{
-			p:      &testPrinter{},
-			br:     br,
-			out:    out,
-			outErr: out,
-		}
+		handler := setupDefaultTestIO(c.input)
 		tuner := newTunerWithDefaultFlags(handler, nil)
 
 		err := tuner.restore(&testRestorer{c.restoreErrMsg}, c.filePath)
@@ -362,6 +366,7 @@ func TestRestore(t *testing.T) {
 		}
 
 		if c.errMsg == "" {
+			out := handler.out.(*testWriter)
 			// subtract one for the ending newline
 			if got := len(out.lines) - 1; got != len(c.wantPrints) {
 				t.Errorf("%s: incorrect number of prints: got %d want %d", c.desc, got, len(c.wantPrints))
@@ -436,14 +441,9 @@ func TestPromptUntilValidInput(t *testing.T) {
 		},
 	}
 
-	testString := "foo\nFoo\nFOO\nfOo\nfOO\n\n"
+	testInput := "foo\nFoo\nFOO\nfOo\nfOO\n\n"
 	for _, c := range cases {
-		buf := bytes.NewBufferString(testString)
-		br := bufio.NewReader(buf)
-		handler := &ioHandler{
-			p:  &testPrinter{},
-			br: br,
-		}
+		handler := setupDefaultTestIO(testInput)
 		tuner := newTunerWithDefaultFlags(handler, nil)
 		checker := &limitChecker{limit: c.limit, shouldErr: c.shouldErr}
 		err := tuner.promptUntilValidInput("test prompt", checker)
@@ -470,12 +470,7 @@ func TestPromptUntilValidInput(t *testing.T) {
 
 	// check --yes case works
 	for _, c := range cases {
-		buf := bytes.NewBufferString(testString)
-		br := bufio.NewReader(buf)
-		handler := &ioHandler{
-			p:  &testPrinter{},
-			br: br,
-		}
+		handler := setupDefaultTestIO(testInput)
 		tuner := &Tuner{handler: handler, flags: &TunerFlags{YesAlways: true}}
 		checker := &limitChecker{limit: c.limit, shouldErr: c.shouldErr}
 		err := tuner.promptUntilValidInput("test prompt", checker)
@@ -530,15 +525,7 @@ func TestProcessConfFileCheck(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		buf := bytes.NewBufferString(c.input)
-		br := bufio.NewReader(buf)
-		out := &testWriter{}
-		handler := &ioHandler{
-			p:      &testPrinter{},
-			br:     br,
-			out:    out,
-			outErr: out,
-		}
+		handler := setupDefaultTestIO(c.input)
 		cfs := &configFileState{lines: []string{}}
 		tuner := newTunerWithDefaultFlags(handler, cfs)
 		tuner.flags.ConfPath = c.flagPath
@@ -551,14 +538,15 @@ func TestProcessConfFileCheck(t *testing.T) {
 			t.Errorf("%s: incorrect statement: got\n%s\nwant\n%s", c.desc, got, statementConfFileCheck)
 		}
 
+		if got := tp.promptCalls; got != c.promptCalls {
+			t.Errorf("%s: incorrect number of prompt calls: got %d want %d", c.desc, got, c.promptCalls)
+		}
+
+		out := handler.out.(*testWriter)
 		if got := len(out.lines); got != 1 {
 			t.Errorf("%s: incorrect number of prints: got %d want %d", c.desc, got, 1)
 		} else if got := out.lines[0]; got != c.filePath+"\n\n" {
 			t.Errorf("%s: incorrect print: got\n%s\nwant\n%s", c.desc, got, c.filePath+"\n\n")
-		}
-
-		if got := tp.promptCalls; got != c.promptCalls {
-			t.Errorf("%s: incorrect number of prompt calls: got %d want %d", c.desc, got, c.promptCalls)
 		}
 
 		if len(c.errMsg) == 0 {
@@ -624,12 +612,7 @@ func TestProcessNoSharedLibLine(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		buf := bytes.NewBufferString(c.input)
-		br := bufio.NewReader(buf)
-		handler := &ioHandler{
-			p:  &testPrinter{},
-			br: br,
-		}
+		handler := setupDefaultTestIO(c.input)
 		cfs := &configFileState{lines: []string{}}
 		tuner := newTunerWithDefaultFlags(handler, cfs)
 		err := tuner.processNoSharedLibLine()
@@ -727,17 +710,10 @@ func TestProcessSharedLibLine(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		buf := bytes.NewBufferString(c.input)
-		br := bufio.NewReader(buf)
-		handler := &ioHandler{
-			p:  &testPrinter{},
-			br: br,
-		}
+		handler := setupDefaultTestIO(c.input)
 		cfs := &configFileState{lines: c.lines}
 		cfs.sharedLibResult = parseLineForSharedLibResult(c.lines[0])
 		tuner := newTunerWithDefaultFlags(handler, cfs)
-		out := &testWriter{}
-		handler.out = out
 
 		err := tuner.processSharedLibLine()
 		if err != nil && !c.shouldErr {
@@ -755,6 +731,7 @@ func TestProcessSharedLibLine(t *testing.T) {
 		}
 
 		if len(c.prints) > 0 {
+			out := handler.out.(*testWriter)
 			for i, want := range c.prints {
 				if got := out.lines[i]; got != want {
 					t.Errorf("%s: incorrect print at %d: got\n%s\nwant\n%s", c.desc, i, got, want)
@@ -1067,7 +1044,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		desc           string
 		ts             pgtune.SettingsGroup
 		lines          []string
-		stdin          string
+		input          string
 		wantStatements uint64
 		wantPrompts    uint64
 		wantPrints     int
@@ -1097,7 +1074,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc:           "memory - commented",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
 			lines:          memSettingsCommented,
-			stdin:          "y\n",
+			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    1,
 			wantPrints:     3, // one for initial newline + one setting, displayed twice
@@ -1108,7 +1085,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc:           "memory - wrong",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
 			lines:          memSettingsWrongVal,
-			stdin:          "y\n",
+			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    1,
 			wantPrints:     3, // one for initial newline + one setting, displayed twice
@@ -1119,7 +1096,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc:           "memory - missing",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
 			lines:          memSettingsMissing,
-			stdin:          "y\n",
+			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    1,
 			wantPrints:     2, // one for initial newline + one setting, displayed once (missing is now in printer.Error)
@@ -1131,7 +1108,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc:           "memory - comment+wrong",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
 			lines:          memSettingsCommentWrong,
-			stdin:          " \ny\n",
+			input:          " \ny\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    2, // first input is blank
 			wantPrints:     5, // one for initial newline + two settings, displayed twice
@@ -1142,7 +1119,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc:           "memory - comment+wrong+missing",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
 			lines:          memSettingsCommentWrongMissing,
-			stdin:          " \n \ny\n",
+			input:          " \n \ny\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    3, // first input is blank
 			wantPrints:     6, // one for initial newline + two settings, displayed twice, 1 setting once
@@ -1154,7 +1131,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc:           "memory - all wrong, but skip",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
 			lines:          memSettingsAllWrong,
-			stdin:          "s\n",
+			input:          "s\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    1,
 			wantPrints:     9, // one for initial newline + four settings, displayed twice
@@ -1166,7 +1143,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc:           "memory - all wrong, but quit",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
 			lines:          memSettingsAllWrong,
-			stdin:          " \nqUIt\n",
+			input:          " \nqUIt\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    2,
 			wantPrints:     9, // one for initial newline + four settings, displayed twice
@@ -1177,7 +1154,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			desc:           "memory - all wrong",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
 			lines:          memSettingsAllWrong,
-			stdin:          "y\n",
+			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    1,
 			wantPrints:     9, // one for initial newline + four settings, displayed twice
@@ -1187,7 +1164,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "label capitalized",
 			ts:             pgtune.GetSettingsGroup(pgtune.WALLabel, config),
-			stdin:          "y\n",
+			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    1,
 			wantPrints:     4, // one for initial newline + 3 for recommendations
@@ -1198,15 +1175,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		buf := bytes.NewBufferString(c.stdin)
-		br := bufio.NewReader(buf)
-		out := &testWriter{}
-		handler := &ioHandler{
-			p:      &testPrinter{},
-			br:     br,
-			out:    out,
-			outErr: out,
-		}
+		handler := setupDefaultTestIO(c.input)
 		cfs := &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
 		cfs.lines = append(cfs.lines, c.lines...)
 		for i, l := range cfs.lines {
@@ -1240,6 +1209,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			t.Errorf("%s: incorrect number of prompts: got %d want %d", c.desc, got, c.wantPrompts)
 		}
 
+		out := handler.out.(*testWriter)
 		if got := len(out.lines); got != c.wantPrints {
 			t.Errorf("%s: incorrect number of prints: got %d want %d", c.desc, got, c.wantPrints)
 		}
@@ -1268,16 +1238,7 @@ func TestProcessTunables(t *testing.T) {
 		t.Errorf("unexpected error in system config creation: got %v", err)
 	}
 
-	buf := bytes.NewBufferString("y\ny\ny\ny\n")
-	br := bufio.NewReader(buf)
-	out := &testWriter{}
-	handler := &ioHandler{
-		p:      &testPrinter{},
-		br:     br,
-		out:    out,
-		outErr: out,
-	}
-
+	handler := setupDefaultTestIO("y\ny\ny\ny\n")
 	cfs := &configFileState{lines: []string{}, tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner := newTunerWithDefaultFlags(handler, cfs)
 	tuner.processTunables(config)
@@ -1330,16 +1291,7 @@ func TestProcessTunablesSingleCPU(t *testing.T) {
 		t.Errorf("unexpected error in system config creation: got %v", err)
 	}
 
-	buf := bytes.NewBufferString("y\ny\ny\ny\n")
-	br := bufio.NewReader(buf)
-	out := &testWriter{}
-	handler := &ioHandler{
-		p:      &testPrinter{},
-		br:     br,
-		out:    out,
-		outErr: out,
-	}
-
+	handler := setupDefaultTestIO("y\ny\ny\ny\n")
 	cfs := &configFileState{lines: []string{}, tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner := newTunerWithDefaultFlags(handler, cfs)
 	tuner.processTunables(config)
@@ -1476,15 +1428,7 @@ func TestTunerProcessQuiet(t *testing.T) {
 		if c.shouldErr {
 			input = "n\n"
 		}
-		buf := bytes.NewBufferString(input)
-		br := bufio.NewReader(buf)
-		out := &testWriter{}
-		handler := &ioHandler{
-			p:      &testPrinter{},
-			br:     br,
-			out:    out,
-			outErr: out,
-		}
+		handler := setupDefaultTestIO(input)
 		confFile := bytes.NewBufferString(strings.Join(c.lines, "\n"))
 		cfs, err := getConfigFileState(confFile)
 		if err != nil {
@@ -1510,6 +1454,7 @@ func TestTunerProcessQuiet(t *testing.T) {
 			wantPrintsLen = len(c.wantedPrints) + 2
 		}
 
+		out := handler.out.(*testWriter)
 		if got := len(out.lines); got != wantPrintsLen {
 			t.Errorf("%s: incorrect prints len: got %d want %d", c.desc, got, wantPrintsLen)
 		} else if len(c.wantedPrints) > 0 {
@@ -1616,12 +1561,7 @@ func TestTunerWriteConfFile(t *testing.T) {
 			return &buf, nil
 		}
 
-		out := &testWriter{}
-		handler := &ioHandler{
-			p:      &testPrinter{},
-			out:    out,
-			outErr: out,
-		}
+		handler := setupDefaultTestIO("")
 		confFile := bytes.NewBufferString(wantConfFile)
 		cfs, err := getConfigFileState(confFile)
 		if err != nil {
