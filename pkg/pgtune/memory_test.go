@@ -30,7 +30,7 @@ var memoryToBaseVals = map[uint64]map[string]uint64{
 
 		SharedBuffersKey:      8 * parse.Gigabyte,
 		EffectiveCacheKey:     24 * parse.Gigabyte,
-		MaintenanceWorkMemKey: 2 * parse.Gigabyte,
+		MaintenanceWorkMemKey: maintenanceWorkMemLimit,
 		WorkMemKey:            209715 * parse.Kilobyte,
 	},
 }

@@ -15,6 +15,8 @@ const (
 	MaintenanceWorkMemKey = "maintenance_work_mem"
 	WorkMemKey            = "work_mem"
 
+	// the limit is 2GB on Unix, but 2047MB on Windows, so using 2047MB is easier all around
+	maintenanceWorkMemLimit     = 2047 * parse.Megabyte
 	sharedBuffersWindows        = 512 * parse.Megabyte
 	baseConns                   = 20
 	workMemPerGigPerConn        = 6.4 * baseConns     // derived from pgtune results
@@ -68,8 +70,8 @@ func (r *MemoryRecommender) Recommend(key string) string {
 		val = parse.BytesToPGFormat((r.totalMemory * 3) / 4)
 	} else if key == MaintenanceWorkMemKey {
 		temp := (float64(r.totalMemory) / float64(parse.Gigabyte)) * (128.0 * float64(parse.Megabyte))
-		if temp > (2 * parse.Gigabyte) {
-			temp = 2 * parse.Gigabyte
+		if temp > maintenanceWorkMemLimit {
+			temp = maintenanceWorkMemLimit
 		}
 		val = parse.BytesToPGFormat(uint64(temp))
 	} else if key == WorkMemKey {
