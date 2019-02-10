@@ -22,7 +22,7 @@ import (
 
 const (
 	// Version is the version of this library
-	Version = "0.4.0"
+	Version = "0.4.1-dev"
 
 	errCouldNotExecuteFmt  = "could not execute `%s --version`: %v"
 	errUnsupportedMajorFmt = "unsupported major PG version: %s"
@@ -61,7 +61,7 @@ const (
 
 	errCouldNotWriteFmt = "could not open %s for writing: %v"
 
-	fmtTunableParam     = "%s = %s%s\n"
+	fmtTunableParam     = "%s = %s%s"
 	fmtLastTuned        = "timescaledb.last_tuned = '%s'"
 	fmtLastTunedVersion = "timescaledb.last_tuned_version = '%s'"
 
@@ -507,7 +507,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 					t.handler.p.Error("missing", r.key)
 					return
 				}
-				format := fmtTunableParam
+				format := fmtTunableParam + "\n"
 				if r.commented {
 					format = "#" + format
 				}
@@ -519,7 +519,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 		}
 		// Recommendations are always displayed, but the label above may not be
 		doWithVisibile(func(r *tunableParseResult) {
-			fmt.Fprintf(t.handler.out, fmtTunableParam, r.key, recommender.Recommend(r.key), "") // don't print comment, too cluttered
+			fmt.Fprintf(t.handler.out, fmtTunableParam+"\n", r.key, recommender.Recommend(r.key), "") // don't print comment, too cluttered
 		})
 
 		// Prompt the user for input (only in non-quiet mode)
