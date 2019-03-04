@@ -16,119 +16,8 @@ import (
 	"github.com/pbnjay/memory"
 	"github.com/timescale/timescaledb-tune/internal/parse"
 	"github.com/timescale/timescaledb-tune/pkg/pgtune"
+	"github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
-
-func TestGetPGMajorVersion(t *testing.T) {
-	okPath96 := "pg_config_9.6"
-	okPath10 := "pg_config_10"
-	okPath11 := "pg_config_11"
-	okPath95 := "pg_config_9.5"
-	okPath60 := "pg_config_6.0"
-	cases := []struct {
-		desc    string
-		binPath string
-		want    string
-		errMsg  string
-	}{
-		{
-			desc:    "failed execute",
-			binPath: "pg_config_bad",
-			errMsg:  fmt.Sprintf(errCouldNotExecuteFmt, "pg_config_bad", exec.ErrNotFound),
-		},
-		{
-			desc:    "failed major parse",
-			binPath: okPath60,
-			errMsg:  fmt.Sprintf("unknown major PG version: PostgreSQL 6.0.5"),
-		},
-		{
-			desc:    "failed unsupported",
-			binPath: okPath95,
-			errMsg:  fmt.Sprintf(errUnsupportedMajorFmt, "9.5"),
-		},
-		{
-			desc:    "success 9.6",
-			binPath: okPath96,
-			want:    pgMajor96,
-		},
-		{
-			desc:    "success 10",
-			binPath: okPath10,
-			want:    pgMajor10,
-		},
-		{
-			desc:    "success 11",
-			binPath: okPath11,
-			want:    pgMajor11,
-		},
-	}
-
-	oldVersionFn := getPGConfigVersionFn
-	getPGConfigVersionFn = func(binPath string) ([]byte, error) {
-		switch binPath {
-		case okPath60:
-			return []byte("PostgreSQL 6.0.5"), nil
-		case okPath95:
-			return []byte("PostgreSQL 9.5.10"), nil
-		case okPath96:
-			return []byte("PostgreSQL 9.6.6"), nil
-		case okPath10:
-			return []byte("PostgreSQL 10.5 (Debian7)"), nil
-		case okPath11:
-			return []byte("PostgreSQL 11.1"), nil
-		default:
-			return nil, exec.ErrNotFound
-		}
-	}
-
-	for _, c := range cases {
-		got, err := getPGMajorVersion(c.binPath)
-		if len(c.errMsg) == 0 {
-			if err != nil {
-				t.Errorf("%s: unexpected error: got %v", c.desc, err)
-			}
-			if got != c.want {
-				t.Errorf("%s: incorrect major version: got %s want %s", c.desc, got, c.want)
-			}
-		} else {
-			if err == nil {
-				t.Errorf("%s: unexpected lack of error", c.desc)
-			}
-			if got := err.Error(); got != c.errMsg {
-				t.Errorf("%s: incorrect error:\ngot\n%s\nwant\n%s", c.desc, got, c.errMsg)
-			}
-		}
-	}
-
-	getPGConfigVersionFn = oldVersionFn
-}
-
-func TestValidatePGMajorVersion(t *testing.T) {
-	cases := map[string]bool{
-		pgMajor96: true,
-		pgMajor10: true,
-		pgMajor11: true,
-		"12":      false,
-		"9.5":     false,
-		"1.2.3":   false,
-		"9.6.6":   false,
-		"10.2":    false,
-		"11.0":    false,
-	}
-	for majorVersion, valid := range cases {
-		err := validatePGMajorVersion(majorVersion)
-		if valid && err != nil {
-			t.Errorf("unexpected error: got %v", err)
-		} else if !valid {
-			if err == nil {
-				t.Errorf("unexpected lack of error")
-			}
-			want := fmt.Errorf(errUnsupportedMajorFmt, majorVersion).Error()
-			if got := err.Error(); got != want {
-				t.Errorf("unexpected error: got %v want %v", got, want)
-			}
-		}
-	}
-}
 
 func newTunerWithDefaultFlags(handler *ioHandler, cfs *configFileState) *Tuner {
 	return &Tuner{handler, cfs, &TunerFlags{}}
@@ -158,7 +47,7 @@ func TestTunerInitializeIOHandler(t *testing.T) {
 func TestTunerInitializeSystemConfig(t *testing.T) {
 	totalMemory := memory.TotalMemory()
 	okPGConfig := "pg_config"
-	okPGVersion := pgMajor11
+	okPGVersion := pgutils.MajorVersion11
 	cases := []struct {
 		desc          string
 		flagPGConfig  string
@@ -204,20 +93,20 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 		},
 		{
 			desc:          "use pg-version flag only",
-			flagPGVersion: pgMajor10,
+			flagPGVersion: pgutils.MajorVersion10,
 			wantMemory:    totalMemory,
 			wantCPUs:      runtime.NumCPU(),
-			wantPGVersion: pgMajor10,
+			wantPGVersion: pgutils.MajorVersion10,
 		},
 		{
 			desc:          "all flags",
 			flagPGConfig:  okPGConfig,
 			flagMemory:    "128" + parse.GB,
 			flagNumCPUs:   1,
-			flagPGVersion: pgMajor96,
+			flagPGVersion: pgutils.MajorVersion96,
 			wantMemory:    128 * parse.Gigabyte,
 			wantCPUs:      1,
-			wantPGVersion: pgMajor96,
+			wantPGVersion: pgutils.MajorVersion96,
 		},
 		{
 			desc:          "none flags",
@@ -229,11 +118,11 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 	}
 
 	oldVersionFn := getPGConfigVersionFn
-	getPGConfigVersionFn = func(binPath string) ([]byte, error) {
+	getPGConfigVersionFn = func(binPath string) (string, error) {
 		if binPath == okPGConfig {
-			return []byte(fmt.Sprintf("PostgreSQL %s.0", okPGVersion)), nil
+			return fmt.Sprintf("PostgreSQL %s.0", okPGVersion), nil
 		}
-		return nil, exec.ErrNotFound
+		return "", exec.ErrNotFound
 	}
 
 	for _, c := range cases {
@@ -1093,7 +982,7 @@ func getDefaultSystemConfig(t *testing.T) *pgtune.SystemConfig {
 	mem := uint64(8 * parse.Gigabyte)
 	cpus := 4
 	maxConns := uint64(20)
-	config, err := pgtune.NewSystemConfig(mem, cpus, pgMajor10, maxConns)
+	config, err := pgtune.NewSystemConfig(mem, cpus, pgutils.MajorVersion10, maxConns)
 	if err != nil {
 		t.Fatalf("unexpected error in config creation: got %v", err)
 	}
