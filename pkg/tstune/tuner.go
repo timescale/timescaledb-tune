@@ -64,43 +64,10 @@ const (
 	fmtTunableParam = "%s = %s%s"
 
 	fudgeFactor = 0.05
-
-	pgMajor96 = "9.6"
-	pgMajor10 = "10"
-	pgMajor11 = "11"
 )
 
-var (
-	// allows us to substitute mock versions in tests
-	getPGConfigVersionFn = getPGConfigVersion
-	filepathAbsFn        = filepath.Abs
-
-	// ValidPGVersions is a slice representing the major versions of PostgreSQL
-	// for which recommendations can be generated.
-	ValidPGVersions = []string{pgMajor11, pgMajor10, pgMajor96}
-)
-
-func getPGMajorVersion(binPath string) (string, error) {
-	version, err := getPGConfigVersionFn(binPath)
-	if err != nil {
-		return "", fmt.Errorf(errCouldNotExecuteFmt, binPath, err)
-	}
-	majorVersion, err := parse.ToPGMajorVersion(string(version))
-	if err != nil {
-		return "", err
-	}
-	if err = validatePGMajorVersion(majorVersion); err != nil {
-		return "", err
-	}
-	return majorVersion, nil
-}
-
-func validatePGMajorVersion(majorVersion string) error {
-	if !isIn(majorVersion, ValidPGVersions) {
-		return fmt.Errorf(errUnsupportedMajorFmt, majorVersion)
-	}
-	return nil
-}
+// allows us to substitute mock versions in tests
+var filepathAbsFn = filepath.Abs
 
 // TunerFlags are the flags that control how a Tuner object behaves when it is run.
 type TunerFlags struct {

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/timescale/timescaledb-tune/pkg/pgtune"
+	"github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
 
 func stringSliceToBytesReader(lines []string) *bytes.Buffer {
@@ -150,7 +151,7 @@ func TestGetConfigFilePath(t *testing.T) {
 		{
 			desc:      "linux - pg10+debian",
 			os:        osLinux,
-			pgVersion: pgMajor10,
+			pgVersion: pgutils.MajorVersion10,
 			files:     []string{fmt.Sprintf(fileNameDebianFmt, "10")},
 			wantFile:  fmt.Sprintf(fileNameDebianFmt, "10"),
 			shouldErr: false,
@@ -158,7 +159,7 @@ func TestGetConfigFilePath(t *testing.T) {
 		{
 			desc:      "linux - pg9.6+debian",
 			os:        osLinux,
-			pgVersion: pgMajor96,
+			pgVersion: pgutils.MajorVersion96,
 			files:     []string{fmt.Sprintf(fileNameDebianFmt, "9.6")},
 			wantFile:  fmt.Sprintf(fileNameDebianFmt, "9.6"),
 			shouldErr: false,
@@ -166,7 +167,7 @@ func TestGetConfigFilePath(t *testing.T) {
 		{
 			desc:      "linux - mismatch+debian",
 			os:        osLinux,
-			pgVersion: pgMajor96,
+			pgVersion: pgutils.MajorVersion96,
 			files:     []string{fmt.Sprintf(fileNameDebianFmt, "10")},
 			wantFile:  "",
 			shouldErr: true,
@@ -174,7 +175,7 @@ func TestGetConfigFilePath(t *testing.T) {
 		{
 			desc:      "linux - pg10+rpm",
 			os:        osLinux,
-			pgVersion: pgMajor10,
+			pgVersion: pgutils.MajorVersion10,
 			files:     []string{fmt.Sprintf(fileNameRPMFmt, "10")},
 			wantFile:  fmt.Sprintf(fileNameRPMFmt, "10"),
 			shouldErr: false,
@@ -182,7 +183,7 @@ func TestGetConfigFilePath(t *testing.T) {
 		{
 			desc:      "linux - pg9.6+rpm",
 			os:        osLinux,
-			pgVersion: pgMajor96,
+			pgVersion: pgutils.MajorVersion96,
 			files:     []string{fmt.Sprintf(fileNameDebianFmt, "9.6")},
 			wantFile:  fmt.Sprintf(fileNameDebianFmt, "9.6"),
 			shouldErr: false,
@@ -191,7 +192,7 @@ func TestGetConfigFilePath(t *testing.T) {
 		{
 			desc:      "linux - mismatch+rpm",
 			os:        osLinux,
-			pgVersion: pgMajor96,
+			pgVersion: pgutils.MajorVersion96,
 			files:     []string{fmt.Sprintf(fileNameRPMFmt, "10")},
 			wantFile:  "",
 			shouldErr: true,
