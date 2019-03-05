@@ -4,16 +4,47 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
 	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
 
-// tuneRegexFmt is a regular expression that is used to match a line in the
-// conf file that just needs to be Sprintf'd with the key name. That is, its
-// usage is usually:
-// regex := fmt.Sprintf(tuneRegexFmt, "key_name")
-const tuneRegexFmt = "^(\\s*#+?\\s*)?(%s) = (\\S+?)(\\s*(?:#.*|))$"
+// Names of parameters that this tuning tool will add to the conf file.
+const (
+	fmtOurParam           = "%s = '%s'"
+	lastTunedParam        = "timescaledb.last_tuned"
+	lastTunedVersionParam = "timescaledb.last_tuned_version"
+)
+
+// ourParams is a list of paramters that the tuning program adds to the conf file
+var ourParams = []string{lastTunedParam, lastTunedVersionParam}
+
+// ourParamToValue returns the configuration file line for a given
+// timescaledb-tune parameter, e.g., timescaledb.last_tuned.
+func ourParamString(param string) string {
+	var val string
+	switch param {
+	case lastTunedParam:
+		val = time.Now().Format(time.RFC3339)
+	case lastTunedVersionParam:
+		val = Version
+	default:
+		panic("unknown param: " + param)
+	}
+	return fmt.Sprintf(fmtOurParam, param, val)
+}
+
+const (
+	// tuneRegexFmt is a regular expression that is used to match a line in the
+	// conf file that just needs to be Sprintf'd with the key name. That is, its
+	// usage is usually:
+	// regex := fmt.Sprintf(tuneRegexFmt, "key_name")
+	tuneRegexFmt = "^(\\s*#+?\\s*)?(%s) = (\\S+?)(\\s*(?:#.*|))$"
+	// tuneRegexQuotedFmt is similar to the format above but for string parameters
+	// that need single quotes around them
+	tuneRegexQuotedFmt = "^(\\s*#+?\\s*)?(%s) = '(.+?)'(\\s*(?:#.*|))$"
+)
 
 var regexes = make(map[string]*regexp.Regexp)
 
@@ -62,7 +93,13 @@ func getFloatParser(r pgtune.Recommender) floatParser {
 // keyToRegex takes a conf file key/param name and creates the correct regular
 // expression.
 func keyToRegex(key string) *regexp.Regexp {
-	return regexp.MustCompile(fmt.Sprintf(tuneRegexFmt, key))
+	return regexp.MustCompile(fmt.Sprintf(tuneRegexFmt, regexp.QuoteMeta(key)))
+}
+
+// keyToRegexQuoted takes a conf file key/param name and creates the correct
+// regular expression, assuming the values need to be single quoted.
+func keyToRegexQuoted(key string) *regexp.Regexp {
+	return regexp.MustCompile(fmt.Sprintf(tuneRegexQuotedFmt, regexp.QuoteMeta(key)))
 }
 
 // parseWithRegex takes a line and attempts to parse it using a given regular

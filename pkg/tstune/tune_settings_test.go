@@ -3,10 +3,43 @@ package tstune
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
 	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
+
+// To make the test less flaky, we 0 out the seconds to make the comparison
+// more likely to succeed.
+func removeSecsFromLastTuned(time string) string {
+	runes := []rune(time)
+	start := len(lastTunedParam + " = '")
+	runes[start+17] = '0'
+	runes[start+18] = '0'
+	return string(runes)
+}
+
+func TestOurParamToValue(t *testing.T) {
+	now := time.Now().Format(time.RFC3339)
+	want := removeSecsFromLastTuned(fmt.Sprintf(fmtOurParam, lastTunedParam, now))
+	got := removeSecsFromLastTuned(ourParamString(lastTunedParam))
+	if got != want {
+		t.Errorf("incorrect value for %s: got %s want %s", lastTunedParam, got, want)
+	}
+
+	want = fmt.Sprintf(fmtOurParam, lastTunedVersionParam, Version)
+	got = ourParamString(lastTunedVersionParam)
+	if got != want {
+		t.Errorf("incorrect value for %s: got %s want %s", lastTunedVersionParam, got, want)
+	}
+
+	defer func() {
+		if re := recover(); re == nil {
+			t.Errorf("did not panic when should")
+		}
+	}()
+	_ = ourParamString("not_a_real_param")
+}
 
 func TestBytesFloatParserParseFloat(t *testing.T) {
 	s := "8" + parse.GB
@@ -60,17 +93,41 @@ func TestGetFloatParser(t *testing.T) {
 	}
 }
 
-const testKey = "test_setting"
-
-var testRegex = keyToRegex(testKey)
+const (
+	testKey            = "test_setting"
+	testKeyMeta        = "test.setting"
+	testKeyMetaCorrect = "test\\.setting"
+)
 
 func TestKeyToRegex(t *testing.T) {
-	regex := keyToRegex("foo")
-	want := fmt.Sprintf(tuneRegexFmt, "foo")
+	regex := keyToRegex(testKey)
+	want := fmt.Sprintf(tuneRegexFmt, testKey)
 	if got := regex.String(); got != want {
 		t.Errorf("incorrect regex: got %s want %s", got, want)
 	}
+
+	regex = keyToRegex(testKeyMeta)
+	want = fmt.Sprintf(tuneRegexFmt, testKeyMetaCorrect)
+	if got := regex.String(); got != want {
+		t.Errorf("incorrect regex (meta symbols): got %s want %s", got, want)
+	}
 }
+
+func TestKeyToRegexQuoted(t *testing.T) {
+	regex := keyToRegexQuoted(testKey)
+	want := fmt.Sprintf(tuneRegexQuotedFmt, testKey)
+	if got := regex.String(); got != want {
+		t.Errorf("incorrect regex: got %s want %s", got, want)
+	}
+
+	regex = keyToRegexQuoted(testKeyMeta)
+	want = fmt.Sprintf(tuneRegexQuotedFmt, testKeyMetaCorrect)
+	if got := regex.String(); got != want {
+		t.Errorf("incorrect regex (meta symbols): got %s want %s", got, want)
+	}
+}
+
+var testRegex = keyToRegex(testKey)
 
 func TestParseWithRegex(t *testing.T) {
 	cases := []struct {

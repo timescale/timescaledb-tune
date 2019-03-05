@@ -30,7 +30,11 @@ func TestBackup(t *testing.T) {
 	oldOSCreateFn := osCreateFn
 	now := time.Now()
 	lines := []string{"foo", "bar", "baz", "quaz"}
-	cfs := &configFileState{lines: lines}
+	r := stringSliceToBytesReader(lines)
+	cfs, err := getConfigFileState(r)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
 	wantFileName := backupFilePrefix + now.Format(backupDateFmt)
 	wantPath := path.Join(os.TempDir(), wantFileName)
 
