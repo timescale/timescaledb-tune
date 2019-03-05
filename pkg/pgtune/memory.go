@@ -19,6 +19,7 @@ const (
 	maintenanceWorkMemLimit     = 2047 * parse.Megabyte
 	sharedBuffersWindows        = 512 * parse.Megabyte
 	baseConns                   = 20
+	workMemMin                  = 64 * parse.Kilobyte
 	workMemPerGigPerConn        = 6.4 * baseConns     // derived from pgtune results
 	workMemPerGigPerConnWindows = 8.53336 * baseConns // derived from pgtune results
 )
@@ -80,9 +81,13 @@ func (r *MemoryRecommender) Recommend(key string) string {
 		} else {
 			cpuFactor := math.Round(float64(r.cpus) / 2.0)
 			gigs := float64(r.totalMemory) / float64(parse.Gigabyte)
-			temp := gigs * (workMemPerGigPerConn * float64(parse.Megabyte) / float64(r.conns)) / cpuFactor
-			val = parse.BytesToPGFormat(uint64(temp))
+			temp := uint64(gigs * (workMemPerGigPerConn * float64(parse.Megabyte) / float64(r.conns)) / cpuFactor)
+			if temp < workMemMin {
+				temp = workMemMin
+			}
+			val = parse.BytesToPGFormat(temp)
 		}
+
 	} else {
 		panic(fmt.Sprintf("unknown key: %s", key))
 	}
@@ -91,16 +96,20 @@ func (r *MemoryRecommender) Recommend(key string) string {
 
 func (r *MemoryRecommender) recommendWindows() string {
 	cpuFactor := math.Round(float64(r.cpus) / 2.0)
+	var temp uint64
 
 	if r.totalMemory <= 2*parse.Gigabyte {
 		gigs := float64(r.totalMemory) / float64(parse.Gigabyte)
-		temp := gigs * (workMemPerGigPerConn * float64(parse.Megabyte) / float64(r.conns)) / cpuFactor
-		return parse.BytesToPGFormat(uint64(temp))
+		temp = uint64(gigs * (workMemPerGigPerConn * float64(parse.Megabyte) / float64(r.conns)) / cpuFactor)
+	} else {
+		base := 2.0 * workMemPerGigPerConn * float64(parse.Megabyte)
+		gigs := float64(r.totalMemory)/float64(parse.Gigabyte) - 2.0
+		temp = uint64(((gigs*(workMemPerGigPerConnWindows*float64(parse.Megabyte)) + base) / float64(r.conns)) / cpuFactor)
 	}
-	base := 2.0 * workMemPerGigPerConn * float64(parse.Megabyte)
-	gigs := float64(r.totalMemory)/float64(parse.Gigabyte) - 2.0
-	temp := ((gigs*(workMemPerGigPerConnWindows*float64(parse.Megabyte)) + base) / float64(r.conns)) / cpuFactor
-	return parse.BytesToPGFormat(uint64(temp))
+	if temp < workMemMin {
+		temp = workMemMin
+	}
+	return parse.BytesToPGFormat(temp)
 }
 
 // MemorySettingsGroup is the SettingsGroup to represent settings that affect memory usage.

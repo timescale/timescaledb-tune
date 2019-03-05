@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -76,8 +75,6 @@ var (
 	// allows us to substitute mock versions in tests
 	getPGConfigVersionFn = getPGConfigVersion
 	filepathAbsFn        = filepath.Abs
-
-	pgVersionRegex = regexp.MustCompile("^PostgreSQL ([0-9]+?).([0-9]+?).*")
 
 	// ValidPGVersions is a slice representing the major versions of PostgreSQL
 	// for which recommendations can be generated.
