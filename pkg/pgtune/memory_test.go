@@ -35,15 +35,19 @@ var memoryToBaseVals = map[uint64]map[string]uint64{
 	},
 }
 
-// cpuVals is the different amounts of CPUs to test
-var cpuVals = []int{1, 4, 5}
+// highCPUs is the number of CPUs that is high enough that work_mem would normally
+// fall below the minimum (64KB) using the standard formula
+const highCPUs = 9000
 
-// connVals is the different number of conns to test
-var connVals = []uint64{0, 19, 20, 50}
-
-// memorySettingsMatrix stores the test cases for MemoryRecommend along with
-// the expected values
-var memorySettingsMatrix = map[uint64]map[int]map[uint64]map[string]string{}
+var (
+	// cpuVals is the different amounts of CPUs to test
+	cpuVals = []int{1, 4, 5, highCPUs}
+	// connVals is the different number of conns to test
+	connVals = []uint64{0, 19, 20, 50}
+	// memorySettingsMatrix stores the test cases for MemoryRecommend along with
+	// the expected values
+	memorySettingsMatrix = map[uint64]map[int]map[uint64]map[string]string{}
+)
 
 func init() {
 	for mem, baseMatrix := range memoryToBaseVals {
@@ -57,17 +61,21 @@ func init() {
 				memorySettingsMatrix[mem][cpus][conns][EffectiveCacheKey] = parse.BytesToPGFormat(baseMatrix[EffectiveCacheKey])
 				memorySettingsMatrix[mem][cpus][conns][MaintenanceWorkMemKey] = parse.BytesToPGFormat(baseMatrix[MaintenanceWorkMemKey])
 
-				// CPU only affects work_mem in groups of 2 (i.e. 2 and 3 CPUs are treated as the same)
-				cpuFactor := math.Round(float64(cpus) / 2.0)
-				// Our work_mem values are derivied by a certain amount of memory lost/gained when
-				// moving away from baseConns
-				connFactor := float64(MaxConnectionsDefault) / float64(baseConns)
-				if conns != 0 {
-					connFactor = float64(conns) / float64(baseConns)
-				}
+				if cpus == highCPUs {
+					memorySettingsMatrix[mem][cpus][conns][WorkMemKey] = parse.BytesToPGFormat(workMemMin)
+				} else {
+					// CPU only affects work_mem in groups of 2 (i.e. 2 and 3 CPUs are treated as the same)
+					cpuFactor := math.Round(float64(cpus) / 2.0)
+					// Our work_mem values are derivied by a certain amount of memory lost/gained when
+					// moving away from baseConns
+					connFactor := float64(MaxConnectionsDefault) / float64(baseConns)
+					if conns != 0 {
+						connFactor = float64(conns) / float64(baseConns)
+					}
 
-				memorySettingsMatrix[mem][cpus][conns][WorkMemKey] =
-					parse.BytesToPGFormat(uint64(float64(baseMatrix[WorkMemKey]) / connFactor / cpuFactor))
+					memorySettingsMatrix[mem][cpus][conns][WorkMemKey] =
+						parse.BytesToPGFormat(uint64(float64(baseMatrix[WorkMemKey]) / connFactor / cpuFactor))
+				}
 			}
 		}
 	}
@@ -178,6 +186,13 @@ func TestMemoryRecommenderRecommendWindows(t *testing.T) {
 			cpus:        10,
 			conns:       baseConns,
 			want:        "27088" + parse.KB, // from pgtune
+		},
+		{
+			desc:        "1GB, 9000 cpus",
+			totalMemory: parse.Gigabyte,
+			cpus:        highCPUs,
+			conns:       baseConns,
+			want:        "64" + parse.KB,
 		},
 	}
 
