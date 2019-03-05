@@ -578,7 +578,7 @@ func TestProcessConfFileCheck(t *testing.T) {
 
 	for _, c := range cases {
 		handler := setupDefaultTestIO(c.input)
-		cfs := &configFileState{lines: []string{}}
+		cfs := &configFileState{}
 		tuner := newTunerWithDefaultFlags(handler, cfs)
 		tuner.flags.ConfPath = c.flagPath
 
@@ -665,7 +665,7 @@ func TestProcessNoSharedLibLine(t *testing.T) {
 	}
 	for _, c := range cases {
 		handler := setupDefaultTestIO(c.input)
-		cfs := &configFileState{lines: []string{}}
+		cfs := &configFileState{}
 		tuner := newTunerWithDefaultFlags(handler, cfs)
 		err := tuner.processNoSharedLibLine()
 		if got := handler.p.(*testPrinter).statementCalls; got != 1 {
@@ -763,11 +763,14 @@ func TestProcessSharedLibLine(t *testing.T) {
 
 	for _, c := range cases {
 		handler := setupDefaultTestIO(c.input)
-		cfs := &configFileState{lines: c.lines}
-		cfs.sharedLibResult = parseLineForSharedLibResult(c.lines[0])
+		r := stringSliceToBytesReader(c.lines)
+		cfs, err := getConfigFileState(r)
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", c.desc, err)
+		}
 		tuner := newTunerWithDefaultFlags(handler, cfs)
 
-		err := tuner.processSharedLibLine()
+		err = tuner.processSharedLibLine()
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {
@@ -1229,10 +1232,12 @@ func TestProcessSettingsGroup(t *testing.T) {
 	for _, c := range cases {
 		handler := setupDefaultTestIO(c.input)
 		cfs := &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
-		cfs.lines = append(cfs.lines, c.lines...)
+		for _, s := range c.lines {
+			cfs.lines = append(cfs.lines, &configLine{content: s})
+		}
 		for i, l := range cfs.lines {
 			for _, k := range c.ts.Keys() {
-				p := parseWithRegex(l, regexes[k])
+				p := parseWithRegex(l.content, regexes[k])
 				if p != nil {
 					p.idx = i
 					cfs.tuneParseResults[k] = p
@@ -1291,7 +1296,7 @@ func TestProcessTunables(t *testing.T) {
 	}
 
 	handler := setupDefaultTestIO("y\ny\ny\ny\n")
-	cfs := &configFileState{lines: []string{}, tuneParseResults: make(map[string]*tunableParseResult)}
+	cfs := &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner := newTunerWithDefaultFlags(handler, cfs)
 	tuner.processTunables(config)
 
@@ -1344,7 +1349,7 @@ func TestProcessTunablesSingleCPU(t *testing.T) {
 	}
 
 	handler := setupDefaultTestIO("y\ny\ny\ny\n")
-	cfs := &configFileState{lines: []string{}, tuneParseResults: make(map[string]*tunableParseResult)}
+	cfs := &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner := newTunerWithDefaultFlags(handler, cfs)
 	tuner.processTunables(config)
 
@@ -1412,13 +1417,79 @@ var (
 	}
 )
 
+func TestTunerProcessOurParams(t *testing.T) {
+	defaultWantLines := []string{
+		ourParamString(lastTunedParam),
+		ourParamString(lastTunedVersionParam),
+	}
+	cases := []struct {
+		desc      string
+		lines     []string
+		wantLines []string
+	}{
+		{
+			desc:      "no params found",
+			lines:     []string{},
+			wantLines: defaultWantLines,
+		},
+		{
+			desc: "one param found",
+			lines: []string{
+				ourParamString(lastTunedParam),
+			},
+			wantLines: defaultWantLines,
+		},
+		{
+			desc: "all param found",
+			lines: []string{
+				ourParamString(lastTunedParam),
+				ourParamString(lastTunedVersionParam),
+			},
+			wantLines: defaultWantLines,
+		},
+		{
+			desc: "all param found, early stop",
+			lines: []string{
+				"not a useful line",
+				ourParamString(lastTunedParam),
+				ourParamString(lastTunedParam), //repeat
+				ourParamString(lastTunedVersionParam),
+			},
+			wantLines: []string{
+				"not a useful line",
+				ourParamString(lastTunedParam),
+				ourParamString(lastTunedParam), //repeat
+				ourParamString(lastTunedVersionParam),
+			},
+		},
+	}
+
+	for _, c := range cases {
+		handler := setupDefaultTestIO("")
+		confFile := bytes.NewBufferString(strings.Join(c.lines, "\n"))
+		cfs, err := getConfigFileState(confFile)
+		if err != nil {
+			t.Fatalf("could not parse config lines")
+		}
+
+		tuner := newTunerWithDefaultFlags(handler, cfs)
+		tuner.processOurParams()
+
+		if got := len(tuner.cfs.lines); got != len(c.wantLines) {
+			t.Errorf("%s: incorrect number of lines: got %d want %d", c.desc, got, len(c.wantLines))
+		} else {
+			for i, want := range c.wantLines {
+				if got := tuner.cfs.lines[i].content; got != want {
+					t.Errorf("%s: incorrect line at %d: got %s want %s", c.desc, i, got, want)
+				}
+			}
+		}
+	}
+}
+
 func TestTunerProcessQuiet(t *testing.T) {
-	// We should only expect the first part of the timestamps to be the same,
-	// since the number of seconds + milliseconds will change on each invocation
-	// inside the function (which we cannot control). Therefore, only compare a defined prefix.
-	timeMatchIdx := len("timescaledb.last_tuned = '") + 16
-	lastTuned := fmt.Sprintf(fmtLastTuned, time.Now().Format(time.RFC3339))[:timeMatchIdx]
-	lastTunedVersion := fmt.Sprintf(fmtLastTunedVersion+"\n", Version)
+	lastTuned := removeSecsFromLastTuned(ourParamString(lastTunedParam)) + "\n"
+	lastTunedVersion := ourParamString(lastTunedVersionParam) + "\n"
 	cases := []struct {
 		desc          string
 		lines         []string
@@ -1517,7 +1588,7 @@ func TestTunerProcessQuiet(t *testing.T) {
 			}
 			lastTuneIdx := len(c.wantedPrints)
 			lastTuneVersionIdx := len(c.wantedPrints) + 1
-			if got := out.lines[lastTuneIdx][:timeMatchIdx]; got != lastTuned {
+			if got := removeSecsFromLastTuned(out.lines[lastTuneIdx]); got != lastTuned {
 				t.Errorf("%s: lastTuned print is missing/incorrect: got\n%s\nwant\n%s", c.desc, got, lastTuned)
 			}
 			if got := out.lines[lastTuneVersionIdx]; got != lastTunedVersion {

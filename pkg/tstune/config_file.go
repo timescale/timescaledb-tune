@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -85,11 +86,58 @@ type tunableParseResult struct {
 	extra     string
 }
 
+// configLine represents a line in the conf file with some associated metadata
+// on how it should be processed when written.
+type configLine struct {
+	content string
+	remove  bool
+}
+
+// configLineProcessor is an interface that processes a line of the conf file to
+// do some manipulation, typically called in a loop or multiple times on different
+// lines. For example, a dupes remover could be called on all lines and mark
+// the lines that, for some key, appear multiple times for deletion.
+type configLineProcessor interface {
+	Process(*configLine) error
+}
+
+// removesDuplicatesProcessor is used to track and mark duplicates for removal that
+// match a particular regex.
+type removeDuplicatesProcessor struct {
+	prev  *configLine
+	regex *regexp.Regexp
+}
+
+// Process takes the input l to determine if any previous lines should be marked
+// for removal. The processor alays tracks the last instance matching the regex
+// it has seen, so if it encounters a new one, it can mark the previous instance
+// for removal.
+func (p *removeDuplicatesProcessor) Process(l *configLine) error {
+	if found := parseWithRegex(l.content, p.regex); found != nil {
+		if p.prev != nil {
+			p.prev.remove = true
+		}
+		p.prev = l
+	}
+	return nil
+}
+
+// getRemoveDupeProcessors is a convenience function for creating a slice
+// of configLineProcessors (of the removeDuplicatesProcessor type) for a set of
+// keys.
+func getRemoveDupeProcessors(keys []string) []configLineProcessor {
+	ret := []configLineProcessor{}
+	for _, key := range keys {
+		ret = append(ret, &removeDuplicatesProcessor{regex: keyToRegexQuoted(key)})
+	}
+	return ret
+}
+
 // configFileState represents the postgresql.conf file, including all of its
 // lines, the parsed result of the shared_preload_libraries line, and parse results
 // for parameters we care about tuning
 type configFileState struct {
-	lines            []string                       // all the lines, to be updated for output
+	lines            []*configLine                  // all the lines, to be updated for output
 	sharedLibResult  *sharedLibResult               // parsing result for shared lib line
 	tuneParseResults map[string]*tunableParseResult // mapping of each tunable param to its parsed line result
 }
@@ -98,7 +146,7 @@ type configFileState struct {
 // reading it line by line and parsing those lines we particularly care about.
 func getConfigFileState(r io.Reader) (*configFileState, error) {
 	cfs := &configFileState{
-		lines:            []string{},
+		lines:            []*configLine{},
 		tuneParseResults: make(map[string]*tunableParseResult),
 	}
 	i := 0
@@ -121,10 +169,23 @@ func getConfigFileState(r io.Reader) (*configFileState, error) {
 				}
 			}
 		}
-		cfs.lines = append(cfs.lines, line)
+		cfs.lines = append(cfs.lines, &configLine{content: line})
 		i++
 	}
 	return cfs, nil
+}
+
+func (cfs *configFileState) ProcessLines(processors ...configLineProcessor) error {
+	var err error
+	for _, line := range cfs.lines {
+		for _, p := range processors {
+			err = p.Process(line)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (cfs *configFileState) WriteTo(w io.Writer) (int64, error) {
@@ -142,7 +203,11 @@ func (cfs *configFileState) WriteTo(w io.Writer) (int64, error) {
 	}
 	ret := int64(0)
 	for _, l := range cfs.lines {
-		n, err := w.Write([]byte(l + "\n"))
+		if l.remove {
+			continue
+		}
+
+		n, err := w.Write([]byte(l.content + "\n"))
 		if err != nil {
 			return 0, err
 		}

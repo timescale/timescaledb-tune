@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -21,7 +22,7 @@ import (
 
 const (
 	// Version is the version of this library
-	Version = "0.4.1"
+	Version = "0.4.2-dev"
 
 	errCouldNotExecuteFmt  = "could not execute `%s --version`: %v"
 	errUnsupportedMajorFmt = "unsupported major PG version: %s"
@@ -60,9 +61,7 @@ const (
 
 	errCouldNotWriteFmt = "could not open %s for writing: %v"
 
-	fmtTunableParam     = "%s = %s%s"
-	fmtLastTuned        = "timescaledb.last_tuned = '%s'"
-	fmtLastTunedVersion = "timescaledb.last_tuned_version = '%s'"
+	fmtTunableParam = "%s = %s%s"
 
 	fudgeFactor = 0.05
 
@@ -309,10 +308,10 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		}
 	}
 
-	// Append the current time to mark when database was last tuned
-	lastTunedLine := fmt.Sprintf(fmtLastTuned, time.Now().Format(time.RFC3339))
-	lastTunedVersionLine := fmt.Sprintf(fmtLastTunedVersion, Version)
-	cfs.lines = append(cfs.lines, lastTunedLine, lastTunedVersionLine)
+	// Add our params to the conf file, and cleanup because old versions of Tuner
+	// were noisy and left these params each time.
+	t.processOurParams()
+	t.cfs.ProcessLines(getRemoveDupeProcessors(ourParams)...)
 
 	// Wrap up: Either write it out, or show success in --dry-run
 	if !t.flags.DryRun {
@@ -380,7 +379,7 @@ func (t *Tuner) processNoSharedLibLine() error {
 		return err
 	}
 
-	t.cfs.lines = append(t.cfs.lines, plainSharedLibLine)
+	t.cfs.lines = append(t.cfs.lines, &configLine{content: plainSharedLibLine})
 	t.handler.p.Success("appending shared_preload_libraries = 'timescaledb' to end of configuration file")
 
 	return nil
@@ -395,8 +394,8 @@ func (t *Tuner) processSharedLibLine() error {
 
 	res := t.cfs.sharedLibResult
 	idx := res.idx
-	newLine := updateSharedLibLine(t.cfs.lines[idx], res)
-	if newLine == t.cfs.lines[idx] { // already valid, nothing to do
+	newLine := updateSharedLibLine(t.cfs.lines[idx].content, res)
+	if newLine == t.cfs.lines[idx].content { // already valid, nothing to do
 		t.handler.p.Success(successSharedLibCorrect)
 	} else {
 		t.handler.p.Statement("shared_preload_libraries needs to be updated")
@@ -415,7 +414,7 @@ func (t *Tuner) processSharedLibLine() error {
 		if err != nil {
 			return err
 		}
-		t.cfs.lines[idx] = newLine // keep trailing comments when writing
+		t.cfs.lines[idx] = &configLine{content: newLine} // keep trailing comments when writing
 		t.handler.p.Success(successSharedLibUpdated)
 	}
 	return nil
@@ -534,7 +533,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 
 		// If we reach here, it means the user accepted our recommendations, so update the lines
 		doWithVisibile(func(r *tunableParseResult) {
-			newLine := fmt.Sprintf(fmtTunableParam, r.key, recommender.Recommend(r.key), r.extra) // do write comment into file
+			newLine := &configLine{content: fmt.Sprintf(fmtTunableParam, r.key, recommender.Recommend(r.key), r.extra)} // do write comment into file
 			if r.idx == -1 {
 				t.cfs.lines = append(t.cfs.lines, newLine)
 			} else {
@@ -576,6 +575,49 @@ func (t *Tuner) processTunables(config *pgtune.SystemConfig) error {
 	return nil
 }
 
+// processOurParams manages the parameters that the Tuner generates, such as
+// the timescaledb.last_tuned parameter.
+func (t *Tuner) processOurParams() {
+	findRegexes := map[string]*regexp.Regexp{}
+	for _, param := range ourParams {
+		findRegexes[param] = keyToRegexQuoted(param)
+	}
+	foundLines := map[string]int{}
+
+	// Since we usually append our settings to the end, it is more efficient
+	// to work backwards. The basic idea is to check each line against our
+	// map of regexes and if it matches we've found the latest occurence of
+	// that parameter, so we can 1) skip testing other regexes and 2) move
+	// the parameter from findRegexes map to foundLines. Once each has been
+	// found, we can quit searching (or go until the end).
+	for i := len(t.cfs.lines) - 1; i >= 0; i-- {
+		if len(findRegexes) == 0 {
+			break
+		}
+		for param, regex := range findRegexes {
+			if found := parseWithRegex(t.cfs.lines[i].content, regex); found != nil {
+				foundLines[param] = i
+				delete(findRegexes, param)
+				continue
+			}
+		}
+	}
+
+	// For each one we found, replace in place.
+	for param, idx := range foundLines {
+		t.cfs.lines[idx] = &configLine{content: ourParamString(param)}
+	}
+
+	// For each one we did NOT find, append to the end. Use our params so they
+	// are always added in the same order (easier to test)
+	for _, param := range ourParams {
+		if _, ok := findRegexes[param]; ok {
+			line := &configLine{content: ourParamString(param)}
+			t.cfs.lines = append(t.cfs.lines, line)
+		}
+	}
+}
+
 // counterWriter is used to count how many writes are done, to determine whether
 // to show additional dialog during the CLI
 type counterWriter struct {
@@ -603,15 +645,15 @@ func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
 
 	if t.cfs.sharedLibResult == nil { // shared lib line is missing completely
 		fmt.Fprintf(t.handler.out, plainSharedLibLine+"\n")
-		t.cfs.lines = append(t.cfs.lines, plainSharedLibLine)
+		t.cfs.lines = append(t.cfs.lines, &configLine{content: plainSharedLibLine})
 		t.cfs.sharedLibResult = parseLineForSharedLibResult(plainSharedLibLineWithComments)
 		t.cfs.sharedLibResult.idx = len(t.cfs.lines) - 1
 	} else { // exists, but may need to be updated
 		sharedIdx := t.cfs.sharedLibResult.idx
-		newLine := updateSharedLibLine(t.cfs.lines[sharedIdx], t.cfs.sharedLibResult)
-		if newLine != t.cfs.lines[sharedIdx] {
+		newLine := updateSharedLibLine(t.cfs.lines[sharedIdx].content, t.cfs.sharedLibResult)
+		if newLine != t.cfs.lines[sharedIdx].content {
 			fmt.Fprintf(t.handler.out, newLine+"\n")
-			t.cfs.lines[sharedIdx] = newLine
+			t.cfs.lines[sharedIdx] = &configLine{content: newLine}
 		}
 	}
 
@@ -621,8 +663,9 @@ func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
 		return err
 	}
 	if newWriter.count > 0 {
-		fmt.Fprintf(t.handler.out, fmtLastTuned+"\n", time.Now().Format(time.RFC3339))
-		fmt.Fprintf(t.handler.out, fmtLastTunedVersion+"\n", Version)
+		for _, param := range ourParams {
+			fmt.Fprintf(t.handler.out, ourParamString(param)+"\n")
+		}
 		checker := newYesNoChecker("not using these settings could lead to suboptimal performance")
 		err = t.promptUntilValidInput("Use these recommendations? "+promptYesNo, checker)
 		if err != nil {
