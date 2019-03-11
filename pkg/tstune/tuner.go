@@ -311,7 +311,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	// Add our params to the conf file, and cleanup because old versions of Tuner
 	// were noisy and left these params each time.
 	t.processOurParams()
-	t.cfs.ProcessLines(getRemoveDupeProcessors(ourParams)...)
+	t.cfs.ProcessLines(getRemoveDuplicatesProcessors(ourParams)...)
 
 	// Wrap up: Either write it out, or show success in --dry-run
 	if !t.flags.DryRun {
@@ -586,7 +586,7 @@ func (t *Tuner) processOurParams() {
 
 	// Since we usually append our settings to the end, it is more efficient
 	// to work backwards. The basic idea is to check each line against our
-	// map of regexes and if it matches we've found the latest occurence of
+	// map of regexes and if it matches we've found the latest occurrence of
 	// that parameter, so we can 1) skip testing other regexes and 2) move
 	// the parameter from findRegexes map to foundLines. Once each has been
 	// found, we can quit searching (or go until the end).

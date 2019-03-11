@@ -17,7 +17,7 @@ const (
 	lastTunedVersionParam = "timescaledb.last_tuned_version"
 )
 
-// ourParams is a list of paramters that the tuning program adds to the conf file
+// ourParams is a list of parameters that the tuning program adds to the conf file
 var ourParams = []string{lastTunedParam, lastTunedVersionParam}
 
 // ourParamToValue returns the configuration file line for a given

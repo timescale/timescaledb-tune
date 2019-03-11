@@ -109,7 +109,7 @@ func TestGetRemoveDuplicatesProcessors(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		procs := getRemoveDupeProcessors(c.keys)
+		procs := getRemoveDuplicatesProcessors(c.keys)
 		if got := len(procs); got != len(c.keys) {
 			t.Errorf("%s: incorrect length: got %d want %d", c.desc, got, len(c.keys))
 		} else {

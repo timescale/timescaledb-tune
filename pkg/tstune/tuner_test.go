@@ -689,6 +689,16 @@ func TestProcessNoSharedLibLine(t *testing.T) {
 	}
 }
 
+func newTunerWithDefaultFlagsForInputs(t *testing.T, input string, lines []string) *Tuner {
+	handler := setupDefaultTestIO(input)
+	r := stringSliceToBytesReader(lines)
+	cfs, err := getConfigFileState(r)
+	if err != nil {
+		t.Fatalf("could not parse config lines: %v\nlines: %v", err, lines)
+	}
+	return newTunerWithDefaultFlags(handler, cfs)
+}
+
 func TestProcessSharedLibLine(t *testing.T) {
 	okLine := "shared_preload_libraries = 'timescaledb' # (need restart)"
 	okLinePrint := "shared_preload_libraries = 'timescaledb'"
@@ -762,22 +772,16 @@ func TestProcessSharedLibLine(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		handler := setupDefaultTestIO(c.input)
-		r := stringSliceToBytesReader(c.lines)
-		cfs, err := getConfigFileState(r)
-		if err != nil {
-			t.Fatalf("%s: unexpected error: %v", c.desc, err)
-		}
-		tuner := newTunerWithDefaultFlags(handler, cfs)
+		tuner := newTunerWithDefaultFlagsForInputs(t, c.input, c.lines)
 
-		err = tuner.processSharedLibLine()
+		err := tuner.processSharedLibLine()
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {
 			t.Errorf("%s: unexpected lack of err", c.desc)
 		}
 
-		tp := handler.p.(*testPrinter)
+		tp := tuner.handler.p.(*testPrinter)
 		if got := tp.promptCalls; got != c.prompts {
 			t.Errorf("%s: incorrect number of prompts: got %d want %d", c.desc, got, c.prompts)
 		}
@@ -786,7 +790,7 @@ func TestProcessSharedLibLine(t *testing.T) {
 		}
 
 		if len(c.prints) > 0 {
-			out := handler.out.(*testWriter)
+			out := tuner.handler.out.(*testWriter)
 			for i, want := range c.prints {
 				if got := out.lines[i]; got != want {
 					t.Errorf("%s: incorrect print at %d: got\n%s\nwant\n%s", c.desc, i, got, want)
@@ -1021,9 +1025,7 @@ func TestCheckIfShouldShowSetting(t *testing.T) {
 func TestCheckIfShouldShowSettingErr(t *testing.T) {
 	keys := []string{"foo"}
 	parseResults := map[string]*tunableParseResult{
-		"foo": &tunableParseResult{
-			value: "5.0",
-		},
+		"foo": {value: "5.0"},
 	}
 	show, err := checkIfShouldShowSetting(keys, parseResults, &badRecommender{})
 	if show != nil {
@@ -1087,14 +1089,19 @@ func (sg *testSettingsGroup) Label() string                      { return "foo" 
 func (sg *testSettingsGroup) Keys() []string                     { return sg.keys }
 func (sg *testSettingsGroup) GetRecommender() pgtune.Recommender { return &badRecommender{} }
 
-func TestProcessSettingsGroup(t *testing.T) {
+func getDefaultSystemConfig(t *testing.T) *pgtune.SystemConfig {
 	mem := uint64(8 * parse.Gigabyte)
 	cpus := 4
 	maxConns := uint64(20)
 	config, err := pgtune.NewSystemConfig(mem, cpus, pgMajor10, maxConns)
 	if err != nil {
-		t.Errorf("unexpected error in config creation: got %v", err)
+		t.Fatalf("unexpected error in config creation: got %v", err)
 	}
+	return config
+}
+
+func TestTunerProcessSettingsGroup(t *testing.T) {
+	config := getDefaultSystemConfig(t)
 	cases := []struct {
 		desc           string
 		ts             pgtune.SettingsGroup
@@ -1230,21 +1237,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		handler := setupDefaultTestIO(c.input)
-		cfs := &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
-		for _, s := range c.lines {
-			cfs.lines = append(cfs.lines, &configLine{content: s})
-		}
-		for i, l := range cfs.lines {
-			for _, k := range c.ts.Keys() {
-				p := parseWithRegex(l.content, regexes[k])
-				if p != nil {
-					p.idx = i
-					cfs.tuneParseResults[k] = p
-				}
-			}
-		}
-		tuner := newTunerWithDefaultFlags(handler, cfs)
+		tuner := newTunerWithDefaultFlagsForInputs(t, c.input, c.lines)
 
 		err := tuner.processSettingsGroup(c.ts)
 		if err != nil && !c.shouldErr {
@@ -1253,7 +1246,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			t.Errorf("%s: unexpected lack of error", c.desc)
 		}
 
-		tp := handler.p.(*testPrinter)
+		tp := tuner.handler.p.(*testPrinter)
 		if got := strings.ToUpper(strings.TrimSpace(tp.statements[0])[:1]); got != strings.ToUpper(c.ts.Label()[:1]) {
 			t.Errorf("%s: label not capitalized in first statement: got %s want %s", c.desc, got, strings.ToUpper(c.ts.Label()[:1]))
 		}
@@ -1266,7 +1259,7 @@ func TestProcessSettingsGroup(t *testing.T) {
 			t.Errorf("%s: incorrect number of prompts: got %d want %d", c.desc, got, c.wantPrompts)
 		}
 
-		out := handler.out.(*testWriter)
+		out := tuner.handler.out.(*testWriter)
 		if got := len(out.lines); got != c.wantPrints {
 			t.Errorf("%s: incorrect number of prints: got %d want %d", c.desc, got, c.wantPrints)
 		}
@@ -1286,108 +1279,60 @@ func TestProcessSettingsGroup(t *testing.T) {
 	}
 }
 
-func TestProcessTunables(t *testing.T) {
-	mem := uint64(10 * parse.Gigabyte)
-	cpus := 6
-	maxConns := uint64(10)
-	config, err := pgtune.NewSystemConfig(mem, cpus, pgMajor10, maxConns)
-	if err != nil {
-		t.Errorf("unexpected error in system config creation: got %v", err)
-	}
+func TestTunerProcessTunables(t *testing.T) {
+	check := func(handler *ioHandler, config *pgtune.SystemConfig, wantGroups uint64) {
+		// Total number of statements is intro statement and then 3 per group of settings;
+		// each group has a heading and then the current/recommended labels.
+		wantStatements := uint64(1 + 3*wantGroups)
 
-	handler := setupDefaultTestIO("y\ny\ny\ny\n")
+		tp := handler.p.(*testPrinter)
+		if got := tp.statementCalls; got != wantStatements {
+			t.Errorf("incorrect number of statements: got %d, want %d", got, wantStatements)
+		}
+
+		wantStatement := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.CPUs, config.PGMajorVersion)
+		if got := tp.statements[0]; got != wantStatement {
+			t.Errorf("incorrect first statement: got\n%s\nwant\n%s\n", got, wantStatement)
+		}
+
+		for i := 2; i < len(tp.statements); i += 3 {
+			if got := tp.statements[i]; got != currentLabel {
+				t.Errorf("did not get current label as expected: got %s", got)
+			}
+			if got := tp.statements[i+1]; got != recommendLabel {
+				t.Errorf("did not get recommend label as expected: got %s", got)
+			}
+		}
+
+		idx := 1
+		checkStmt := func(want string) {
+			if got := tp.statements[idx]; got != want {
+				t.Errorf("incorrect statement at %d: got\n%s\nwant\n%s", idx, got, want)
+			}
+			idx += 3
+		}
+		checkStmt("Memory settings recommendations")
+		if wantGroups > 3 {
+			checkStmt("Parallelism settings recommendations")
+		}
+		checkStmt("WAL settings recommendations")
+		checkStmt("Miscellaneous settings recommendations")
+	}
+	input := "y\ny\ny\ny\n"
+
+	config := getDefaultSystemConfig(t)
+	handler := setupDefaultTestIO(input)
 	cfs := &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner := newTunerWithDefaultFlags(handler, cfs)
 	tuner.processTunables(config)
+	check(tuner.handler, config, 4)
 
-	tp := handler.p.(*testPrinter)
-	// Total number of statements is intro statement and then 3 per group of settings;
-	// each group has a heading and then the current/recommended labels.
-	if got := tp.statementCalls; got != 1+3*4 {
-		t.Errorf("incorrect number of statements: got %d, want %d", got, 1+3*4)
-	}
-
-	wantStatement := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(mem), cpus, pgMajor10)
-	if got := tp.statements[0]; got != wantStatement {
-		t.Errorf("incorrect first statement: got\n%s\nwant\n%s\n", got, wantStatement)
-	}
-
-	for i := 2; i < len(tp.statements); i += 3 {
-		if got := tp.statements[i]; got != currentLabel {
-			t.Errorf("did not get current label as expected: got %s", got)
-		}
-		if got := tp.statements[i+1]; got != recommendLabel {
-			t.Errorf("did not get recommend label as expected: got %s", got)
-		}
-	}
-
-	wantStatement = "Memory settings recommendations"
-	if got := tp.statements[1]; got != wantStatement {
-		t.Errorf("incorrect statement at 1: got\n%s\nwant\n%s", got, wantStatement)
-	}
-	wantStatement = "Parallelism settings recommendations"
-	if got := tp.statements[4]; got != wantStatement {
-		t.Errorf("incorrect statement at 4: got\n%s\nwant\n%s", got, wantStatement)
-	}
-	wantStatement = "WAL settings recommendations"
-	if got := tp.statements[7]; got != wantStatement {
-		t.Errorf("incorrect statement at 7: got\n%s\nwant\n%s", got, wantStatement)
-	}
-	wantStatement = "Miscellaneous settings recommendations"
-	if got := tp.statements[10]; got != wantStatement {
-		t.Errorf("incorrect statement at 10: got\n%s\nwant\n%s", got, wantStatement)
-	}
-}
-
-func TestProcessTunablesSingleCPU(t *testing.T) {
-	mem := uint64(10 * parse.Gigabyte)
-	cpus := 1
-	maxConns := uint64(10)
-	config, err := pgtune.NewSystemConfig(mem, cpus, pgMajor10, maxConns)
-	if err != nil {
-		t.Errorf("unexpected error in system config creation: got %v", err)
-	}
-
-	handler := setupDefaultTestIO("y\ny\ny\ny\n")
-	cfs := &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
-	tuner := newTunerWithDefaultFlags(handler, cfs)
+	config.CPUs = 1
+	handler = setupDefaultTestIO(input)
+	cfs = &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
+	tuner = newTunerWithDefaultFlags(handler, cfs)
 	tuner.processTunables(config)
-
-	tp := handler.p.(*testPrinter)
-	// Total number of statements is intro statement and then 3 per group of settings;
-	// each group has a heading and then the current/recommended labels.
-	// On a single CPU, only 3 groups since parallelism does not apply
-	if got := tp.statementCalls; got != 1+3*3 {
-		t.Errorf("incorrect number of statements: got %d, want %d", got, 1+3*3)
-	}
-
-	wantStatement := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(mem), cpus, pgMajor10)
-	if got := tp.statements[0]; got != wantStatement {
-		t.Errorf("incorrect first statement: got\n%s\nwant\n%s\n", got, wantStatement)
-	}
-
-	for i := 2; i < len(tp.statements); i += 3 {
-		if got := tp.statements[i]; got != currentLabel {
-			t.Errorf("did not get current label as expected: got %s", got)
-		}
-		if got := tp.statements[i+1]; got != recommendLabel {
-			t.Errorf("did not get recommend label as expected: got %s", got)
-		}
-	}
-
-	wantStatement = "Memory settings recommendations"
-	if got := tp.statements[1]; got != wantStatement {
-		t.Errorf("incorrect statement at 1: got\n%s\nwant\n%s", got, wantStatement)
-	}
-	// no parallelism on single CPU
-	wantStatement = "WAL settings recommendations"
-	if got := tp.statements[4]; got != wantStatement {
-		t.Errorf("incorrect statement at 7: got\n%s\nwant\n%s", got, wantStatement)
-	}
-	wantStatement = "Miscellaneous settings recommendations"
-	if got := tp.statements[7]; got != wantStatement {
-		t.Errorf("incorrect statement at 10: got\n%s\nwant\n%s", got, wantStatement)
-	}
+	check(tuner.handler, config, 3)
 }
 
 var (
@@ -1465,14 +1410,7 @@ func TestTunerProcessOurParams(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		handler := setupDefaultTestIO("")
-		confFile := bytes.NewBufferString(strings.Join(c.lines, "\n"))
-		cfs, err := getConfigFileState(confFile)
-		if err != nil {
-			t.Fatalf("could not parse config lines")
-		}
-
-		tuner := newTunerWithDefaultFlags(handler, cfs)
+		tuner := newTunerWithDefaultFlagsForInputs(t, "", c.lines)
 		tuner.processOurParams()
 
 		if got := len(tuner.cfs.lines); got != len(c.wantLines) {
@@ -1539,29 +1477,15 @@ func TestTunerProcessQuiet(t *testing.T) {
 	}
 
 	for _, c := range cases {
-
-		mem := uint64(8 * parse.Gigabyte)
-		cpus := 4
-		maxConns := uint64(20)
-		config, err := pgtune.NewSystemConfig(mem, cpus, pgMajor10, maxConns)
-		if err != nil {
-			t.Errorf("unexpected error in system config creation: got %v", err)
-		}
+		config := getDefaultSystemConfig(t)
 		input := "y\n"
 		if c.shouldErr {
 			input = "n\n"
 		}
-		handler := setupDefaultTestIO(input)
-		confFile := bytes.NewBufferString(strings.Join(c.lines, "\n"))
-		cfs, err := getConfigFileState(confFile)
-		if err != nil {
-			t.Fatalf("could not parse config lines")
-		}
-
-		tuner := newTunerWithDefaultFlags(handler, cfs)
+		tuner := newTunerWithDefaultFlagsForInputs(t, input, c.lines)
 		tuner.flags.Quiet = true
-		err = tuner.processQuiet(config)
 
+		err := tuner.processQuiet(config)
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {
@@ -1577,7 +1501,7 @@ func TestTunerProcessQuiet(t *testing.T) {
 			wantPrintsLen = len(c.wantedPrints) + 2
 		}
 
-		out := handler.out.(*testWriter)
+		out := tuner.handler.out.(*testWriter)
 		if got := len(out.lines); got != wantPrintsLen {
 			t.Errorf("%s: incorrect prints len: got %d want %d", c.desc, got, wantPrintsLen)
 		} else if len(c.wantedPrints) > 0 {
@@ -1596,11 +1520,11 @@ func TestTunerProcessQuiet(t *testing.T) {
 			}
 		}
 
-		tp := handler.p.(*testPrinter)
+		tp := tuner.handler.p.(*testPrinter)
 		if got := tp.statementCalls; got != 1 {
 			t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, 1)
 		} else {
-			want := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(mem), cpus, pgMajor10)
+			want := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.CPUs, config.PGMajorVersion)
 			if got := tp.statements[0]; got != want {
 				t.Errorf("%s: incorrect statement: got\n%s\nwant\n%s", c.desc, got, want)
 			}
@@ -1627,7 +1551,6 @@ func TestTunerWriteConfFile(t *testing.T) {
 	errCreateFmt := "path does not exist: %s"
 	errAbsPath := "could not get absolute path"
 	confFileLines := []string{"shared_preload_libraries = 'timescaledb'", "foo"}
-	wantConfFile := strings.Join(confFileLines, "\n")
 
 	cases := []struct {
 		desc             string
@@ -1684,15 +1607,10 @@ func TestTunerWriteConfFile(t *testing.T) {
 			return &buf, nil
 		}
 
-		handler := setupDefaultTestIO("")
-		confFile := bytes.NewBufferString(wantConfFile)
-		cfs, err := getConfigFileState(confFile)
-		if err != nil {
-			t.Fatalf("could not parse config lines")
-		}
-		tuner := newTunerWithDefaultFlags(handler, cfs)
+		tuner := newTunerWithDefaultFlagsForInputs(t, "", confFileLines)
 		tuner.flags.DestPath = c.destPath
-		err = tuner.writeConfFile(c.confPath)
+
+		err := tuner.writeConfFile(c.confPath)
 		if c.errMsg == "" && err != nil {
 			t.Errorf("%s: unexpected error: got %v", c.desc, err)
 		} else if c.errMsg != "" {
@@ -1702,7 +1620,7 @@ func TestTunerWriteConfFile(t *testing.T) {
 				t.Errorf("%s: incorrect error:\ngot\n%s\nwant\n%s", c.desc, got, c.errMsg)
 			}
 		} else {
-			tp := handler.p.(*testPrinter)
+			tp := tuner.handler.p.(*testPrinter)
 			if got := tp.statementCalls; got != c.statements {
 				t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, c.statements)
 			}
