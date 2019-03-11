@@ -122,10 +122,10 @@ func (p *removeDuplicatesProcessor) Process(l *configLine) error {
 	return nil
 }
 
-// getRemoveDupeProcessors is a convenience function for creating a slice
+// getRemoveDuplicatesProcessors is a convenience function for creating a slice
 // of configLineProcessors (of the removeDuplicatesProcessor type) for a set of
 // keys.
-func getRemoveDupeProcessors(keys []string) []configLineProcessor {
+func getRemoveDuplicatesProcessors(keys []string) []configLineProcessor {
 	ret := []configLineProcessor{}
 	for _, key := range keys {
 		ret = append(ret, &removeDuplicatesProcessor{regex: keyToRegexQuoted(key)})
