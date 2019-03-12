@@ -245,13 +245,12 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	}
 
 	// Generate current conf file state
-	cfs, err := getConfigFileState(file)
+	t.cfs, err = getConfigFileState(file)
 	ifErrHandle(err)
-	t.cfs = cfs
 
 	// Write backup
 	if !t.flags.DryRun {
-		backupPath, err := backup(cfs)
+		backupPath, err := backup(t.cfs)
 		t.handler.p.Statement("Writing backup to:")
 		fmt.Fprintf(t.handler.outErr, backupPath+"\n\n")
 		ifErrHandle(err)

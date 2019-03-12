@@ -2,6 +2,7 @@ package tstune
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -253,4 +254,18 @@ func TestParseWithRegex(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestParseWithRegexPanic(t *testing.T) {
+	// Don't use regexp.QuoteMeta so that we can sneak meta chars into and cause
+	// an extra capture group, (bar)+
+	badRegex := regexp.MustCompile(fmt.Sprintf(tuneRegexFmt, "foo(bar)+"))
+	line := "#foobar = 5 #commented"
+
+	defer func() {
+		if re := recover(); re == nil {
+			t.Errorf("did not panic when should")
+		}
+	}()
+	parseWithRegex(line, badRegex)
 }
