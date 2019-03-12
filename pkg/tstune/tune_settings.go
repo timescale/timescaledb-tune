@@ -103,9 +103,12 @@ func keyToRegexQuoted(key string) *regexp.Regexp {
 }
 
 // parseWithRegex takes a line and attempts to parse it using a given regular
-// expression regex. If succesfful, a tunableParseResult is returned based on
-// the contents of the line; otherwise, nil. Panics if the regex parsing returns
-// and unexpected result.
+// expression regex. The regex is expected to produce 5 capture groups:
+// 1) the full result, 2) whether the line is preceded by # or not, 3) the
+// parameter name/key, 4) the parameter value, and 5) any comments at the end.
+// If successful, a tunableParseResult is returned based on the contents of the
+// line; otherwise, nil. Panics if the regex parsing returns and unexpected
+// result (i.e., too many capture groups).
 func parseWithRegex(line string, regex *regexp.Regexp) *tunableParseResult {
 	res := regex.FindStringSubmatch(line)
 	if len(res) > 0 {
