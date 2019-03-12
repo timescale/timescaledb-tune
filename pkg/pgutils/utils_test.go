@@ -87,3 +87,68 @@ func TestToPGMajorVersion(t *testing.T) {
 		}
 	}
 }
+
+func TestGetPGConfigVersionAtPath(t *testing.T) {
+	wantStr := "test success"
+	goodName := "foo"
+	badName := "bad"
+	errStr := "error"
+
+	oldExecFn := execFn
+	var calledName string
+	var calledArgs []string
+	execFn = func(name string, args ...string) ([]byte, error) {
+		calledName = name
+		calledArgs = args
+		if name == badName {
+			return nil, fmt.Errorf(errStr)
+		}
+		return []byte(wantStr), nil
+	}
+	out, err := GetPGConfigVersionAtPath(goodName)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	} else {
+		if got := string(out); got != wantStr {
+			t.Errorf("unexpected result: got %s want %s", got, wantStr)
+		}
+		if got := calledName; got != "foo" {
+			t.Errorf("incorrect calledName: got %s want %s", got, goodName)
+		}
+		if got := len(calledArgs); got != 1 {
+			t.Errorf("incorrect calledArgs len: got %d want %d", got, 1)
+		}
+		if got := calledArgs[0]; got != versionFlag {
+			t.Errorf("incorrect calledArgs: got %s want %s", got, versionFlag)
+		}
+	}
+
+	out, err = GetPGConfigVersionAtPath(badName)
+	if err == nil {
+		t.Errorf("unexpected lack of error")
+	} else if out != "" {
+		t.Errorf("unexpected output: got %s", out)
+	} else if got := err.Error(); got != errStr {
+		t.Errorf("unexpected error: got %s want %s", got, errStr)
+	}
+
+	out, err = GetPGConfigVersion()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	} else {
+		if got := string(out); got != wantStr {
+			t.Errorf("unexpected result: got %s want %s", got, wantStr)
+		}
+		if got := calledName; got != defaultBinName {
+			t.Errorf("incorrect calledName: got %s want %s", got, defaultBinName)
+		}
+		if got := len(calledArgs); got != 1 {
+			t.Errorf("incorrect calledArgs len: got %d want %d", got, 1)
+		}
+		if got := calledArgs[0]; got != versionFlag {
+			t.Errorf("incorrect calledArgs: got %s want %s", got, versionFlag)
+		}
+	}
+
+	execFn = oldExecFn
+}

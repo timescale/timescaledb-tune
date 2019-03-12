@@ -16,11 +16,20 @@ const (
 )
 
 const (
+	defaultBinName = "pg_config"
+	versionFlag    = "--version"
+
 	errCouldNotParseVersionFmt = "unable to parse PG version string: %s"
 	errUnknownMajorVersionFmt  = "unknown major PG version: %s"
 )
 
-var pgVersionRegex = regexp.MustCompile("^PostgreSQL ([0-9]+?).([0-9]+?).*")
+var (
+	pgVersionRegex = regexp.MustCompile("^PostgreSQL ([0-9]+?).([0-9]+?).*")
+
+	execFn = func(name string, args ...string) ([]byte, error) {
+		return exec.Command(name, args...).Output()
+	}
+)
 
 // ToPGMajorVersion returns the major PostgreSQL version associated with a given
 // version string, as given from an invocation of `pg_config --version`. This
@@ -52,13 +61,13 @@ func ToPGMajorVersion(val string) (string, error) {
 // GetPGConfigVersion executes the pg_config binary (assuming it is in PATH) to
 // get the version of PostgreSQL associated with it.
 func GetPGConfigVersion() (string, error) {
-	return GetPGConfigVersionAtPath("pg_config")
+	return GetPGConfigVersionAtPath(defaultBinName)
 }
 
 // GetPGConfigVersionAtPath executes the (pg_config) binary at path to get the
 // version of PostgreSQL associated with it.
 func GetPGConfigVersionAtPath(path string) (string, error) {
-	output, err := exec.Command(path, "--version").Output()
+	output, err := execFn(path, versionFlag)
 	if err != nil {
 		return "", err
 	}
