@@ -242,6 +242,16 @@ func TestGetConfigFilePath(t *testing.T) {
 	osStatFn = oldOSStatFn
 }
 
+func newConfigFileStateFromSlice(t *testing.T, lines []string) *configFileState {
+	r := stringSliceToBytesReader(lines)
+	cfs, err := getConfigFileState(r)
+	if err != nil {
+		t.Fatalf("could not parse config lines: %v\nlines: %v", err, lines)
+	}
+
+	return cfs
+}
+
 func TestGetConfigFileState(t *testing.T) {
 	sharedLibLine := "shared_preload_libraries = 'timescaledb' # comment"
 	memoryLine := "#shared_buffers = 64MB"
@@ -324,8 +334,7 @@ func TestGetConfigFileState(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		buf := bytes.NewBufferString(strings.Join(c.lines, "\n"))
-		cfs, _ := getConfigFileState(buf)
+		cfs := newConfigFileStateFromSlice(t, c.lines)
 		if got := len(cfs.lines); got != len(c.want.lines) {
 			t.Errorf("%s: incorrect number of cfs lines: got %d want %d", c.desc, got, len(c.want.lines))
 		} else {
@@ -407,13 +416,9 @@ func TestConfigFileStateProcessLines(t *testing.T) {
 	procs := []configLineProcessor{countProc1, countProc2}
 	lines := []string{"foo", "bar", "baz"}
 	wantCount := len(lines)
-	r := stringSliceToBytesReader(lines)
-	cfs, err := getConfigFileState(r)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 
-	err = cfs.ProcessLines(procs...)
+	cfs := newConfigFileStateFromSlice(t, lines)
+	err := cfs.ProcessLines(procs...)
 	if err != nil {
 		t.Errorf("unexpected error in processing: %v", err)
 	}
@@ -529,17 +534,12 @@ func TestConfigFileStateWriteTo(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		r := stringSliceToBytesReader(c.lines)
-		cfs, err := getConfigFileState(r)
-		if err != nil {
-			t.Fatalf("%s: unexpected error: %v", c.desc, err)
-		}
-
+		cfs := newConfigFileStateFromSlice(t, c.lines)
 		if c.removeIdx >= 0 {
 			cfs.lines[c.removeIdx].remove = true
 		}
 
-		_, err = cfs.WriteTo(c.w)
+		_, err := cfs.WriteTo(c.w)
 		if c.errMsg == "" && err != nil {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if c.errMsg != "" {

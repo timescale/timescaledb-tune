@@ -344,6 +344,12 @@ func (c *limitChecker) Check(r string) (bool, error) {
 	return false, nil
 }
 
+func newTunerWithDefaultFlagsForInputs(t *testing.T, input string, lines []string) *Tuner {
+	handler := setupDefaultTestIO(input)
+	cfs := newConfigFileStateFromSlice(t, lines)
+	return newTunerWithDefaultFlags(handler, cfs)
+}
+
 func TestPromptUntilValidInput(t *testing.T) {
 	cases := []struct {
 		desc      string
@@ -466,13 +472,11 @@ func TestProcessConfFileCheck(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		handler := setupDefaultTestIO(c.input)
-		cfs := &configFileState{}
-		tuner := newTunerWithDefaultFlags(handler, cfs)
+		tuner := newTunerWithDefaultFlagsForInputs(t, c.input, []string{})
 		tuner.flags.ConfPath = c.flagPath
 
 		err := tuner.processConfFileCheck(c.filePath)
-		tp := handler.p.(*testPrinter)
+		tp := tuner.handler.p.(*testPrinter)
 		if got := tp.statementCalls; got != 1 {
 			t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, 1)
 		} else if got := tp.statements[0]; got != statementConfFileCheck {
@@ -483,7 +487,7 @@ func TestProcessConfFileCheck(t *testing.T) {
 			t.Errorf("%s: incorrect number of prompt calls: got %d want %d", c.desc, got, c.promptCalls)
 		}
 
-		out := handler.out.(*testWriter)
+		out := tuner.handler.out.(*testWriter)
 		if got := len(out.lines); got != 1 {
 			t.Errorf("%s: incorrect number of prints: got %d want %d", c.desc, got, 1)
 		} else if got := out.lines[0]; got != c.filePath+"\n\n" {
@@ -553,11 +557,11 @@ func TestProcessNoSharedLibLine(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		handler := setupDefaultTestIO(c.input)
-		cfs := &configFileState{}
-		tuner := newTunerWithDefaultFlags(handler, cfs)
+		tuner := newTunerWithDefaultFlagsForInputs(t, c.input, []string{})
 		err := tuner.processNoSharedLibLine()
-		if got := handler.p.(*testPrinter).statementCalls; got != 1 {
+
+		tp := tuner.handler.p.(*testPrinter)
+		if got := tp.statementCalls; got != 1 {
 			t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, 1)
 		}
 
@@ -567,25 +571,15 @@ func TestProcessNoSharedLibLine(t *testing.T) {
 			t.Errorf("%s: unexpected lack of error", c.desc)
 		}
 
-		if got := handler.p.(*testPrinter).promptCalls; got != c.prompts {
+		if got := tp.promptCalls; got != c.prompts {
 			t.Errorf("%s: incorrect number of prompts: got %d want %d", c.desc, got, c.prompts)
 		}
 		if err == nil {
-			if got := handler.p.(*testPrinter).successCalls; got != 1 {
+			if got := tp.successCalls; got != 1 {
 				t.Errorf("%s: incorrect number of successes: got %d want %d", c.desc, got, 1)
 			}
 		}
 	}
-}
-
-func newTunerWithDefaultFlagsForInputs(t *testing.T, input string, lines []string) *Tuner {
-	handler := setupDefaultTestIO(input)
-	r := stringSliceToBytesReader(lines)
-	cfs, err := getConfigFileState(r)
-	if err != nil {
-		t.Fatalf("could not parse config lines: %v\nlines: %v", err, lines)
-	}
-	return newTunerWithDefaultFlags(handler, cfs)
 }
 
 func TestProcessSharedLibLine(t *testing.T) {
