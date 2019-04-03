@@ -17,6 +17,7 @@ const (
 	fileNameDebianFmt = "/etc/postgresql/%s/main/postgresql.conf"
 	fileNameRPMFmt    = "/var/lib/pgsql/%s/data/postgresql.conf"
 	fileNameArch      = "/var/lib/postgres/data/postgresql.conf"
+	fileNameAlpine    = "/var/lib/postgresql/data/postgresql.conf"
 
 	errConfigNotFoundFmt = "could not find postgresql.conf at any of these locations:\n%v"
 )
@@ -68,8 +69,11 @@ func getConfigFilePath(os, pgVersion string) (string, error) {
 		if fileName != "" {
 			return fileName, nil
 		}
-
 		fileName = try(fileNameArch)
+		if fileName != "" {
+			return fileName, nil
+		}
+		fileName = try(fileNameAlpine)
 		if fileName != "" {
 			return fileName, nil
 		}

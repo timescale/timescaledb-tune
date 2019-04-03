@@ -204,6 +204,13 @@ func TestGetConfigFilePath(t *testing.T) {
 			wantFile:  fileNameArch,
 			shouldErr: false,
 		},
+		{
+			desc:      "linux - alpine",
+			os:        osLinux,
+			files:     []string{fileNameAlpine},
+			wantFile:  fileNameAlpine,
+			shouldErr: false,
+		},
 
 		{
 			desc:      "linux - no",
