@@ -40,7 +40,7 @@ var (
 
 func parseIntToFloatUnits(bytes uint64) (float64, string) {
 	if bytes <= 0 {
-		panic("bytes must be at least 1 byte")
+		panic(fmt.Sprintf("bytes must be at least 1 byte (got %d)", bytes))
 	}
 	divisor := 1.0
 	units := B
