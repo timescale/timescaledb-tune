@@ -12,7 +12,7 @@ const (
 	MaxParallelWorkersGatherKey = "max_parallel_workers_per_gather"
 	MaxParallelWorkers          = "max_parallel_workers" // pg10+
 
-	defaultMaxBackgroundWorkers = 4 // This may be more dynamic in the future
+	defaultMaxBackgroundWorkers = 8 // This may be more dynamic in the future
 	minBuiltInProcesses         = 3 // at least checkpointer, WALwriter, vacuum
 
 	errOneCPU = "cannot make recommendations with just 1 CPU"
@@ -82,7 +82,7 @@ func (sg *ParallelSettingsGroup) Label() string { return ParallelLabel }
 // Keys should always return the ParallelKeys slice.
 func (sg *ParallelSettingsGroup) Keys() []string {
 	if sg.pgVersion == "9.6" {
-		return ParallelKeys[:2]
+		return ParallelKeys[:len(ParallelKeys)-1]
 	}
 	return ParallelKeys
 }

@@ -24,7 +24,7 @@ const (
 )
 
 // MaxConnectionsDefault is the recommended default value for max_connections.
-const MaxConnectionsDefault uint64 = 50
+const MaxConnectionsDefault uint64 = 100
 
 // maxLocksValues gives the number of locks for a power-2 memory starting
 // with sub-8GB. i.e.:
