@@ -7,7 +7,9 @@ import "fmt"
 
 const (
 	osWindows            = "windows"
-	errMaxConnsTooLowFmt = "maxConns must be 0 OR >= 10: got %d"
+	errMaxConnsTooLowFmt = "maxConns must be 0 OR >= %d: got %d"
+
+	minMaxConns = 10
 )
 
 // Recommender is an interface that gives setting recommendations for a given
@@ -42,8 +44,8 @@ type SystemConfig struct {
 
 // NewSystemConfig returns a new SystemConfig with the given parameters.
 func NewSystemConfig(totalMemory uint64, cpus int, pgVersion string, maxConns uint64) (*SystemConfig, error) {
-	if maxConns != 0 && maxConns < 10 {
-		return nil, fmt.Errorf(errMaxConnsTooLowFmt, maxConns)
+	if maxConns != 0 && maxConns < minMaxConns {
+		return nil, fmt.Errorf(errMaxConnsTooLowFmt, minMaxConns, maxConns)
 	}
 	return &SystemConfig{
 		Memory:         totalMemory,

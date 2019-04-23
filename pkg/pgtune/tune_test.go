@@ -47,7 +47,7 @@ func TestNewSystemConfig(t *testing.T) {
 		}
 
 		config, err = NewSystemConfig(mem, cpus, pgVersion, testMaxConnsBad)
-		wantErr := fmt.Sprintf(errMaxConnsTooLowFmt, testMaxConnsBad)
+		wantErr := fmt.Sprintf(errMaxConnsTooLowFmt, minMaxConns, testMaxConnsBad)
 		if err == nil {
 			t.Errorf("unexpected lack of error")
 		} else if got := err.Error(); got != wantErr {

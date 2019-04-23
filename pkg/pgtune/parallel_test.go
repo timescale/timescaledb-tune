@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+
+	"github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
 
 // parallelSettingsMatrix stores the test cases for ParallelRecommender along
@@ -87,17 +89,32 @@ func TestParallelRecommenderRecommendPanics(t *testing.T) {
 }
 
 func TestParallelSettingsGroup(t *testing.T) {
+	keyCount := len(ParallelKeys)
 	for cpus, matrix := range parallelSettingsMatrix {
 		config := getDefaultTestSystemConfig(t)
 		config.CPUs = cpus
-		config.PGMajorVersion = "9.6" // 9.6 lacks one key
+		config.PGMajorVersion = pgutils.MajorVersion96 // 9.6 lacks one key
 		sg := GetSettingsGroup(ParallelLabel, config)
+		if got := len(sg.Keys()); got != keyCount-1 {
+			t.Errorf("incorrect number of keys for PG %s: got %d want %d", pgutils.MajorVersion96, got, keyCount-1)
+		}
 		testSettingGroup(t, sg, matrix, ParallelLabel, ParallelKeys)
 
 		// PG10 adds a key
-		config.PGMajorVersion = "10"
+		config.PGMajorVersion = pgutils.MajorVersion10
 		sg = GetSettingsGroup(ParallelLabel, config)
+		if got := len(sg.Keys()); got != keyCount {
+			t.Errorf("incorrect number of keys for PG %s: got %d want %d", pgutils.MajorVersion10, got, keyCount)
+		}
 		testSettingGroup(t, sg, matrix, ParallelLabel, ParallelKeys)
+
+		config.PGMajorVersion = pgutils.MajorVersion11
+		sg = GetSettingsGroup(ParallelLabel, config)
+		if got := len(sg.Keys()); got != keyCount {
+			t.Errorf("incorrect number of keys for PG %s: got %d want %d", pgutils.MajorVersion11, got, keyCount)
+		}
+		testSettingGroup(t, sg, matrix, ParallelLabel, ParallelKeys)
+
 	}
 
 }
