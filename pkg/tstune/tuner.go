@@ -14,7 +14,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+    "database/sql"
 
+    _ "github.com/lib/pq"
 	"github.com/pbnjay/memory"
 	"github.com/timescale/timescaledb-tune/internal/parse"
 	"github.com/timescale/timescaledb-tune/pkg/pgtune"
@@ -74,6 +76,7 @@ type TunerFlags struct {
 	Memory    string // amount of memory to base recommendations on
 	NumCPUs   uint   // number of CPUs to base recommendations on
 	PGVersion string // major version of PostgreSQL to base recommendations on
+	ConnStr	  string // connection string to connect to PostgreSQL
 	PGConfig  string // path to pg_config binary
 	MaxConns  uint64 // max number of database connections
 	ConfPath  string // path to the postgresql.conf file
@@ -90,6 +93,11 @@ type Tuner struct {
 	handler *ioHandler
 	cfs     *configFileState
 	flags   *TunerFlags
+}
+
+type PostgresSetting struct {
+	name	string
+	value	string
 }
 
 // initializeIOHandler sets up the printer to be used throughout the running of
@@ -218,6 +226,24 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	// Before proceeding, make sure we have a valid system config
 	config, err := t.initializeSystemConfig()
 	ifErrHandle(err)
+
+	if len(t.flags.ConnStr) > 0 {
+        db, err := sql.Open("postgres", t.flags.ConnStr)
+        ifErrHandle(err)
+        defer db.Close()
+
+		rows, err := db.Query("SELECT name, setting, sourcefile, sourceline FROM pg_settings ORDER BY name LIMIT 3")
+        ifErrHandle(err)
+
+		for rows.Next() {
+			var name string
+			var setting string
+			var sourceFile string
+			var sourceLine int
+			rows.Scan(&name, &setting, &sourceFile, &sourceLine)
+			fmt.Printf("%v\n%v\n%v\n%v\n---\n", name, setting, sourceFile, sourceLine)
+		}
+	}
 
 	// Attempt to find the config file and open it for reading
 	filePath := t.flags.ConfPath
