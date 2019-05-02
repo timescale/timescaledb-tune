@@ -199,14 +199,28 @@ func (t *Tuner) restore(r restorer, filePath string) error {
 	return nil
 }
 
+// verifyTunerFlags evaluates the provided tuner flags for validity and augments
+// values where needed, e.g. expanding dirnames into full paths.
+func verifyTunerFlags(flags *TunerFlags) (*TunerFlags, error) {
+	if flags == nil {
+		flags = &TunerFlags{}
+	}
+
+	// As path is also used to mean directory, and most PostgreSQL tools
+	// themselves work with pgdata/bindir as directories, we ensure these
+	// paths can also be specified as a directory
+	flags.PGConfig = dirPathToFile(flags.PGConfig, "pg_config")
+	flags.ConfPath = dirPathToFile(flags.ConfPath, "postgresql.conf")
+	flags.DestPath = dirPathToFile(flags.DestPath, "postgresql.conf")
+
+	return flags, nil
+}
+
 // Run executes the tuning process given the provided flags and looks for input
 // on the in io.Reader. Informational messages are written to outErr while
 // actual recommendations are written to out.
 func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Writer) {
-	t.flags = flags
-	if t.flags == nil {
-		t.flags = &TunerFlags{}
-	}
+	t.flags, _ = verifyTunerFlags(flags)
 	t.initializeIOHandler(in, out, outErr)
 
 	ifErrHandle := func(err error) {

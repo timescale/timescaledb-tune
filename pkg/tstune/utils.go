@@ -3,6 +3,8 @@ package tstune
 import (
 	"fmt"
 	"math"
+	"path/filepath"
+	"os"
 
 	"github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
@@ -17,6 +19,38 @@ var ValidPGVersions = []string{
 
 // allows us to substitute mock versions in tests
 var getPGConfigVersionFn = pgutils.GetPGConfigVersionAtPath
+
+// allows us to substitute mock versions in tests
+var osStatFn = os.Stat
+
+// fileExists is a simple check for stating if a file exists and if any error
+// occurs it returns false.
+func fileExists(name string) bool {
+	// for our purposes, any error is a problem, so assume it does not exist
+	if _, err := osStatFn(name); err != nil {
+		return false
+	}
+	return true
+}
+
+func pathIsDir(name string) bool {
+	fi, err := osStatFn(name);
+	// for our purposes, any error is a problem, so it is not a directory
+	if err != nil {
+		return false
+	}
+	return fi.IsDir()
+}
+
+// dirPathToFile will construct a full path if the given path
+// is a directory. This allows us to also accept directory paths for
+// well-known files (postgresql.conf, pg_config)
+func dirPathToFile(path string, defaultFilename string) string {
+  if len(path) > 0 && pathIsDir(path) {
+    return filepath.Join(path, defaultFilename)
+  }
+  return path
+}
 
 // isCloseEnough checks whether a provided value actual is within +/- the
 // fudge factor fudge of target.

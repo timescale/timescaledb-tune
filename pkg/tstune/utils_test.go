@@ -3,11 +3,89 @@ package tstune
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
+
+func TestFileExists(t *testing.T) {
+	existsName := "exists.txt"
+	errorName := "error.txt"
+	cases := []struct {
+		desc     string
+		filename string
+		want     bool
+	}{
+		{
+			desc:     "found file",
+			filename: existsName,
+			want:     true,
+		},
+		{
+			desc:     "not found file",
+			filename: "ghost.txt",
+			want:     false,
+		},
+		{
+			desc:     "error in stat",
+			filename: errorName,
+			want:     false,
+		},
+	}
+
+	oldOSStatFn := osStatFn
+	osStatFn = func(name string) (os.FileInfo, error) {
+		if name == existsName {
+			return nil, nil
+		} else if name == errorName {
+			return nil, fmt.Errorf("this is an error")
+		} else {
+			return nil, os.ErrNotExist
+		}
+	}
+
+	for _, c := range cases {
+		if got := fileExists(c.filename); got != c.want {
+			t.Errorf("%s: incorrect result: got %v want %v", c.desc, got, c.want)
+		}
+	}
+
+	osStatFn = oldOSStatFn
+}
+
+func TestDirPathToFile(t *testing.T) {
+	currentDir := "."
+	missingFile := "ghost.txt"
+	defaultFile := "replace.txt"
+	cases := []struct {
+		desc     string
+		dirname  string
+		filename string
+		want     string
+	}{
+		{
+			desc:     "augmented directory with default file",
+			dirname:  currentDir,
+			filename: defaultFile,
+			want:     filepath.Join(currentDir, defaultFile),
+		},
+		{
+			desc:     "could not find file - no action",
+			dirname:  missingFile,
+			filename: defaultFile,
+			want:     missingFile,
+		},
+	}
+
+	for _, c := range cases {
+		if got := dirPathToFile(c.dirname, c.filename); got != c.want {
+			t.Errorf("%s: incorrect result: got %v want %v", c.desc, got, c.want)
+		}
+	}
+}
 
 func TestIsIn(t *testing.T) {
 	limit := 1000
