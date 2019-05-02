@@ -16,51 +16,6 @@ func stringSliceToBytesReader(lines []string) *bytes.Buffer {
 	return bytes.NewBufferString(strings.Join(lines, "\n"))
 }
 
-func TestFileExists(t *testing.T) {
-	existsName := "exists.txt"
-	errorName := "error.txt"
-	cases := []struct {
-		desc     string
-		filename string
-		want     bool
-	}{
-		{
-			desc:     "found file",
-			filename: existsName,
-			want:     true,
-		},
-		{
-			desc:     "not found file",
-			filename: "ghost.txt",
-			want:     false,
-		},
-		{
-			desc:     "error in stat",
-			filename: errorName,
-			want:     false,
-		},
-	}
-
-	oldOSStatFn := osStatFn
-	osStatFn = func(name string) (os.FileInfo, error) {
-		if name == existsName {
-			return nil, nil
-		} else if name == errorName {
-			return nil, fmt.Errorf("this is an error")
-		} else {
-			return nil, os.ErrNotExist
-		}
-	}
-
-	for _, c := range cases {
-		if got := fileExists(c.filename); got != c.want {
-			t.Errorf("%s: incorrect result: got %v want %v", c.desc, got, c.want)
-		}
-	}
-
-	osStatFn = oldOSStatFn
-}
-
 func TestRemoveDuplicatesProcessor(t *testing.T) {
 	lines := []*configLine{
 		{content: "foo = 'bar'"},

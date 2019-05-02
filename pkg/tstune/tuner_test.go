@@ -23,6 +23,39 @@ func newTunerWithDefaultFlags(handler *ioHandler, cfs *configFileState) *Tuner {
 	return &Tuner{handler, cfs, &TunerFlags{}}
 }
 
+func TestVerifyTunerFlags(t *testing.T) {
+	defaultPGConfig := "pg_config"
+
+	cases := []struct {
+		desc         string
+		input        *TunerFlags
+		flagPGConfig string
+	}{
+		{
+			desc:         "nil should become default values",
+			input:        nil,
+			flagPGConfig: "",
+		},
+		{
+			desc:         "pg_config should be appended to a directory",
+			input:        &TunerFlags{PGConfig: "."},
+			flagPGConfig: defaultPGConfig,
+		},
+		{
+			desc:         "pg_config should not be appended to a regular file",
+			input:        &TunerFlags{PGConfig: "ghost"},
+			flagPGConfig: "ghost",
+		},
+	}
+
+	for _, c := range cases {
+		flags, _ := verifyTunerFlags(c.input)
+		if flags.PGConfig != c.flagPGConfig {
+			t.Errorf("%s: unexpected error (PGConfig): got %v, wanted: %v", c.desc, flags.PGConfig, c.flagPGConfig)
+		}
+	}
+}
+
 func TestTunerInitializeIOHandler(t *testing.T) {
 	tuner := &Tuner{nil, nil, &TunerFlags{}}
 	tuner.flags.UseColor = true
@@ -150,7 +183,7 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			}
 		} else {
 			if err == nil {
-				t.Errorf("%s: unexpected lack of error", c.desc)
+				t.Errorf("%s: unexpected lack of error %s", c.desc, c.errMsg)
 			}
 
 			if got := err.Error(); got != c.errMsg {
@@ -444,6 +477,13 @@ func TestProcessConfFileCheck(t *testing.T) {
 			flagPath:    "/path/to/postgresql.conf",
 		},
 		{
+			desc:        "success - append default filename to directory",
+			input:       "",
+			promptCalls: 0,
+			filePath:    "postgresql.conf",
+			flagPath:    ".",
+		},
+		{
 			desc:        "success - input yes",
 			input:       "yeS\n",
 			promptCalls: 1,
@@ -473,7 +513,7 @@ func TestProcessConfFileCheck(t *testing.T) {
 
 	for _, c := range cases {
 		tuner := newTunerWithDefaultFlagsForInputs(t, c.input, []string{})
-		tuner.flags.ConfPath = c.flagPath
+		tuner.flags.ConfPath = dirPathToFile(c.flagPath, "postgresql.conf")
 
 		err := tuner.processConfFileCheck(c.filePath)
 		tp := tuner.handler.p.(*testPrinter)

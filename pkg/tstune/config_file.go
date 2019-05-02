@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 	"strings"
 )
@@ -21,19 +20,6 @@ const (
 
 	errConfigNotFoundFmt = "could not find postgresql.conf at any of these locations:\n%v"
 )
-
-// allows us to substitute mock versions in tests
-var osStatFn = os.Stat
-
-// fileExists is a simple check for stating if a file exists and if any error
-// occurs it returns false.
-func fileExists(name string) bool {
-	// for our purposes, any error is a problem, so assume it does not exist
-	if _, err := osStatFn(name); err != nil {
-		return false
-	}
-	return true
-}
 
 type truncateWriter interface {
 	io.Writer
