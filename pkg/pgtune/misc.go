@@ -10,17 +10,21 @@ import (
 
 // Keys in the conf file that are tunable but not in the other groupings
 const (
-	CheckpointKey     = "checkpoint_completion_target"
-	StatsTargetKey    = "default_statistics_target"
-	MaxConnectionsKey = "max_connections"
-	RandomPageCostKey = "random_page_cost"
-	MaxLocksPerTxKey  = "max_locks_per_transaction"
-	EffectiveIOKey    = "effective_io_concurrency" // linux only
+	CheckpointKey           = "checkpoint_completion_target"
+	StatsTargetKey          = "default_statistics_target"
+	MaxConnectionsKey       = "max_connections"
+	RandomPageCostKey       = "random_page_cost"
+	MaxLocksPerTxKey        = "max_locks_per_transaction"
+	AutovacuumMaxWorkersKey = "autovacuum_max_workers"
+	AutovacuumNaptimeKey    = "autovacuum_naptime"
+	EffectiveIOKey          = "effective_io_concurrency" // linux only
 
-	checkpointDefault     = "0.9"
-	statsTargetDefault    = "500"
-	randomPageCostDefault = "1.1"
-	effectiveIODefault    = "200"
+	checkpointDefault           = "0.9"
+	statsTargetDefault          = "500"
+	randomPageCostDefault       = "1.1"
+	autovacuumMaxWorkersDefault = "10"
+	autovacuumNaptimeDefault    = "10"
+	effectiveIODefault          = "200"
 )
 
 // MaxConnectionsDefault is the recommended default value for max_connections.
@@ -44,6 +48,8 @@ var MiscKeys = []string{
 	CheckpointKey,
 	MaxConnectionsKey,
 	MaxLocksPerTxKey,
+	AutovacuumMaxWorkersKey,
+	AutovacuumNaptimeKey,
 	EffectiveIOKey,
 }
 
@@ -87,6 +93,10 @@ func (r *MiscRecommender) Recommend(key string) string {
 			}
 		}
 		return maxLocksValues[0]
+	} else if key == AutovacuumMaxWorkersKey {
+		val = autovacuumMaxWorkersDefault
+	} else if key == AutovacuumNaptimeKey {
+		val = autovacuumNaptimeDefault
 	} else if key == EffectiveIOKey {
 		val = effectiveIODefault
 	} else {

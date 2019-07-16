@@ -1279,6 +1279,8 @@ var (
 		"random_page_cost = 1.1",
 		"checkpoint_completion_target = 0.9",
 		fmt.Sprintf("max_connections = %d", pgtune.MaxConnectionsDefault),
+		"autovacuum_max_workers = 10",
+		"autovacuum_naptime = 10",
 		"max_locks_per_transaction = 64",
 		"effective_io_concurrency = 200",
 		"max_locks_per_transaction = 128",

@@ -209,7 +209,7 @@ func TestMemoryRecommenderRecommend(t *testing.T) {
 		for cpus, connMatrix := range cpuMatrix {
 			for conns, cases := range connMatrix {
 				mr := NewMemoryRecommender(totalMemory, cpus, conns)
-				testRecommender(t, mr, cases)
+				testRecommender(t, mr, MemoryKeys, cases)
 			}
 		}
 	}
