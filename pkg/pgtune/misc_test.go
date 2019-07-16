@@ -48,6 +48,8 @@ func init() {
 			miscSettingsMatrix[mem][conns][StatsTargetKey] = statsTargetDefault
 			miscSettingsMatrix[mem][conns][RandomPageCostKey] = randomPageCostDefault
 			miscSettingsMatrix[mem][conns][EffectiveIOKey] = effectiveIODefault
+			miscSettingsMatrix[mem][conns][AutovacuumMaxWorkersKey] = autovacuumMaxWorkersDefault
+			miscSettingsMatrix[mem][conns][AutovacuumNaptimeKey] = autovacuumNaptimeDefault
 		}
 	}
 }
@@ -77,7 +79,7 @@ func TestMiscRecommenderRecommend(t *testing.T) {
 	for totalMemory, outerMatrix := range miscSettingsMatrix {
 		for maxConns, matrix := range outerMatrix {
 			r := &MiscRecommender{totalMemory, maxConns}
-			testRecommender(t, r, matrix)
+			testRecommender(t, r, MiscKeys, matrix)
 		}
 	}
 }

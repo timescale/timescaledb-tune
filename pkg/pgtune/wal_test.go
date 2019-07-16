@@ -50,7 +50,7 @@ func TestNewWALRecommender(t *testing.T) {
 func TestWALRecommenderRecommend(t *testing.T) {
 	for totalMemory, matrix := range walSettingsMatrix {
 		r := &WALRecommender{totalMemory}
-		testRecommender(t, r, matrix)
+		testRecommender(t, r, WALKeys, matrix)
 	}
 }
 

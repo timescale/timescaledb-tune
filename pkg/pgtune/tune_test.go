@@ -123,12 +123,20 @@ func testSettingGroup(t *testing.T, sg SettingsGroup, cases map[string]string, w
 		}
 		r := sg.GetRecommender()
 
-		testRecommender(t, r, cases)
+		testRecommender(t, r, sg.Keys(), cases)
 	}
 }
 
-func testRecommender(t *testing.T, r Recommender, cases map[string]string) {
-	for key, want := range cases {
+// testRecommender is a helper method for testing whether a Recommender gives
+// the appropriate values for a set of keys.
+//
+// Rather than iterating over the 'wants' map to get the keys, we iterate over
+// a separate 'keys' parameter that should include _all_ keys a Recommender
+// handles. This makes sure that when new keys are added, our tests are comprehensive,
+// since otherwise the Recommender will panic on an unknown key.
+func testRecommender(t *testing.T, r Recommender, keys []string, wants map[string]string) {
+	for _, key := range keys {
+		want := wants[key]
 		if got := r.Recommend(key); got != want {
 			t.Errorf("%v: incorrect result for key %s: got\n%s\nwant\n%s", r, key, got, want)
 		}

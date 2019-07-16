@@ -62,7 +62,7 @@ func TestParallelRecommenderIsAvailable(t *testing.T) {
 func TestParallelRecommenderRecommend(t *testing.T) {
 	for cpus, matrix := range parallelSettingsMatrix {
 		r := &ParallelRecommender{cpus}
-		testRecommender(t, r, matrix)
+		testRecommender(t, r, ParallelKeys, matrix)
 	}
 }
 
