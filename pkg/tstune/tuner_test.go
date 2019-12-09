@@ -1678,12 +1678,12 @@ func TestTunerWriteConfFile(t *testing.T) {
 		{
 			desc:       "success",
 			destPath:   wantPath,
-			statements: 1,
+			statements: 2,
 		},
 		{
 			desc:       "success with derived path",
 			confPath:   wantPath,
-			statements: 1,
+			statements: 2,
 		},
 		{
 			desc:     "error on absolute path",
