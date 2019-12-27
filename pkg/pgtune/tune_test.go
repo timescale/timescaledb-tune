@@ -13,7 +13,7 @@ const (
 )
 
 func getDefaultTestSystemConfig(t *testing.T) *SystemConfig {
-	config, err := NewSystemConfig(1024, 4, "10", testMaxConns)
+	config, err := NewSystemConfig(1024, 4, "10", walDiskUnset, testMaxConns)
 	if err != nil {
 		t.Errorf("unexpected error: got %v", err)
 	}
@@ -29,7 +29,7 @@ func TestNewSystemConfig(t *testing.T) {
 			pgVersion = "9.6"
 		}
 
-		config, err := NewSystemConfig(mem, cpus, pgVersion, testMaxConns)
+		config, err := NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConns)
 		if err != nil {
 			t.Errorf("unexpected error: got %v", err)
 		}
@@ -46,7 +46,7 @@ func TestNewSystemConfig(t *testing.T) {
 			t.Errorf("incorrect max conns: got %d want %d", config.maxConns, testMaxConns)
 		}
 
-		config, err = NewSystemConfig(mem, cpus, pgVersion, testMaxConnsBad)
+		_, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConnsBad)
 		wantErr := fmt.Sprintf(errMaxConnsTooLowFmt, minMaxConns, testMaxConnsBad)
 		if err == nil {
 			t.Errorf("unexpected lack of error")
@@ -54,7 +54,7 @@ func TestNewSystemConfig(t *testing.T) {
 			t.Errorf("unexpected error: got\n%s\nwant\n%s", got, wantErr)
 		}
 
-		config, err = NewSystemConfig(mem, cpus, pgVersion, testMaxConnsSpecial)
+		config, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConnsSpecial)
 		if err != nil {
 			t.Errorf("unexpected error: got %v", err)
 		}
@@ -76,20 +76,32 @@ func TestGetSettingsGroup(t *testing.T) {
 		switch x := sg.(type) {
 		case *MemorySettingsGroup:
 			if x.totalMemory != config.Memory || x.cpus != config.CPUs {
-				t.Errorf("memory settings group incorrect: got %d,%d want %d,%d", x.totalMemory, x.cpus, config.Memory, config.CPUs)
+				t.Errorf("memory group incorrect (memory): got %d want %d", x.totalMemory, config.Memory)
+			}
+			if x.cpus != config.CPUs {
+				t.Errorf("memory group incorrect (CPUs): got %d want %d", x.cpus, config.CPUs)
 			}
 		case *ParallelSettingsGroup:
 			if x.cpus != config.CPUs {
-				t.Errorf("parallel settings group incorrect: got %d want %d", x.cpus, config.CPUs)
+				t.Errorf("parallel group incorrect (CPUs): got %d want %d", x.cpus, config.CPUs)
 			}
 			if x.pgVersion != config.PGMajorVersion {
-				t.Errorf("parallel settings group incorrect: got %s want %s", x.pgVersion, config.PGMajorVersion)
+				t.Errorf("parallel group incorrect (PG version): got %s want %s", x.pgVersion, config.PGMajorVersion)
 			}
 		case *WALSettingsGroup:
 			if x.totalMemory != config.Memory {
-				t.Errorf("WAL settings group incorrect: got %d want %d", x.totalMemory, config.Memory)
+				t.Errorf("WAL group incorrect (memory): got %d want %d", x.totalMemory, config.Memory)
+			}
+			if x.walDiskSize != config.WALDiskSize {
+				t.Errorf("WAL group incorrect (wal disk): got %d want %d", x.walDiskSize, config.WALDiskSize)
 			}
 		case *MiscSettingsGroup:
+			if x.totalMemory != config.Memory {
+				t.Errorf("Misc group incorrect (memory): got %d want %d", x.totalMemory, config.Memory)
+			}
+			if x.maxConns != config.maxConns {
+				t.Errorf("Misc group incorrect (max conns): got %d want %d", x.maxConns, config.maxConns)
+			}
 		default:
 			t.Errorf("unexpected type for settings group %T", x)
 		}
@@ -112,15 +124,15 @@ func testSettingGroup(t *testing.T, sg SettingsGroup, cases map[string]string, w
 		if got := sg.Label(); got != wantLabel {
 			t.Errorf("incorrect label: got %s want %s", got, wantLabel)
 		}
-		if got := sg.Keys(); got != nil {
-			for i, k := range got {
-				if k != wantKeys[i] {
-					t.Errorf("incorrect key at %d: got %s want %s", i, k, wantKeys[i])
-				}
-			}
-		} else {
+		if got := sg.Keys(); got == nil {
 			t.Errorf("keys is nil")
 		}
+		for i, k := range sg.Keys() {
+			if k != wantKeys[i] {
+				t.Errorf("incorrect key at %d: got %s want %s", i, k, wantKeys[i])
+			}
+		}
+
 		r := sg.GetRecommender()
 
 		testRecommender(t, r, sg.Keys(), cases)

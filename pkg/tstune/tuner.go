@@ -22,7 +22,7 @@ import (
 
 const (
 	// Version is the version of this library
-	Version = "0.7.0"
+	Version = "0.8.0-dev"
 
 	errCouldNotExecuteFmt  = "could not execute `%s --version`: %v"
 	errUnsupportedMajorFmt = "unsupported major PG version: %s"
@@ -71,18 +71,19 @@ var filepathAbsFn = filepath.Abs
 
 // TunerFlags are the flags that control how a Tuner object behaves when it is run.
 type TunerFlags struct {
-	Memory    string // amount of memory to base recommendations on
-	NumCPUs   uint   // number of CPUs to base recommendations on
-	PGVersion string // major version of PostgreSQL to base recommendations on
-	PGConfig  string // path to pg_config binary
-	MaxConns  uint64 // max number of database connections
-	ConfPath  string // path to the postgresql.conf file
-	DestPath  string // path to output file
-	YesAlways bool   // always respond yes to prompts
-	Quiet     bool   // show only the bare necessities
-	UseColor  bool   // use color in output
-	DryRun    bool   // whether to actual persist changes to disk
-	Restore   bool   // whether to restore a backup
+	Memory      string // amount of memory to base recommendations on
+	NumCPUs     uint   // number of CPUs to base recommendations on
+	WALDiskSize string // disk size of WAL to base recommendations on
+	PGVersion   string // major version of PostgreSQL to base recommendations on
+	PGConfig    string // path to pg_config binary
+	MaxConns    uint64 // max number of database connections
+	ConfPath    string // path to the postgresql.conf file
+	DestPath    string // path to output file
+	YesAlways   bool   // always respond yes to prompts
+	Quiet       bool   // show only the bare necessities
+	UseColor    bool   // use color in output
+	DryRun      bool   // whether to actual persist changes to disk
+	Restore     bool   // whether to restore a backup
 }
 
 // Tuner represents the tuning program for TimescaleDB.
@@ -143,13 +144,23 @@ func (t *Tuner) initializeSystemConfig() (*pgtune.SystemConfig, error) {
 		totalMemory = memory.TotalMemory()
 	}
 
+	// WAL Disk size needs to be in PostgreSQL format, default is 0
+	var walDisk uint64 = 0
+	if t.flags.WALDiskSize != "" {
+		temp, err := parse.PGFormatToBytes(t.flags.WALDiskSize)
+		if err != nil {
+			return nil, err
+		}
+		walDisk = temp
+	}
+
 	// Default to the number of cores
 	cpus := int(t.flags.NumCPUs)
 	if t.flags.NumCPUs == 0 {
 		cpus = runtime.NumCPU()
 	}
 
-	return pgtune.NewSystemConfig(totalMemory, cpus, pgVersion, t.flags.MaxConns)
+	return pgtune.NewSystemConfig(totalMemory, cpus, pgVersion, walDisk, t.flags.MaxConns)
 }
 
 func (t *Tuner) restore(r restorer, filePath string) error {
