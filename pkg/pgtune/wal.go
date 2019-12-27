@@ -14,8 +14,7 @@ const (
 
 	walBuffersThreshold = 2 * parse.Gigabyte
 	walBuffersDefault   = 16 * parse.Megabyte
-	minWALBytes         = 4 * parse.Gigabyte
-	maxWALBytes         = 8 * parse.Gigabyte
+	defaultMaxWALBytes  = 1 * parse.Gigabyte
 )
 
 // WALLabel is the label used to refer to the WAL settings group
@@ -31,12 +30,16 @@ var WALKeys = []string{
 // WALRecommender gives recommendations for WALKeys based on system resources
 type WALRecommender struct {
 	totalMemory uint64
+	walDiskSize uint64
 }
 
 // NewWALRecommender returns a WALRecommender that recommends based on the given
 // totalMemory bytes.
-func NewWALRecommender(totalMemory uint64) *WALRecommender {
-	return &WALRecommender{totalMemory}
+func NewWALRecommender(totalMemory, walDiskSize uint64) *WALRecommender {
+	return &WALRecommender{
+		totalMemory: totalMemory,
+		walDiskSize: walDiskSize,
+	}
 }
 
 // IsAvailable returns whether this Recommender is usable given the system resources. Always true.
@@ -56,18 +59,39 @@ func (r *WALRecommender) Recommend(key string) string {
 			val = parse.BytesToPGFormat(walBuffersDefault)
 		}
 	} else if key == MinWALKey {
-		val = parse.BytesToPGFormat(minWALBytes)
+		temp := r.calcMaxWALBytes() / 2
+		val = parse.BytesToPGFormat(temp)
 	} else if key == MaxWALKey {
-		val = parse.BytesToPGFormat(maxWALBytes)
+		temp := r.calcMaxWALBytes()
+		val = parse.BytesToPGFormat(temp)
 	} else {
 		panic(fmt.Sprintf("unknown key: %s", key))
 	}
 	return val
 }
 
+func (r *WALRecommender) calcMaxWALBytes() uint64 {
+	// If disk size is not given, just use default
+	if r.walDiskSize == 0 {
+		return defaultMaxWALBytes
+	}
+
+	// With size given, we want to take up at most 80% of it, to give
+	// additional room for safety.
+	max := uint64(r.walDiskSize*80) / 100
+
+	// WAL segments are 16MB, so it doesn't make sense not to round
+	// up to the nearest 16MB boundary.
+	if max%(16*parse.Megabyte) != 0 {
+		max = (max/(16*parse.Megabyte) + 1) * 16 * parse.Megabyte
+	}
+	return max
+}
+
 // WALSettingsGroup is the SettingsGroup to represent settings that affect WAL usage.
 type WALSettingsGroup struct {
 	totalMemory uint64
+	walDiskSize uint64
 }
 
 // Label should always return the value WALLabel.
@@ -78,5 +102,5 @@ func (sg *WALSettingsGroup) Keys() []string { return WALKeys }
 
 // GetRecommender should return a new WALRecommender.
 func (sg *WALSettingsGroup) GetRecommender() Recommender {
-	return NewWALRecommender(sg.totalMemory)
+	return NewWALRecommender(sg.totalMemory, sg.walDiskSize)
 }

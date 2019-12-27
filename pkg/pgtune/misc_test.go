@@ -99,7 +99,7 @@ func TestMiscRecommenderRecommendPanic(t *testing.T) {
 func TestMiscSettingsGroup(t *testing.T) {
 	for totalMemory, outerMatrix := range miscSettingsMatrix {
 		for maxConns, matrix := range outerMatrix {
-			config, err := NewSystemConfig(totalMemory, 8, "10", maxConns)
+			config, err := NewSystemConfig(totalMemory, 8, "10", walDiskUnset, maxConns)
 			if err != nil {
 				t.Errorf("unexpected error on system config creation: got %v", err)
 			}

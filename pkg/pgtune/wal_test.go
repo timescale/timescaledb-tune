@@ -7,6 +7,12 @@ import (
 	"github.com/timescale/timescaledb-tune/internal/parse"
 )
 
+const (
+	walDiskUnset          = 0
+	walDiskDivideUnevenly = 8 * parse.Gigabyte
+	walDiskDivideEvenly   = 8500 * parse.Megabyte
+)
+
 // memoryToWALBuffers provides a mapping from test case memory levels to the
 // expected WAL buffers setting. This is used to generate the test cases for
 // WALRecommender, stored in walSettingsMatrix.
@@ -17,23 +23,32 @@ var memoryToWALBuffers = map[uint64]uint64{
 	10 * parse.Gigabyte:                   walBuffersDefault,
 }
 
+var walDiskToMaxBytes = map[uint64]uint64{
+	walDiskUnset:          defaultMaxWALBytes,
+	walDiskDivideUnevenly: 6560 * parse.Megabyte, // nearest 16MB segment
+	walDiskDivideEvenly:   6800 * parse.Megabyte,
+}
+
 // walSettingsMatrix stores the test cases for WALRecommender along with the
 // expected values for WAL keys.
-var walSettingsMatrix = map[uint64]map[string]string{}
+var walSettingsMatrix = map[uint64]map[uint64]map[string]string{}
 
 func init() {
 	for memory, walBuffers := range memoryToWALBuffers {
-		walSettingsMatrix[memory] = make(map[string]string)
-		walSettingsMatrix[memory][MinWALKey] = parse.BytesToPGFormat(minWALBytes)
-		walSettingsMatrix[memory][MaxWALKey] = parse.BytesToPGFormat(maxWALBytes)
-		walSettingsMatrix[memory][WALBuffersKey] = parse.BytesToPGFormat(walBuffers)
+		walSettingsMatrix[memory] = make(map[uint64]map[string]string)
+		for walSize := range walDiskToMaxBytes {
+			walSettingsMatrix[memory][walSize] = make(map[string]string)
+			walSettingsMatrix[memory][walSize][MinWALKey] = parse.BytesToPGFormat(walDiskToMaxBytes[walSize] / 2)
+			walSettingsMatrix[memory][walSize][MaxWALKey] = parse.BytesToPGFormat(walDiskToMaxBytes[walSize])
+			walSettingsMatrix[memory][walSize][WALBuffersKey] = parse.BytesToPGFormat(walBuffers)
+		}
 	}
 }
 
 func TestNewWALRecommender(t *testing.T) {
 	for i := 0; i < 1000000; i++ {
 		mem := rand.Uint64()
-		r := NewWALRecommender(mem)
+		r := NewWALRecommender(mem, walDiskUnset)
 		if r == nil {
 			t.Errorf("unexpected nil recommender")
 		}
@@ -48,15 +63,17 @@ func TestNewWALRecommender(t *testing.T) {
 }
 
 func TestWALRecommenderRecommend(t *testing.T) {
-	for totalMemory, matrix := range walSettingsMatrix {
-		r := &WALRecommender{totalMemory}
-		testRecommender(t, r, WALKeys, matrix)
+	for totalMemory, outerMatrix := range walSettingsMatrix {
+		for walSize, matrix := range outerMatrix {
+			r := NewWALRecommender(totalMemory, walSize)
+			testRecommender(t, r, WALKeys, matrix)
+		}
 	}
 }
 
 func TestWALRecommenderRecommendPanic(t *testing.T) {
 	func() {
-		r := &WALRecommender{0}
+		r := NewWALRecommender(0, 0)
 		defer func() {
 			if re := recover(); re == nil {
 				t.Errorf("did not panic when should")
@@ -67,10 +84,13 @@ func TestWALRecommenderRecommendPanic(t *testing.T) {
 }
 
 func TestWALSettingsGroup(t *testing.T) {
-	for totalMemory, matrix := range walSettingsMatrix {
-		config := getDefaultTestSystemConfig(t)
-		config.Memory = totalMemory
-		sg := GetSettingsGroup(WALLabel, config)
-		testSettingGroup(t, sg, matrix, WALLabel, WALKeys)
+	for totalMemory, outerMatrix := range walSettingsMatrix {
+		for walSize, matrix := range outerMatrix {
+			config := getDefaultTestSystemConfig(t)
+			config.Memory = totalMemory
+			config.WALDiskSize = walSize
+			sg := GetSettingsGroup(WALLabel, config)
+			testSettingGroup(t, sg, matrix, WALLabel, WALKeys)
+		}
 	}
 }

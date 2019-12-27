@@ -87,9 +87,11 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 		flagMemory    string
 		flagNumCPUs   uint
 		flagPGVersion string
+		flagWALDisk   string
 		wantMemory    uint64
 		wantCPUs      int
 		wantPGVersion string
+		wantWALDisk   uint64
 		errMsg        string
 	}{
 		{
@@ -107,6 +109,12 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			desc:          "bad pgversion flag",
 			flagPGVersion: "9.5",
 			errMsg:        fmt.Sprintf(errUnsupportedMajorFmt, "9.5"),
+		},
+		{
+			desc:         "bad wal disk flag",
+			flagPGConfig: okPGConfig,
+			flagWALDisk:  "400 gigs",
+			errMsg:       "incorrect PostgreSQL bytes format: '400 gigs'",
 		},
 		{
 			desc:          "use mem flag only",
@@ -130,6 +138,15 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			wantMemory:    totalMemory,
 			wantCPUs:      runtime.NumCPU(),
 			wantPGVersion: pgutils.MajorVersion10,
+		},
+		{
+			desc:          "use wal-disk flag only",
+			flagPGConfig:  okPGConfig,
+			flagWALDisk:   "4GB",
+			wantMemory:    totalMemory,
+			wantCPUs:      runtime.NumCPU(),
+			wantPGVersion: okPGVersion,
+			wantWALDisk:   4 * parse.Gigabyte,
 		},
 		{
 			desc:          "all flags",
@@ -159,37 +176,41 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		tuner := &Tuner{nil, nil, &TunerFlags{
-			PGConfig:  c.flagPGConfig,
-			PGVersion: c.flagPGVersion,
-			Memory:    c.flagMemory,
-			NumCPUs:   c.flagNumCPUs,
-		}}
-		config, err := tuner.initializeSystemConfig()
-		if len(c.errMsg) == 0 {
-			if err != nil {
-				t.Errorf("%s: unexpected error: got %v", c.desc, err)
-			}
+		t.Run(c.desc, func(t *testing.T) {
+			tuner := &Tuner{nil, nil, &TunerFlags{
+				PGConfig:    c.flagPGConfig,
+				PGVersion:   c.flagPGVersion,
+				Memory:      c.flagMemory,
+				NumCPUs:     c.flagNumCPUs,
+				WALDiskSize: c.flagWALDisk,
+			}}
+			config, err := tuner.initializeSystemConfig()
+			if len(c.errMsg) == 0 {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
 
-			if got := config.Memory; got != c.wantMemory {
-				t.Errorf("%s: incorrect amount of memory: got %d want %d", c.desc, got, c.wantMemory)
-			}
+				if got := config.Memory; got != c.wantMemory {
+					t.Errorf("incorrect amount of memory: got %d want %d", got, c.wantMemory)
+				}
 
-			if got := config.CPUs; got != c.wantCPUs {
-				t.Errorf("%s: incorrect number of CPUs: got %d want %d", c.desc, got, c.wantCPUs)
+				if got := config.CPUs; got != c.wantCPUs {
+					t.Errorf("incorrect number of CPUs: got %d want %d", got, c.wantCPUs)
+				}
+				if got := config.PGMajorVersion; got != c.wantPGVersion {
+					t.Errorf("incorrect pg version: got %s want %s", got, c.wantPGVersion)
+				}
+				if got := config.WALDiskSize; got != c.wantWALDisk {
+					t.Errorf("incorrect WAL disk: got %d want %d", got, c.wantWALDisk)
+				}
+			} else {
+				if err == nil {
+					t.Errorf("unexpected lack of error")
+				} else if got := err.Error(); got != c.errMsg {
+					t.Errorf("incorrect error: got\n%s\nwant\n%s", got, c.errMsg)
+				}
 			}
-			if got := config.PGMajorVersion; got != c.wantPGVersion {
-				t.Errorf("%s: incorrect pg version: got %s want %s", c.desc, got, c.wantPGVersion)
-			}
-		} else {
-			if err == nil {
-				t.Errorf("%s: unexpected lack of error %s", c.desc, c.errMsg)
-			}
-
-			if got := err.Error(); got != c.errMsg {
-				t.Errorf("%s: incorrect error: got\n%s\nwant\n%s", c.desc, got, c.errMsg)
-			}
-		}
+		})
 	}
 
 	getPGConfigVersionFn = oldVersionFn
@@ -1015,8 +1036,9 @@ func (sg *testSettingsGroup) GetRecommender() pgtune.Recommender { return &badRe
 func getDefaultSystemConfig(t *testing.T) *pgtune.SystemConfig {
 	mem := uint64(8 * parse.Gigabyte)
 	cpus := 4
-	maxConns := uint64(20)
-	config, err := pgtune.NewSystemConfig(mem, cpus, pgutils.MajorVersion10, maxConns)
+	var maxConns uint64 = 20
+	var walDisk uint64 = 0
+	config, err := pgtune.NewSystemConfig(mem, cpus, pgutils.MajorVersion10, walDisk, maxConns)
 	if err != nil {
 		t.Fatalf("unexpected error in config creation: got %v", err)
 	}
@@ -1273,8 +1295,8 @@ var (
 		"max_parallel_workers_per_gather = 2",
 		"max_parallel_workers = 4",
 		"wal_buffers = 16MB",
-		"min_wal_size = 4GB",
-		"max_wal_size = 8GB",
+		"min_wal_size = 512MB",
+		"max_wal_size = 1GB",
 		"default_statistics_target = 500",
 		"random_page_cost = 1.1",
 		"checkpoint_completion_target = 0.9",
