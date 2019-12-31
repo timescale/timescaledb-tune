@@ -296,6 +296,11 @@ func TestPGFormatToBytes(t *testing.T) {
 			errMsg: fmt.Sprintf(errIncorrectFormatFmt, "5.5"+MB),
 		},
 		{
+			desc:  "valid bytes",
+			input: "65536" + B,
+			want:  64 * Kilobyte,
+		},
+		{
 			desc:  "valid kilobytes",
 			input: "64" + KB,
 			want:  64 * Kilobyte,
