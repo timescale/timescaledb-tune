@@ -23,7 +23,7 @@ const (
 	GB = "GB"    // gigabyte
 	MB = "MB"    // megabyte
 	KB = "kB"    // kilobyte
-	B  = "bytes" // for completeness, not used in PostgreSQL
+	B  = ""      // no unit, therefore: bytes
 )
 
 const (
@@ -34,7 +34,7 @@ const (
 )
 
 var (
-	pgBytesRegex   = regexp.MustCompile("^([0-9]+)((?:k|M|G|T)B)$")
+	pgBytesRegex   = regexp.MustCompile("^([0-9]+)((?:k|M|G|T)B)?$")
 	pgVersionRegex = regexp.MustCompile("^PostgreSQL ([0-9]+?).([0-9]+?).*")
 )
 
@@ -114,6 +114,8 @@ func PGFormatToBytes(val string) (uint64, error) {
 		ret = uint64(num) * Gigabyte
 	} else if units == TB {
 		ret = uint64(num) * Terabyte
+	} else if units == B {
+		ret = uint64(num)
 	} else {
 		return 0, fmt.Errorf("unknown units: %s", units)
 	}
