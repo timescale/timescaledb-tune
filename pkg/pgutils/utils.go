@@ -13,6 +13,7 @@ const (
 	MajorVersion96 = "9.6"
 	MajorVersion10 = "10"
 	MajorVersion11 = "11"
+	MajorVersion12 = "12"
 )
 
 const (
@@ -43,6 +44,8 @@ func ToPGMajorVersion(val string) (string, error) {
 		return "", fmt.Errorf(errCouldNotParseVersionFmt, val)
 	}
 	switch res[1] {
+	case MajorVersion12:
+		fallthrough
 	case MajorVersion11:
 		fallthrough
 	case MajorVersion10:
