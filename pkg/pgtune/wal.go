@@ -12,6 +12,7 @@ const (
 	MinWALKey     = "min_wal_size"
 	MaxWALKey     = "max_wal_size"
 
+	walMaxDiskPct       = 60 // max_wal_size should be 60% of the WAL disk
 	walBuffersThreshold = 2 * parse.Gigabyte
 	walBuffersDefault   = 16 * parse.Megabyte
 	defaultMaxWALBytes  = 1 * parse.Gigabyte
@@ -76,9 +77,9 @@ func (r *WALRecommender) calcMaxWALBytes() uint64 {
 		return defaultMaxWALBytes
 	}
 
-	// With size given, we want to take up at most 80% of it, to give
+	// With size given, we want to take up at most walMaxDiskPct, to give
 	// additional room for safety.
-	max := uint64(r.walDiskSize*80) / 100
+	max := uint64(r.walDiskSize*walMaxDiskPct) / 100
 
 	// WAL segments are 16MB, so it doesn't make sense not to round
 	// up to the nearest 16MB boundary.

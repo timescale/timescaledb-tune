@@ -10,7 +10,7 @@ import (
 const (
 	walDiskUnset          = 0
 	walDiskDivideUnevenly = 8 * parse.Gigabyte
-	walDiskDivideEvenly   = 8500 * parse.Megabyte
+	walDiskDivideEvenly   = 8800 * parse.Megabyte
 )
 
 // memoryToWALBuffers provides a mapping from test case memory levels to the
@@ -25,8 +25,8 @@ var memoryToWALBuffers = map[uint64]uint64{
 
 var walDiskToMaxBytes = map[uint64]uint64{
 	walDiskUnset:          defaultMaxWALBytes,
-	walDiskDivideUnevenly: 6560 * parse.Megabyte, // nearest 16MB segment
-	walDiskDivideEvenly:   6800 * parse.Megabyte,
+	walDiskDivideUnevenly: 4928 * parse.Megabyte, // nearest 16MB segment
+	walDiskDivideEvenly:   5280 * parse.Megabyte,
 }
 
 // walSettingsMatrix stores the test cases for WALRecommender along with the
