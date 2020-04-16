@@ -14,6 +14,16 @@ func TestToPGMajorVersion(t *testing.T) {
 		errMsg  string
 	}{
 		{
+			desc:    "pg12",
+			version: okPrefix + "12.4",
+			want:    "12",
+		},
+		{
+			desc:    "pg12 w/ extra",
+			version: okPrefix + "12.4 (Debian 10.1+foo)",
+			want:    "12",
+		},
+		{
 			desc:    "pg11",
 			version: okPrefix + "11.1",
 			want:    "11",

@@ -4,19 +4,22 @@
 [TimescaleDB](//github.com/timescale/timescaledb) database to perform
 its best based on the host's resources such as memory and number of CPUs.
 It parses the existing `postgresql.conf` file to ensure that the TimescaleDB
-extension is appropriately installed and provides recommendations for memory,
-parallelism, WAL, and other settings.
+extension is appropriately installed and provides recommendations for
+memory, parallelism, WAL, and other settings.
 
 ### Getting started
-You need the Go runtime (1.10+) installed, then simply `go get` this repo:
+You need the Go runtime (1.12+) installed, then simply `go get` this repo:
 ```bash
 $ go get github.com/timescale/timescaledb-tune/cmd/timescaledb-tune
 ```
 
+It is also available as a binary package on a variety systems using
+Homebrew, `yum`, or `apt`. Search for `timescaledb-tools`.
+
 ### Using timescaledb-tune
-By default, `timescaledb-tune` attempts to locate your `postgresql.conf` file
-for parsing by using heuristics based on the operating system, so the simplest
-invocation would be:
+By default, `timescaledb-tune` attempts to locate your `postgresql.conf`
+file for parsing by using heuristics based on the operating system, so the
+simplest invocation would be:
 ```bash
 $ timescaledb-tune
 ```
@@ -57,20 +60,26 @@ Is this okay? [(y)es/(s)kip/(q)uit]:
 ```
 
 If you have moved the configuration file to a different location, or
-auto-detection fails (file an issue please!), you can provide the location with
-the `--conf-path` flag:
+auto-detection fails (file an issue please!), you can provide the location
+with the `--conf-path` flag:
 ```bash
 $ timescaledb-tune --conf-path=/path/to/postgresql.conf
 ```
 
-At the end, your `postgresql.conf` will be overwritten with the changes that you
-accepted from the prompts.
+At the end, your `postgresql.conf` will be overwritten with the changes
+that you accepted from the prompts.
 
 #### Other invocations
 
 If you want recommendations for a specific amount of memory and/or CPUs:
 ```bash
 $ timescaledb-tune --memory="4GB" --cpus=2
+```
+
+If you have a dedicated disk for WAL, or want to specify how much of a
+shared disk should be used for WAL:
+```bash
+$ timescaledb-tune --wal-disk-size="10GB"
 ```
 
 If you want to accept all recommendations, you can use `--yes`:
@@ -101,10 +110,10 @@ $ timescaledb-tune --quiet --yes --dry-run >> /path/to/postgresql.conf
 
 ### Restoring backups
 
-`timescaledb-tune` makes a backup of your `postgresql.conf` file each time it
-runs (without the `--dry-run` flag) in your temp directory. If you find that
-the configuration given is not working well, you can restore a backup by
-using the `--restore` flag:
+`timescaledb-tune` makes a backup of your `postgresql.conf` file each time
+it runs (without the `--dry-run` flag) in your temp directory. If you find
+that the configuration given is not working well, you can restore a backup
+by using the `--restore` flag:
 ```bash
 $ timescaledb-tune --restore
 ```
@@ -125,4 +134,6 @@ success: restored successfully
 ```
 
 ### Contributing
-We welcome contributions to this utility, which like TimescaleDB is released under the Apache2 Open Source License.  The same [Contributors Agreement](//github.com/timescale/timescaledb/blob/master/CONTRIBUTING.md) applies; please sign the [Contributor License Agreement](https://cla-assistant.io/timescale/timescaledb-tune) (CLA) if you're a new contributor.
+We welcome contributions to this utility, which like TimescaleDB is
+released under the Apache2 Open Source License.  The same [Contributors Agreement](//github.com/timescale/timescaledb/blob/master/CONTRIBUTING.md)
+applies; please sign the [Contributor License Agreement](https://cla-assistant.io/timescale/timescaledb-tune) (CLA) if you're a new contributor.
