@@ -3,8 +3,8 @@ package tstune
 import (
 	"fmt"
 	"math"
-	"path/filepath"
 	"os"
+	"path/filepath"
 
 	"github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
@@ -12,6 +12,7 @@ import (
 // ValidPGVersions is a slice representing the major versions of PostgreSQL
 // for which recommendations can be generated.
 var ValidPGVersions = []string{
+	pgutils.MajorVersion12,
 	pgutils.MajorVersion11,
 	pgutils.MajorVersion10,
 	pgutils.MajorVersion96,
@@ -34,7 +35,7 @@ func fileExists(name string) bool {
 }
 
 func pathIsDir(name string) bool {
-	fi, err := osStatFn(name);
+	fi, err := osStatFn(name)
 	// for our purposes, any error is a problem, so it is not a directory
 	if err != nil {
 		return false
@@ -46,10 +47,10 @@ func pathIsDir(name string) bool {
 // is a directory. This allows us to also accept directory paths for
 // well-known files (postgresql.conf, pg_config)
 func dirPathToFile(path string, defaultFilename string) string {
-  if len(path) > 0 && pathIsDir(path) {
-    return filepath.Join(path, defaultFilename)
-  }
-  return path
+	if len(path) > 0 && pathIsDir(path) {
+		return filepath.Join(path, defaultFilename)
+	}
+	return path
 }
 
 // isCloseEnough checks whether a provided value actual is within +/- the
