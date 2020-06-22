@@ -23,7 +23,7 @@ var memoryToLocks = map[uint64]string{
 // connsToMaxConns is a mapping of the user given connection values we want
 // tested and the corresponding number of actual max connections assigned.
 var connsToMaxConns = map[uint64]uint64{
-	MaxConnectionsDefault - 10: MaxConnectionsDefault,
+	MaxConnectionsDefault - 10: MaxConnectionsDefault - 10,
 	MaxConnectionsDefault:      MaxConnectionsDefault,
 	MaxConnectionsDefault + 10: MaxConnectionsDefault + 10,
 }
@@ -54,6 +54,58 @@ func init() {
 	}
 }
 
+func TestGetMaxConns(t *testing.T) {
+	cases := []struct {
+		desc string
+		mem  uint64
+		want uint64
+	}{
+		{
+			desc: "really small instance (1GB)",
+			mem:  1 * parse.Gigabyte,
+			want: minMaxConns,
+		},
+		{
+			desc: "small instance boundary (2GB)",
+			mem:  2 * parse.Gigabyte,
+			want: minMaxConns,
+		},
+		{
+			desc: "medium instance (3GB)",
+			mem:  3 * parse.Gigabyte,
+			want: 50,
+		},
+		{
+			desc: "medium instance boundary (4GB)",
+			mem:  4 * parse.Gigabyte,
+			want: 50,
+		},
+		{
+			desc: "big instance",
+			mem:  5 * parse.Gigabyte,
+			want: 75,
+		},
+		{
+			desc: "big instance boundary (6GB)",
+			mem:  6 * parse.Gigabyte,
+			want: 75,
+		},
+		{
+			desc: "large instance",
+			mem:  7 * parse.Gigabyte,
+			want: MaxConnectionsDefault,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.desc, func(t *testing.T) {
+			if got := getMaxConns(c.mem); got != c.want {
+				t.Errorf("incorrect conns: got %d want %d", got, c.want)
+			}
+		})
+	}
+}
+
 func TestNewMiscRecommender(t *testing.T) {
 	for i := 0; i < 1000000; i++ {
 		mem := rand.Uint64()
@@ -61,7 +113,9 @@ func TestNewMiscRecommender(t *testing.T) {
 		r := NewMiscRecommender(mem, conns)
 		if r == nil {
 			t.Errorf("unexpected nil recommender")
+			continue
 		}
+
 		if got := r.totalMemory; got != mem {
 			t.Errorf("recommender has incorrect memory: got %d want %d", got, mem)
 		}

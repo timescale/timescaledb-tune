@@ -25,10 +25,27 @@ const (
 	autovacuumMaxWorkersDefault = "10"
 	autovacuumNaptimeDefault    = "10"
 	effectiveIODefault          = "200"
+
+	minMaxConns = 20
 )
 
 // MaxConnectionsDefault is the recommended default value for max_connections.
 const MaxConnectionsDefault uint64 = 100
+
+// getMaxConns gives a default amount of connections based on a memory step
+// function.
+func getMaxConns(totalMemory uint64) uint64 {
+	switch {
+	case totalMemory <= 2*parse.Gigabyte:
+		return minMaxConns
+	case totalMemory <= 4*parse.Gigabyte:
+		return 50
+	case totalMemory <= 6*parse.Gigabyte:
+		return 75
+	default:
+		return MaxConnectionsDefault
+	}
+}
 
 // maxLocksValues gives the number of locks for a power-2 memory starting
 // with sub-8GB. i.e.:
@@ -78,8 +95,8 @@ func (r *MiscRecommender) Recommend(key string) string {
 	} else if key == StatsTargetKey {
 		val = statsTargetDefault
 	} else if key == MaxConnectionsKey {
-		conns := MaxConnectionsDefault
-		if r.maxConns > conns {
+		conns := getMaxConns(r.totalMemory)
+		if r.maxConns != 0 {
 			conns = r.maxConns
 		}
 		val = fmt.Sprintf("%d", conns)

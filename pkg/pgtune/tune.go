@@ -8,8 +8,6 @@ import "fmt"
 const (
 	osWindows            = "windows"
 	errMaxConnsTooLowFmt = "maxConns must be 0 OR >= %d: got %d"
-
-	minMaxConns = 10
 )
 
 // Recommender is an interface that gives setting recommendations for a given
