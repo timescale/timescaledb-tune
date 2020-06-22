@@ -9,7 +9,7 @@ import (
 const (
 	testMaxConnsSpecial = 0
 	testMaxConnsBad     = 1
-	testMaxConns        = 10
+	testMaxConns        = minMaxConns
 )
 
 func getDefaultTestSystemConfig(t *testing.T) *SystemConfig {
@@ -119,6 +119,8 @@ func TestGetSettingsGroup(t *testing.T) {
 }
 
 func testSettingGroup(t *testing.T, sg SettingsGroup, cases map[string]string, wantLabel string, wantKeys []string) {
+	t.Helper()
+
 	// No matter how many calls, all calls should return the same
 	for i := 0; i < 1000; i++ {
 		if got := sg.Label(); got != wantLabel {
@@ -147,6 +149,8 @@ func testSettingGroup(t *testing.T, sg SettingsGroup, cases map[string]string, w
 // handles. This makes sure that when new keys are added, our tests are comprehensive,
 // since otherwise the Recommender will panic on an unknown key.
 func testRecommender(t *testing.T, r Recommender, keys []string, wants map[string]string) {
+	t.Helper()
+
 	for _, key := range keys {
 		want := wants[key]
 		if got := r.Recommend(key); got != want {

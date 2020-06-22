@@ -47,7 +47,7 @@ type MemoryRecommender struct {
 func NewMemoryRecommender(totalMemory uint64, cpus int, maxConns uint64) *MemoryRecommender {
 	conns := maxConns
 	if conns == 0 {
-		conns = MaxConnectionsDefault
+		conns = getMaxConns(totalMemory)
 	}
 	return &MemoryRecommender{totalMemory, cpus, conns}
 }

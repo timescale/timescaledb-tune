@@ -1025,6 +1025,13 @@ var (
 	}
 )
 
+const (
+	testMaxConns        = 20
+	testMem      uint64 = 8 * parse.Gigabyte
+	testCPUs            = 4
+	testWALDisk  uint64 = 0
+)
+
 type testSettingsGroup struct {
 	keys []string
 }
@@ -1034,11 +1041,7 @@ func (sg *testSettingsGroup) Keys() []string                     { return sg.key
 func (sg *testSettingsGroup) GetRecommender() pgtune.Recommender { return &badRecommender{} }
 
 func getDefaultSystemConfig(t *testing.T) *pgtune.SystemConfig {
-	mem := uint64(8 * parse.Gigabyte)
-	cpus := 4
-	var maxConns uint64 = 20
-	var walDisk uint64 = 0
-	config, err := pgtune.NewSystemConfig(mem, cpus, pgutils.MajorVersion10, walDisk, maxConns)
+	config, err := pgtune.NewSystemConfig(testMem, testCPUs, pgutils.MajorVersion10, testWALDisk, testMaxConns)
 	if err != nil {
 		t.Fatalf("unexpected error in config creation: got %v", err)
 	}
@@ -1300,7 +1303,7 @@ var (
 		"default_statistics_target = 500",
 		"random_page_cost = 1.1",
 		"checkpoint_completion_target = 0.9",
-		fmt.Sprintf("max_connections = %d", pgtune.MaxConnectionsDefault),
+		fmt.Sprintf("max_connections = %d", testMaxConns),
 		"autovacuum_max_workers = 10",
 		"autovacuum_naptime = 10",
 		"max_locks_per_transaction = 64",
