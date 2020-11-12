@@ -71,19 +71,20 @@ var filepathAbsFn = filepath.Abs
 
 // TunerFlags are the flags that control how a Tuner object behaves when it is run.
 type TunerFlags struct {
-	Memory      string // amount of memory to base recommendations on
-	NumCPUs     uint   // number of CPUs to base recommendations on
-	WALDiskSize string // disk size of WAL to base recommendations on
-	PGVersion   string // major version of PostgreSQL to base recommendations on
-	PGConfig    string // path to pg_config binary
-	MaxConns    uint64 // max number of database connections
-	ConfPath    string // path to the postgresql.conf file
-	DestPath    string // path to output file
-	YesAlways   bool   // always respond yes to prompts
-	Quiet       bool   // show only the bare necessities
-	UseColor    bool   // use color in output
-	DryRun      bool   // whether to actual persist changes to disk
-	Restore     bool   // whether to restore a backup
+	Memory       string // amount of memory to base recommendations on
+	NumCPUs      uint   // number of CPUs to base recommendations on
+	WALDiskSize  string // disk size of WAL to base recommendations on
+	PGVersion    string // major version of PostgreSQL to base recommendations on
+	PGConfig     string // path to pg_config binary
+	MaxConns     uint64 // max number of database connections
+	MaxBGWorkers int    // max number of background workers
+	ConfPath     string // path to the postgresql.conf file
+	DestPath     string // path to output file
+	YesAlways    bool   // always respond yes to prompts
+	Quiet        bool   // show only the bare necessities
+	UseColor     bool   // use color in output
+	DryRun       bool   // whether to actual persist changes to disk
+	Restore      bool   // whether to restore a backup
 }
 
 // Tuner represents the tuning program for TimescaleDB.
@@ -160,7 +161,13 @@ func (t *Tuner) initializeSystemConfig() (*pgtune.SystemConfig, error) {
 		cpus = runtime.NumCPU()
 	}
 
-	return pgtune.NewSystemConfig(totalMemory, cpus, pgVersion, walDisk, t.flags.MaxConns)
+	// Use default BG Workers if not provided
+	maxBGWorkers := int(t.flags.MaxBGWorkers)
+	if t.flags.MaxBGWorkers == 0 {
+		maxBGWorkers = pgtune.MaxBackgroundWorkersDefault
+	}
+
+	return pgtune.NewSystemConfig(totalMemory, cpus, pgVersion, walDisk, t.flags.MaxConns, maxBGWorkers)
 }
 
 func (t *Tuner) restore(r restorer, filePath string) error {

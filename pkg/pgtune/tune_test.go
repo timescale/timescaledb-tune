@@ -13,7 +13,7 @@ const (
 )
 
 func getDefaultTestSystemConfig(t *testing.T) *SystemConfig {
-	config, err := NewSystemConfig(1024, 4, "10", walDiskUnset, testMaxConns)
+	config, err := NewSystemConfig(1024, 4, "10", walDiskUnset, testMaxConns, MaxBackgroundWorkersDefault)
 	if err != nil {
 		t.Errorf("unexpected error: got %v", err)
 	}
@@ -29,7 +29,7 @@ func TestNewSystemConfig(t *testing.T) {
 			pgVersion = "9.6"
 		}
 
-		config, err := NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConns)
+		config, err := NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConns, MaxBackgroundWorkersDefault)
 		if err != nil {
 			t.Errorf("unexpected error: got %v", err)
 		}
@@ -45,8 +45,12 @@ func TestNewSystemConfig(t *testing.T) {
 		if config.maxConns != testMaxConns {
 			t.Errorf("incorrect max conns: got %d want %d", config.maxConns, testMaxConns)
 		}
+		if config.MaxBGWorkers != MaxBackgroundWorkersDefault {
+			t.Errorf("incorrect max background workers: got %d want %d", config.MaxBGWorkers, MaxBackgroundWorkersDefault)
+		}
 
-		_, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConnsBad)
+		// test invalid number of connections
+		_, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConnsBad, MaxBackgroundWorkersDefault)
 		wantErr := fmt.Sprintf(errMaxConnsTooLowFmt, minMaxConns, testMaxConnsBad)
 		if err == nil {
 			t.Errorf("unexpected lack of error")
@@ -54,12 +58,22 @@ func TestNewSystemConfig(t *testing.T) {
 			t.Errorf("unexpected error: got\n%s\nwant\n%s", got, wantErr)
 		}
 
-		config, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConnsSpecial)
+		// test 0 connections
+		config, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConnsSpecial, MaxBackgroundWorkersDefault)
 		if err != nil {
 			t.Errorf("unexpected error: got %v", err)
 		}
 		if config.maxConns != testMaxConnsSpecial {
 			t.Errorf("incorrect max conns: got %d want %d", config.maxConns, testMaxConnsSpecial)
+		}
+
+		// test invalid number of background workers
+		_, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConns, MaxBackgroundWorkersDefault-1)
+		wantErr = fmt.Sprintf(errMaxBGWorkersTooLowFmt, MaxBackgroundWorkersDefault, MaxBackgroundWorkersDefault-1)
+		if err == nil {
+			t.Errorf("unexpected lack of error")
+		} else if got := err.Error(); got != wantErr {
+			t.Errorf("unexpected error: got\n%s\nwant\n%s", got, wantErr)
 		}
 
 	}

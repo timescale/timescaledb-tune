@@ -76,6 +76,11 @@ If you want recommendations for a specific amount of memory and/or CPUs:
 $ timescaledb-tune --memory="4GB" --cpus=2
 ```
 
+If you want to set a specific number of background workers (`timescaledb.max_background_workers`):
+```bash
+$ timescaledb-tune --max-bg-workers=16
+```
+
 If you have a dedicated disk for WAL, or want to specify how much of a
 shared disk should be used for WAL:
 ```bash

@@ -82,17 +82,19 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 	okPGConfig := "pg_config"
 	okPGVersion := pgutils.MajorVersion11
 	cases := []struct {
-		desc          string
-		flagPGConfig  string
-		flagMemory    string
-		flagNumCPUs   uint
-		flagPGVersion string
-		flagWALDisk   string
-		wantMemory    uint64
-		wantCPUs      int
-		wantPGVersion string
-		wantWALDisk   uint64
-		errMsg        string
+		desc             string
+		flagPGConfig     string
+		flagMemory       string
+		flagNumCPUs      uint
+		flagMaxBGWorkers int
+		flagPGVersion    string
+		flagWALDisk      string
+		wantMemory       uint64
+		wantCPUs         int
+		wantMaxBGWorkers int
+		wantPGVersion    string
+		wantWALDisk      uint64
+		errMsg           string
 	}{
 		{
 			desc:         "bad pgconfig flag",
@@ -117,53 +119,69 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			errMsg:       "incorrect PostgreSQL bytes format: '400 gigs'",
 		},
 		{
-			desc:          "use mem flag only",
-			flagPGConfig:  okPGConfig,
-			flagMemory:    "1" + parse.GB,
-			wantMemory:    1 * parse.Gigabyte,
-			wantCPUs:      runtime.NumCPU(),
-			wantPGVersion: okPGVersion,
+			desc:             "use mem flag only",
+			flagPGConfig:     okPGConfig,
+			flagMemory:       "1" + parse.GB,
+			wantMemory:       1 * parse.Gigabyte,
+			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault,
+			wantCPUs:         runtime.NumCPU(),
+			wantPGVersion:    okPGVersion,
 		},
 		{
-			desc:          "use cpu flag only",
-			flagPGConfig:  okPGConfig,
-			flagNumCPUs:   2,
-			wantMemory:    totalMemory,
-			wantCPUs:      2,
-			wantPGVersion: okPGVersion,
+			desc:             "use cpu flag only",
+			flagPGConfig:     okPGConfig,
+			flagNumCPUs:      2,
+			wantMemory:       totalMemory,
+			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault,
+			wantCPUs:         2,
+			wantPGVersion:    okPGVersion,
 		},
 		{
-			desc:          "use pg-version flag only",
-			flagPGVersion: pgutils.MajorVersion10,
-			wantMemory:    totalMemory,
-			wantCPUs:      runtime.NumCPU(),
-			wantPGVersion: pgutils.MajorVersion10,
+			desc:             "use pg-version flag only",
+			flagPGVersion:    pgutils.MajorVersion10,
+			wantMemory:       totalMemory,
+			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault,
+			wantCPUs:         runtime.NumCPU(),
+			wantPGVersion:    pgutils.MajorVersion10,
 		},
 		{
-			desc:          "use wal-disk flag only",
-			flagPGConfig:  okPGConfig,
-			flagWALDisk:   "4GB",
-			wantMemory:    totalMemory,
-			wantCPUs:      runtime.NumCPU(),
-			wantPGVersion: okPGVersion,
-			wantWALDisk:   4 * parse.Gigabyte,
+			desc:             "use wal-disk flag only",
+			flagPGConfig:     okPGConfig,
+			flagWALDisk:      "4GB",
+			wantMemory:       totalMemory,
+			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault,
+			wantCPUs:         runtime.NumCPU(),
+			wantPGVersion:    okPGVersion,
+			wantWALDisk:      4 * parse.Gigabyte,
 		},
 		{
-			desc:          "all flags",
-			flagPGConfig:  okPGConfig,
-			flagMemory:    "128" + parse.GB,
-			flagNumCPUs:   1,
-			flagPGVersion: pgutils.MajorVersion96,
-			wantMemory:    128 * parse.Gigabyte,
-			wantCPUs:      1,
-			wantPGVersion: pgutils.MajorVersion96,
+			desc:             "use max-bg-workers flag only",
+			flagPGConfig:     okPGConfig,
+			flagMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault * 2,
+			wantMemory:       totalMemory,
+			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault * 2,
+			wantCPUs:         runtime.NumCPU(),
+			wantPGVersion:    okPGVersion,
 		},
 		{
-			desc:          "none flags",
-			flagPGConfig:  okPGConfig,
-			wantMemory:    totalMemory,
-			wantCPUs:      runtime.NumCPU(),
-			wantPGVersion: okPGVersion,
+			desc:             "all flags",
+			flagPGConfig:     okPGConfig,
+			flagMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault * 3,
+			flagMemory:       "128" + parse.GB,
+			flagNumCPUs:      1,
+			flagPGVersion:    pgutils.MajorVersion96,
+			wantMemory:       128 * parse.Gigabyte,
+			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault * 3,
+			wantCPUs:         1,
+			wantPGVersion:    pgutils.MajorVersion96,
+		},
+		{
+			desc:             "none flags",
+			flagPGConfig:     okPGConfig,
+			wantMemory:       totalMemory,
+			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault,
+			wantCPUs:         runtime.NumCPU(),
+			wantPGVersion:    okPGVersion,
 		},
 	}
 
@@ -178,11 +196,12 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
 			tuner := &Tuner{nil, nil, &TunerFlags{
-				PGConfig:    c.flagPGConfig,
-				PGVersion:   c.flagPGVersion,
-				Memory:      c.flagMemory,
-				NumCPUs:     c.flagNumCPUs,
-				WALDiskSize: c.flagWALDisk,
+				PGConfig:     c.flagPGConfig,
+				PGVersion:    c.flagPGVersion,
+				Memory:       c.flagMemory,
+				NumCPUs:      c.flagNumCPUs,
+				MaxBGWorkers: c.flagMaxBGWorkers,
+				WALDiskSize:  c.flagWALDisk,
 			}}
 			config, err := tuner.initializeSystemConfig()
 			if len(c.errMsg) == 0 {
@@ -202,6 +221,9 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 				}
 				if got := config.WALDiskSize; got != c.wantWALDisk {
 					t.Errorf("incorrect WAL disk: got %d want %d", got, c.wantWALDisk)
+				}
+				if got := config.MaxBGWorkers; got != c.wantMaxBGWorkers {
+					t.Errorf("incorrect bg workers: got %d want %d", got, c.wantMaxBGWorkers)
 				}
 			} else {
 				if err == nil {
@@ -1029,6 +1051,7 @@ const (
 	testMaxConns        = 20
 	testMem      uint64 = 8 * parse.Gigabyte
 	testCPUs            = 4
+	testWorkers         = pgtune.MaxBackgroundWorkersDefault
 	testWALDisk  uint64 = 0
 )
 
@@ -1041,7 +1064,7 @@ func (sg *testSettingsGroup) Keys() []string                     { return sg.key
 func (sg *testSettingsGroup) GetRecommender() pgtune.Recommender { return &badRecommender{} }
 
 func getDefaultSystemConfig(t *testing.T) *pgtune.SystemConfig {
-	config, err := pgtune.NewSystemConfig(testMem, testCPUs, pgutils.MajorVersion10, testWALDisk, testMaxConns)
+	config, err := pgtune.NewSystemConfig(testMem, testCPUs, pgutils.MajorVersion10, testWALDisk, testMaxConns, testWorkers)
 	if err != nil {
 		t.Fatalf("unexpected error in config creation: got %v", err)
 	}

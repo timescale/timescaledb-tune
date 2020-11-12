@@ -32,6 +32,9 @@ const (
 // MaxConnectionsDefault is the recommended default value for max_connections.
 const MaxConnectionsDefault uint64 = 100
 
+// MaxBackgroundWorkersDefault is the recommended default value for timescaledb.max_background_workers.
+const MaxBackgroundWorkersDefault int = 8
+
 // getMaxConns gives a default amount of connections based on a memory step
 // function.
 func getMaxConns(totalMemory uint64) uint64 {
