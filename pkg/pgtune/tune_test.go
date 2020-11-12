@@ -13,7 +13,7 @@ const (
 )
 
 func getDefaultTestSystemConfig(t *testing.T) *SystemConfig {
-	config, err := NewSystemConfig(1024, 4, "10", walDiskUnset, testMaxConns, 8)
+	config, err := NewSystemConfig(1024, 4, "10", walDiskUnset, testMaxConns, defaultMaxBackgroundWorkers)
 	if err != nil {
 		t.Errorf("unexpected error: got %v", err)
 	}

@@ -12,7 +12,8 @@ const (
 	MaxParallelWorkersGatherKey = "max_parallel_workers_per_gather"
 	MaxParallelWorkers          = "max_parallel_workers" // pg10+
 
-	minBuiltInProcesses = 3 // at least checkpointer, WALwriter, vacuum
+	defaultMaxBackgroundWorkers = 8 // override with --max-bg-workers
+	minBuiltInProcesses         = 3 // at least checkpointer, WALwriter, vacuum
 
 	errOneCPU = "cannot make recommendations with just 1 CPU"
 )

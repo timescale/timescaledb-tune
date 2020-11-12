@@ -11,36 +11,36 @@ import (
 // parallelSettingsMatrix stores the test cases for ParallelRecommender along
 // with the expected values for its keys
 var parallelSettingsMatrix = map[int]map[int]map[string]string{
-	2: {8: {
-		MaxBackgroundWorkers:        fmt.Sprintf("%d", 8),
-		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 2+minBuiltInProcesses+8),
+	2: {defaultMaxBackgroundWorkers: {
+		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers),
+		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 2+minBuiltInProcesses+defaultMaxBackgroundWorkers),
 		MaxParallelWorkersGatherKey: "1",
 		MaxParallelWorkers:          "2",
-	}, 16: {
-		MaxBackgroundWorkers:        fmt.Sprintf("%d", 16),
-		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 2+minBuiltInProcesses+16),
+	}, defaultMaxBackgroundWorkers * 2: {
+		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers*2),
+		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 2+minBuiltInProcesses+defaultMaxBackgroundWorkers*2),
 		MaxParallelWorkersGatherKey: "1",
 		MaxParallelWorkers:          "2",
 	}},
-	4: {8: {
-		MaxBackgroundWorkers:        fmt.Sprintf("%d", 8),
-		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 4+minBuiltInProcesses+8),
+	4: {defaultMaxBackgroundWorkers: {
+		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers),
+		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 4+minBuiltInProcesses+defaultMaxBackgroundWorkers),
 		MaxParallelWorkersGatherKey: "2",
 		MaxParallelWorkers:          "4",
-	}, 16: {
-		MaxBackgroundWorkers:        fmt.Sprintf("%d", 16),
-		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 4+minBuiltInProcesses+16),
+	}, defaultMaxBackgroundWorkers * 4: {
+		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers*4),
+		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 4+minBuiltInProcesses+defaultMaxBackgroundWorkers*4),
 		MaxParallelWorkersGatherKey: "2",
 		MaxParallelWorkers:          "4",
 	}},
-	5: {8: {
-		MaxBackgroundWorkers:        fmt.Sprintf("%d", 8),
-		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 5+minBuiltInProcesses+8),
+	5: {defaultMaxBackgroundWorkers: {
+		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers),
+		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 5+minBuiltInProcesses+defaultMaxBackgroundWorkers),
 		MaxParallelWorkersGatherKey: "3",
 		MaxParallelWorkers:          "5",
-	}, 16: {
-		MaxBackgroundWorkers:        fmt.Sprintf("%d", 16),
-		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 5+minBuiltInProcesses+16),
+	}, defaultMaxBackgroundWorkers * 5: {
+		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers*5),
+		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 5+minBuiltInProcesses+defaultMaxBackgroundWorkers*5),
 		MaxParallelWorkersGatherKey: "3",
 		MaxParallelWorkers:          "5",
 	}},
@@ -64,15 +64,15 @@ func TestNewParallelRecommender(t *testing.T) {
 }
 
 func TestParallelRecommenderIsAvailable(t *testing.T) {
-	if r := NewParallelRecommender(0, 8); r.IsAvailable() {
+	if r := NewParallelRecommender(0, defaultMaxBackgroundWorkers); r.IsAvailable() {
 		t.Errorf("unexpectedly available for 0 cpus")
 	}
-	if r := NewParallelRecommender(1, 8); r.IsAvailable() {
+	if r := NewParallelRecommender(1, defaultMaxBackgroundWorkers); r.IsAvailable() {
 		t.Errorf("unexpectedly available for 1 cpus")
 	}
 
 	for i := 2; i < 1000; i++ {
-		if r := NewParallelRecommender(i, 8); !r.IsAvailable() {
+		if r := NewParallelRecommender(i, defaultMaxBackgroundWorkers); !r.IsAvailable() {
 			t.Errorf("unexpected UNavailable for %d cpus", i)
 		}
 	}
@@ -89,7 +89,7 @@ func TestParallelRecommenderRecommend(t *testing.T) {
 
 func TestParallelRecommenderRecommendPanics(t *testing.T) {
 	func() {
-		r := &ParallelRecommender{5, 8}
+		r := &ParallelRecommender{5, defaultMaxBackgroundWorkers}
 		defer func() {
 			if re := recover(); re == nil {
 				t.Errorf("did not panic when should")
@@ -99,7 +99,7 @@ func TestParallelRecommenderRecommendPanics(t *testing.T) {
 	}()
 
 	func() {
-		r := &ParallelRecommender{1, 8}
+		r := &ParallelRecommender{1, defaultMaxBackgroundWorkers}
 		defer func() {
 			if re := recover(); re == nil {
 				t.Errorf("did not panic when should")
