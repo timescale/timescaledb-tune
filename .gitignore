@@ -6,6 +6,7 @@
 *.dll
 *.so
 *.dylib
+timescaledb-tune
 
 # Test binary, built with `go test -c`
 *.test

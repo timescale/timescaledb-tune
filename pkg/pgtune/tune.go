@@ -39,10 +39,11 @@ type SystemConfig struct {
 	PGMajorVersion string
 	WALDiskSize    uint64
 	maxConns       uint64
+	MaxBGWorkers   int
 }
 
 // NewSystemConfig returns a new SystemConfig with the given parameters.
-func NewSystemConfig(totalMemory uint64, cpus int, pgVersion string, walDiskSize uint64, maxConns uint64) (*SystemConfig, error) {
+func NewSystemConfig(totalMemory uint64, cpus int, pgVersion string, walDiskSize uint64, maxConns uint64, MaxBGWorkers int) (*SystemConfig, error) {
 	if maxConns != 0 && maxConns < minMaxConns {
 		return nil, fmt.Errorf(errMaxConnsTooLowFmt, minMaxConns, maxConns)
 	}
@@ -52,6 +53,7 @@ func NewSystemConfig(totalMemory uint64, cpus int, pgVersion string, walDiskSize
 		PGMajorVersion: pgVersion,
 		WALDiskSize:    walDiskSize,
 		maxConns:       maxConns,
+		MaxBGWorkers:   MaxBGWorkers,
 	}, nil
 }
 
@@ -62,7 +64,7 @@ func GetSettingsGroup(label string, config *SystemConfig) SettingsGroup {
 	case label == MemoryLabel:
 		return &MemorySettingsGroup{config.Memory, config.CPUs, config.maxConns}
 	case label == ParallelLabel:
-		return &ParallelSettingsGroup{config.PGMajorVersion, config.CPUs}
+		return &ParallelSettingsGroup{config.PGMajorVersion, config.CPUs, config.MaxBGWorkers}
 	case label == WALLabel:
 		return &WALSettingsGroup{config.Memory, config.WALDiskSize}
 	case label == MiscLabel:

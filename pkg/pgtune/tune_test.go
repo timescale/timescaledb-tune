@@ -13,7 +13,7 @@ const (
 )
 
 func getDefaultTestSystemConfig(t *testing.T) *SystemConfig {
-	config, err := NewSystemConfig(1024, 4, "10", walDiskUnset, testMaxConns)
+	config, err := NewSystemConfig(1024, 4, "10", walDiskUnset, testMaxConns, 8)
 	if err != nil {
 		t.Errorf("unexpected error: got %v", err)
 	}
@@ -24,12 +24,13 @@ func TestNewSystemConfig(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		mem := rand.Uint64()
 		cpus := rand.Intn(32)
+		workers := rand.Intn(32)
 		pgVersion := "10"
 		if i%2 == 0 {
 			pgVersion = "9.6"
 		}
 
-		config, err := NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConns)
+		config, err := NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConns, workers)
 		if err != nil {
 			t.Errorf("unexpected error: got %v", err)
 		}
@@ -45,8 +46,11 @@ func TestNewSystemConfig(t *testing.T) {
 		if config.maxConns != testMaxConns {
 			t.Errorf("incorrect max conns: got %d want %d", config.maxConns, testMaxConns)
 		}
+		if config.MaxBGWorkers != workers {
+			t.Errorf("incorrect max background workers: got %d want %d", config.maxConns, testMaxConns)
+		}
 
-		_, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConnsBad)
+		_, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConnsBad, workers)
 		wantErr := fmt.Sprintf(errMaxConnsTooLowFmt, minMaxConns, testMaxConnsBad)
 		if err == nil {
 			t.Errorf("unexpected lack of error")
@@ -54,7 +58,7 @@ func TestNewSystemConfig(t *testing.T) {
 			t.Errorf("unexpected error: got\n%s\nwant\n%s", got, wantErr)
 		}
 
-		config, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConnsSpecial)
+		config, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConnsSpecial, workers)
 		if err != nil {
 			t.Errorf("unexpected error: got %v", err)
 		}

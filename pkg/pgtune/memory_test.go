@@ -14,20 +14,19 @@ import (
 // unaffected by number of CPUs and max connections; the exception is work_mem,
 // so the adjustment is done in the init function
 var memoryToBaseVals = map[uint64]map[string]uint64{
-	10 * parse.Gigabyte: map[string]uint64{
+	10 * parse.Gigabyte: {
 		SharedBuffersKey:      2560 * parse.Megabyte,
 		EffectiveCacheKey:     7680 * parse.Megabyte,
 		MaintenanceWorkMemKey: 1280 * parse.Megabyte,
 		WorkMemKey:            64 * parse.Megabyte,
 	},
-	12 * parse.Gigabyte: map[string]uint64{
+	12 * parse.Gigabyte: {
 		SharedBuffersKey:      3 * parse.Gigabyte,
 		EffectiveCacheKey:     9 * parse.Gigabyte,
 		MaintenanceWorkMemKey: 1536 * parse.Megabyte,
 		WorkMemKey:            78643 * parse.Kilobyte,
 	},
-	32 * parse.Gigabyte: map[string]uint64{
-
+	32 * parse.Gigabyte: {
 		SharedBuffersKey:      8 * parse.Gigabyte,
 		EffectiveCacheKey:     24 * parse.Gigabyte,
 		MaintenanceWorkMemKey: maintenanceWorkMemLimit,

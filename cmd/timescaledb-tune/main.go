@@ -35,6 +35,7 @@ func init() {
 	flag.StringVar(&f.PGVersion, "pg-version", "", "Major version of PostgreSQL to base recommendations on. Default is determined via pg_config. Valid values: "+strings.Join(tstune.ValidPGVersions, ", "))
 	flag.StringVar(&f.WALDiskSize, "wal-disk-size", "", "Size of the disk where the WAL resides, in PostgreSQL format <int value><units>, e.g., 4GB. Using this flag helps tune WAL behavior.")
 	flag.Uint64Var(&f.MaxConns, "max-conns", 0, "Max number of connections for the database. Default is equal to our best recommendation")
+	flag.UintVar(&f.MaxBGWorkers, "max-bg-workers", 8, "Max number of background workers")
 	flag.StringVar(&f.ConfPath, "conf-path", "", "Path to postgresql.conf. If blank, heuristics will be used to find it")
 	flag.StringVar(&f.DestPath, "out-path", "", "Path to write the new configuration file. If blank, will use the same file that is read from")
 	flag.StringVar(&f.PGConfig, "pg-config", "pg_config", "Path to the pg_config binary")

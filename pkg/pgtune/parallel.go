@@ -12,8 +12,7 @@ const (
 	MaxParallelWorkersGatherKey = "max_parallel_workers_per_gather"
 	MaxParallelWorkers          = "max_parallel_workers" // pg10+
 
-	defaultMaxBackgroundWorkers = 8 // This may be more dynamic in the future
-	minBuiltInProcesses         = 3 // at least checkpointer, WALwriter, vacuum
+	minBuiltInProcesses = 3 // at least checkpointer, WALwriter, vacuum
 
 	errOneCPU = "cannot make recommendations with just 1 CPU"
 )
@@ -31,13 +30,14 @@ var ParallelKeys = []string{
 
 // ParallelRecommender gives recommendations for ParallelKeys based on system resources.
 type ParallelRecommender struct {
-	cpus int
+	cpus         int
+	MaxBGWorkers int
 }
 
 // NewParallelRecommender returns a ParallelRecommender that recommends based on
 // the given number of cpus.
-func NewParallelRecommender(cpus int) *ParallelRecommender {
-	return &ParallelRecommender{cpus}
+func NewParallelRecommender(cpus int, MaxBGWorkers int) *ParallelRecommender {
+	return &ParallelRecommender{cpus, MaxBGWorkers}
 }
 
 // IsAvailable returns whether this Recommender is usable given the system
@@ -57,13 +57,13 @@ func (r *ParallelRecommender) Recommend(key string) string {
 		// Need enough processes to handle built-ins (e.g., autovacuum),
 		// TimescaleDB background workers, and the number of parallel workers
 		// (equal to the number of CPUs).
-		val = fmt.Sprintf("%d", minBuiltInProcesses+defaultMaxBackgroundWorkers+r.cpus)
+		val = fmt.Sprintf("%d", minBuiltInProcesses+r.MaxBGWorkers+r.cpus)
 	} else if key == MaxParallelWorkers {
 		val = fmt.Sprintf("%d", r.cpus)
 	} else if key == MaxParallelWorkersGatherKey {
 		val = fmt.Sprintf("%d", int(math.Round(float64(r.cpus)/2.0)))
 	} else if key == MaxBackgroundWorkers {
-		val = fmt.Sprintf("%d", defaultMaxBackgroundWorkers)
+		val = fmt.Sprintf("%d", r.MaxBGWorkers)
 	} else {
 		panic(fmt.Sprintf("unknown key: %s", key))
 	}
@@ -72,8 +72,9 @@ func (r *ParallelRecommender) Recommend(key string) string {
 
 // ParallelSettingsGroup is the SettingsGroup to represent parallelism settings.
 type ParallelSettingsGroup struct {
-	pgVersion string
-	cpus      int
+	pgVersion    string
+	cpus         int
+	MaxBGWorkers int
 }
 
 // Label should always return the value ParallelLabel.
@@ -89,5 +90,5 @@ func (sg *ParallelSettingsGroup) Keys() []string {
 
 // GetRecommender should return a new ParallelRecommender.
 func (sg *ParallelSettingsGroup) GetRecommender() Recommender {
-	return NewParallelRecommender(sg.cpus)
+	return NewParallelRecommender(sg.cpus, sg.MaxBGWorkers)
 }

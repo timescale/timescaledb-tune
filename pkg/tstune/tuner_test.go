@@ -1029,6 +1029,7 @@ const (
 	testMaxConns        = 20
 	testMem      uint64 = 8 * parse.Gigabyte
 	testCPUs            = 4
+	testWorkers         = 8
 	testWALDisk  uint64 = 0
 )
 
@@ -1041,7 +1042,7 @@ func (sg *testSettingsGroup) Keys() []string                     { return sg.key
 func (sg *testSettingsGroup) GetRecommender() pgtune.Recommender { return &badRecommender{} }
 
 func getDefaultSystemConfig(t *testing.T) *pgtune.SystemConfig {
-	config, err := pgtune.NewSystemConfig(testMem, testCPUs, pgutils.MajorVersion10, testWALDisk, testMaxConns)
+	config, err := pgtune.NewSystemConfig(testMem, testCPUs, pgutils.MajorVersion10, testWALDisk, testMaxConns, testWorkers)
 	if err != nil {
 		t.Fatalf("unexpected error in config creation: got %v", err)
 	}
