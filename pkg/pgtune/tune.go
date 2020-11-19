@@ -6,8 +6,9 @@ package pgtune
 import "fmt"
 
 const (
-	osWindows            = "windows"
-	errMaxConnsTooLowFmt = "maxConns must be 0 OR >= %d: got %d"
+	osWindows                = "windows"
+	errMaxConnsTooLowFmt     = "maxConns must be 0 OR >= %d: got %d"
+	errMaxBGWorkersTooLowFmt = "maxBGWorkers must be >= %d: got %d"
 )
 
 // Recommender is an interface that gives setting recommendations for a given
@@ -39,13 +40,16 @@ type SystemConfig struct {
 	PGMajorVersion string
 	WALDiskSize    uint64
 	maxConns       uint64
-	MaxBGWorkers   int
+	maxBGWorkers   int
 }
 
 // NewSystemConfig returns a new SystemConfig with the given parameters.
-func NewSystemConfig(totalMemory uint64, cpus int, pgVersion string, walDiskSize uint64, maxConns uint64, MaxBGWorkers int) (*SystemConfig, error) {
+func NewSystemConfig(totalMemory uint64, cpus int, pgVersion string, walDiskSize uint64, maxConns uint64, maxBGWorkers int) (*SystemConfig, error) {
 	if maxConns != 0 && maxConns < minMaxConns {
 		return nil, fmt.Errorf(errMaxConnsTooLowFmt, minMaxConns, maxConns)
+	}
+	if maxBGWorkers < defaultMaxBackgroundWorkers {
+		return nil, fmt.Errorf(errMaxBGWorkersTooLowFmt, defaultMaxBackgroundWorkers, maxBGWorkers)
 	}
 	return &SystemConfig{
 		Memory:         totalMemory,
@@ -53,7 +57,7 @@ func NewSystemConfig(totalMemory uint64, cpus int, pgVersion string, walDiskSize
 		PGMajorVersion: pgVersion,
 		WALDiskSize:    walDiskSize,
 		maxConns:       maxConns,
-		MaxBGWorkers:   MaxBGWorkers,
+		maxBGWorkers:   maxBGWorkers,
 	}, nil
 }
 
@@ -64,7 +68,7 @@ func GetSettingsGroup(label string, config *SystemConfig) SettingsGroup {
 	case label == MemoryLabel:
 		return &MemorySettingsGroup{config.Memory, config.CPUs, config.maxConns}
 	case label == ParallelLabel:
-		return &ParallelSettingsGroup{config.PGMajorVersion, config.CPUs, config.MaxBGWorkers}
+		return &ParallelSettingsGroup{config.PGMajorVersion, config.CPUs, config.maxBGWorkers}
 	case label == WALLabel:
 		return &WALSettingsGroup{config.Memory, config.WALDiskSize}
 	case label == MiscLabel:

@@ -26,7 +26,8 @@ const (
 	autovacuumNaptimeDefault    = "10"
 	effectiveIODefault          = "200"
 
-	minMaxConns = 20
+	minMaxConns                 = 20
+	defaultMaxBackgroundWorkers = 8
 )
 
 // MaxConnectionsDefault is the recommended default value for max_connections.

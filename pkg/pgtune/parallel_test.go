@@ -11,39 +11,48 @@ import (
 // parallelSettingsMatrix stores the test cases for ParallelRecommender along
 // with the expected values for its keys
 var parallelSettingsMatrix = map[int]map[int]map[string]string{
-	2: {defaultMaxBackgroundWorkers: {
-		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers),
-		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 2+minBuiltInProcesses+defaultMaxBackgroundWorkers),
-		MaxParallelWorkersGatherKey: "1",
-		MaxParallelWorkers:          "2",
-	}, defaultMaxBackgroundWorkers * 2: {
-		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers*2),
-		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 2+minBuiltInProcesses+defaultMaxBackgroundWorkers*2),
-		MaxParallelWorkersGatherKey: "1",
-		MaxParallelWorkers:          "2",
-	}},
-	4: {defaultMaxBackgroundWorkers: {
-		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers),
-		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 4+minBuiltInProcesses+defaultMaxBackgroundWorkers),
-		MaxParallelWorkersGatherKey: "2",
-		MaxParallelWorkers:          "4",
-	}, defaultMaxBackgroundWorkers * 4: {
-		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers*4),
-		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 4+minBuiltInProcesses+defaultMaxBackgroundWorkers*4),
-		MaxParallelWorkersGatherKey: "2",
-		MaxParallelWorkers:          "4",
-	}},
-	5: {defaultMaxBackgroundWorkers: {
-		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers),
-		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 5+minBuiltInProcesses+defaultMaxBackgroundWorkers),
-		MaxParallelWorkersGatherKey: "3",
-		MaxParallelWorkers:          "5",
-	}, defaultMaxBackgroundWorkers * 5: {
-		MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers*5),
-		MaxWorkerProcessesKey:       fmt.Sprintf("%d", 5+minBuiltInProcesses+defaultMaxBackgroundWorkers*5),
-		MaxParallelWorkersGatherKey: "3",
-		MaxParallelWorkers:          "5",
-	}},
+	2: {
+		defaultMaxBackgroundWorkers: {
+			MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers),
+			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 2+minBuiltInProcesses+defaultMaxBackgroundWorkers),
+			MaxParallelWorkersGatherKey: "1",
+			MaxParallelWorkers:          "2",
+		},
+		defaultMaxBackgroundWorkers * 2: {
+			MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers*2),
+			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 2+minBuiltInProcesses+defaultMaxBackgroundWorkers*2),
+			MaxParallelWorkersGatherKey: "1",
+			MaxParallelWorkers:          "2",
+		},
+	},
+	4: {
+		defaultMaxBackgroundWorkers: {
+			MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers),
+			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 4+minBuiltInProcesses+defaultMaxBackgroundWorkers),
+			MaxParallelWorkersGatherKey: "2",
+			MaxParallelWorkers:          "4",
+		},
+		defaultMaxBackgroundWorkers * 4: {
+			MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers*4),
+			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 4+minBuiltInProcesses+defaultMaxBackgroundWorkers*4),
+			MaxParallelWorkersGatherKey: "2",
+			MaxParallelWorkers:          "4",
+		},
+	},
+	5: {
+		defaultMaxBackgroundWorkers: {
+			MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers),
+			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 5+minBuiltInProcesses+defaultMaxBackgroundWorkers),
+			MaxParallelWorkersGatherKey: "3",
+			MaxParallelWorkers:          "5",
+		},
+		defaultMaxBackgroundWorkers * 5: {
+			MaxBackgroundWorkers:        fmt.Sprintf("%d", defaultMaxBackgroundWorkers*5),
+			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 5+minBuiltInProcesses+defaultMaxBackgroundWorkers*5),
+			MaxParallelWorkersGatherKey: "3",
+			MaxParallelWorkers:          "5",
+		},
+	},
 }
 
 func TestNewParallelRecommender(t *testing.T) {
@@ -57,7 +66,7 @@ func TestNewParallelRecommender(t *testing.T) {
 		if got := r.cpus; got != cpus {
 			t.Errorf("recommender has incorrect cpus: got %d want %d", got, cpus)
 		}
-		if got := r.MaxBGWorkers; got != workers {
+		if got := r.maxBGWorkers; got != workers {
 			t.Errorf("recommender has incorrect workers: got %d want %d", got, workers)
 		}
 	}
@@ -88,6 +97,7 @@ func TestParallelRecommenderRecommend(t *testing.T) {
 }
 
 func TestParallelRecommenderRecommendPanics(t *testing.T) {
+	// test invalid key panic
 	func() {
 		r := &ParallelRecommender{5, defaultMaxBackgroundWorkers}
 		defer func() {
@@ -98,13 +108,25 @@ func TestParallelRecommenderRecommendPanics(t *testing.T) {
 		r.Recommend("foo")
 	}()
 
+	// test invalid CPU panic
 	func() {
-		r := &ParallelRecommender{1, defaultMaxBackgroundWorkers}
 		defer func() {
 			if re := recover(); re == nil {
 				t.Errorf("did not panic when should")
 			}
 		}()
+		r := &ParallelRecommender{1, defaultMaxBackgroundWorkers}
+		r.Recommend("foo")
+	}()
+
+	// test invalid worker panic
+	func() {
+		defer func() {
+			if re := recover(); re == nil {
+				t.Errorf("did not panic when should")
+			}
+		}()
+		r := &ParallelRecommender{5, defaultMaxBackgroundWorkers - 1}
 		r.Recommend("foo")
 	}()
 }
@@ -116,7 +138,7 @@ func TestParallelSettingsGroup(t *testing.T) {
 			config := getDefaultTestSystemConfig(t)
 			config.CPUs = cpus
 			config.PGMajorVersion = pgutils.MajorVersion96 // 9.6 lacks one key
-			config.MaxBGWorkers = workers
+			config.maxBGWorkers = workers
 			sg := GetSettingsGroup(ParallelLabel, config)
 			if got := len(sg.Keys()); got != keyCount-1 {
 				t.Errorf("incorrect number of keys for PG %s: got %d want %d", pgutils.MajorVersion96, got, keyCount-1)

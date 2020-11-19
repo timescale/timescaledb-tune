@@ -12,10 +12,10 @@ const (
 	MaxParallelWorkersGatherKey = "max_parallel_workers_per_gather"
 	MaxParallelWorkers          = "max_parallel_workers" // pg10+
 
-	defaultMaxBackgroundWorkers = 8 // override with --max-bg-workers
-	minBuiltInProcesses         = 3 // at least checkpointer, WALwriter, vacuum
+	minBuiltInProcesses = 3 // at least checkpointer, WALwriter, vacuum
 
-	errOneCPU = "cannot make recommendations with just 1 CPU"
+	errOneCPU  = "cannot make recommendations with just 1 CPU"
+	errWorkers = "cannot make recommendations with less than %d workers"
 )
 
 // ParallelLabel is the label used to refer to the parallelism settings group
@@ -32,13 +32,13 @@ var ParallelKeys = []string{
 // ParallelRecommender gives recommendations for ParallelKeys based on system resources.
 type ParallelRecommender struct {
 	cpus         int
-	MaxBGWorkers int
+	maxBGWorkers int
 }
 
 // NewParallelRecommender returns a ParallelRecommender that recommends based on
 // the given number of cpus.
-func NewParallelRecommender(cpus int, MaxBGWorkers int) *ParallelRecommender {
-	return &ParallelRecommender{cpus, MaxBGWorkers}
+func NewParallelRecommender(cpus int, maxBGWorkers int) *ParallelRecommender {
+	return &ParallelRecommender{cpus, maxBGWorkers}
 }
 
 // IsAvailable returns whether this Recommender is usable given the system
@@ -54,17 +54,20 @@ func (r *ParallelRecommender) Recommend(key string) string {
 	if r.cpus <= 1 {
 		panic(errOneCPU)
 	}
+	if r.maxBGWorkers < defaultMaxBackgroundWorkers {
+		panic(fmt.Sprintf(errWorkers, defaultMaxBackgroundWorkers))
+	}
 	if key == MaxWorkerProcessesKey {
 		// Need enough processes to handle built-ins (e.g., autovacuum),
 		// TimescaleDB background workers, and the number of parallel workers
 		// (equal to the number of CPUs).
-		val = fmt.Sprintf("%d", minBuiltInProcesses+r.MaxBGWorkers+r.cpus)
+		val = fmt.Sprintf("%d", minBuiltInProcesses+r.maxBGWorkers+r.cpus)
 	} else if key == MaxParallelWorkers {
 		val = fmt.Sprintf("%d", r.cpus)
 	} else if key == MaxParallelWorkersGatherKey {
 		val = fmt.Sprintf("%d", int(math.Round(float64(r.cpus)/2.0)))
 	} else if key == MaxBackgroundWorkers {
-		val = fmt.Sprintf("%d", r.MaxBGWorkers)
+		val = fmt.Sprintf("%d", r.maxBGWorkers)
 	} else {
 		panic(fmt.Sprintf("unknown key: %s", key))
 	}
@@ -75,7 +78,7 @@ func (r *ParallelRecommender) Recommend(key string) string {
 type ParallelSettingsGroup struct {
 	pgVersion    string
 	cpus         int
-	MaxBGWorkers int
+	maxBGWorkers int
 }
 
 // Label should always return the value ParallelLabel.
@@ -91,5 +94,5 @@ func (sg *ParallelSettingsGroup) Keys() []string {
 
 // GetRecommender should return a new ParallelRecommender.
 func (sg *ParallelSettingsGroup) GetRecommender() Recommender {
-	return NewParallelRecommender(sg.cpus, sg.MaxBGWorkers)
+	return NewParallelRecommender(sg.cpus, sg.maxBGWorkers)
 }
