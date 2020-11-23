@@ -54,8 +54,8 @@ func (r *ParallelRecommender) Recommend(key string) string {
 	if r.cpus <= 1 {
 		panic(errOneCPU)
 	}
-	if r.maxBGWorkers < defaultMaxBackgroundWorkers {
-		panic(fmt.Sprintf(errWorkers, defaultMaxBackgroundWorkers))
+	if r.maxBGWorkers < MaxBackgroundWorkersDefault {
+		panic(fmt.Sprintf(errWorkers, MaxBackgroundWorkersDefault))
 	}
 	if key == MaxWorkerProcessesKey {
 		// Need enough processes to handle built-ins (e.g., autovacuum),

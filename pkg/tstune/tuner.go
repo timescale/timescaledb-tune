@@ -77,7 +77,7 @@ type TunerFlags struct {
 	PGVersion    string // major version of PostgreSQL to base recommendations on
 	PGConfig     string // path to pg_config binary
 	MaxConns     uint64 // max number of database connections
-	MaxBGWorkers uint   // max number of background workers
+	MaxBGWorkers int    // max number of background workers
 	ConfPath     string // path to the postgresql.conf file
 	DestPath     string // path to output file
 	YesAlways    bool   // always respond yes to prompts
@@ -161,7 +161,13 @@ func (t *Tuner) initializeSystemConfig() (*pgtune.SystemConfig, error) {
 		cpus = runtime.NumCPU()
 	}
 
-	return pgtune.NewSystemConfig(totalMemory, cpus, pgVersion, walDisk, t.flags.MaxConns, int(t.flags.MaxBGWorkers))
+	// Use default BG Workers if not provided
+	maxBGWorkers := int(t.flags.MaxBGWorkers)
+	if t.flags.MaxBGWorkers == 0 {
+		maxBGWorkers = pgtune.MaxBackgroundWorkersDefault
+	}
+
+	return pgtune.NewSystemConfig(totalMemory, cpus, pgVersion, walDisk, t.flags.MaxConns, maxBGWorkers)
 }
 
 func (t *Tuner) restore(r restorer, filePath string) error {
