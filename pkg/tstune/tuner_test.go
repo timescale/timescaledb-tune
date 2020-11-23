@@ -1051,7 +1051,7 @@ const (
 	testMaxConns        = 20
 	testMem      uint64 = 8 * parse.Gigabyte
 	testCPUs            = 4
-	testWorkers         = 8
+	testWorkers         = pgtune.MaxBackgroundWorkersDefault
 	testWALDisk  uint64 = 0
 )
 

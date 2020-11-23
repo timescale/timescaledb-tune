@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
@@ -56,9 +57,11 @@ var parallelSettingsMatrix = map[int]map[int]map[string]string{
 }
 
 func TestNewParallelRecommender(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
 	for i := 0; i < 1000000; i++ {
 		cpus := rand.Intn(128)
-		workers := rand.Intn(128)
+		// ensure a minimum of background workers
+		workers := rand.Intn(128-MaxBackgroundWorkersDefault+1) + MaxBackgroundWorkersDefault
 		r := NewParallelRecommender(cpus, workers)
 		if r == nil {
 			t.Errorf("unexpected nil recommender")
