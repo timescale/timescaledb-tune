@@ -37,7 +37,7 @@ type ParallelRecommender struct {
 
 // NewParallelRecommender returns a ParallelRecommender that recommends based on
 // the given number of cpus.
-func NewParallelRecommender(cpus int, maxBGWorkers int) *ParallelRecommender {
+func NewParallelRecommender(cpus, maxBGWorkers int) *ParallelRecommender {
 	return &ParallelRecommender{cpus, maxBGWorkers}
 }
 
