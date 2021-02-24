@@ -12,6 +12,7 @@ import (
 // ValidPGVersions is a slice representing the major versions of PostgreSQL
 // for which recommendations can be generated.
 var ValidPGVersions = []string{
+	pgutils.MajorVersion13,
 	pgutils.MajorVersion12,
 	pgutils.MajorVersion11,
 	pgutils.MajorVersion10,
