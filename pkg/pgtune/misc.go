@@ -28,7 +28,7 @@ const (
 	// see https://www.postgresql.org/docs/13/release-13.html
 	// on how to translate between the old and the new value.
 	effectiveIODefaultOldVersions = "200"
-	effectiveIODefault            = "11176"
+	effectiveIODefault            = "1176"
 
 	minMaxConns = 20
 )
