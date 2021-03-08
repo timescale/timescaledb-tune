@@ -6,6 +6,7 @@ import (
 	"runtime"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
+	"github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
 
 // Keys in the conf file that are tunable but not in the other groupings
@@ -24,7 +25,10 @@ const (
 	randomPageCostDefault       = "1.1"
 	autovacuumMaxWorkersDefault = "10"
 	autovacuumNaptimeDefault    = "10"
-	effectiveIODefault          = "200"
+	// see https://www.postgresql.org/docs/13/release-13.html
+	// on how to translate between the old and the new value.
+	effectiveIODefaultOldVersions = "200"
+	effectiveIODefault            = "11176"
 
 	minMaxConns = 20
 )
@@ -48,6 +52,17 @@ func getMaxConns(totalMemory uint64) uint64 {
 	default:
 		return MaxConnectionsDefault
 	}
+}
+
+func getEffectiveIOConcurrency(pgMajorVersion string) string {
+	switch pgMajorVersion {
+	case pgutils.MajorVersion96,
+		pgutils.MajorVersion10,
+		pgutils.MajorVersion11,
+		pgutils.MajorVersion12:
+		return effectiveIODefaultOldVersions
+	}
+	return effectiveIODefault
 }
 
 // maxLocksValues gives the number of locks for a power-2 memory starting
@@ -75,13 +90,14 @@ var MiscKeys = []string{
 
 // MiscRecommender gives recommendations for MiscKeys based on system resources.
 type MiscRecommender struct {
-	totalMemory uint64
-	maxConns    uint64
+	totalMemory    uint64
+	maxConns       uint64
+	pgMajorVersion string
 }
 
 // NewMiscRecommender returns a MiscRecommender (unaffected by system resources).
-func NewMiscRecommender(totalMemory, maxConns uint64) *MiscRecommender {
-	return &MiscRecommender{totalMemory, maxConns}
+func NewMiscRecommender(totalMemory, maxConns uint64, pgMajorVersion string) *MiscRecommender {
+	return &MiscRecommender{totalMemory, maxConns, pgMajorVersion}
 }
 
 // IsAvailable returns whether this Recommender is usable given the system resources. Always true.
@@ -118,7 +134,7 @@ func (r *MiscRecommender) Recommend(key string) string {
 	} else if key == AutovacuumNaptimeKey {
 		val = autovacuumNaptimeDefault
 	} else if key == EffectiveIOKey {
-		val = effectiveIODefault
+		val = getEffectiveIOConcurrency(r.pgMajorVersion)
 	} else {
 		panic(fmt.Sprintf("unknown key: %s", key))
 	}
@@ -127,8 +143,9 @@ func (r *MiscRecommender) Recommend(key string) string {
 
 // MiscSettingsGroup is the SettingsGroup to represent settings that do not fit in other SettingsGroups.
 type MiscSettingsGroup struct {
-	totalMemory uint64
-	maxConns    uint64
+	totalMemory    uint64
+	maxConns       uint64
+	pgMajorVersion string
 }
 
 // Label should always return the value MiscLabel.
@@ -144,5 +161,5 @@ func (sg *MiscSettingsGroup) Keys() []string {
 
 // GetRecommender should return a new MiscRecommender.
 func (sg *MiscSettingsGroup) GetRecommender() Recommender {
-	return NewMiscRecommender(sg.totalMemory, sg.maxConns)
+	return NewMiscRecommender(sg.totalMemory, sg.maxConns, sg.pgMajorVersion)
 }

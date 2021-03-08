@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
+	"github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
 
 // memoryToLocks is a mapping of the different memory levels we want tested and
@@ -47,7 +48,7 @@ func init() {
 			miscSettingsMatrix[mem][conns][CheckpointKey] = checkpointDefault
 			miscSettingsMatrix[mem][conns][StatsTargetKey] = statsTargetDefault
 			miscSettingsMatrix[mem][conns][RandomPageCostKey] = randomPageCostDefault
-			miscSettingsMatrix[mem][conns][EffectiveIOKey] = effectiveIODefault
+			miscSettingsMatrix[mem][conns][EffectiveIOKey] = effectiveIODefaultOldVersions
 			miscSettingsMatrix[mem][conns][AutovacuumMaxWorkersKey] = autovacuumMaxWorkersDefault
 			miscSettingsMatrix[mem][conns][AutovacuumNaptimeKey] = autovacuumNaptimeDefault
 		}
@@ -106,11 +107,51 @@ func TestGetMaxConns(t *testing.T) {
 	}
 }
 
+func TestGetEffectiveIOConcurrency(t *testing.T) {
+	cases := []struct {
+		pgMajorVersion string
+		want           string
+	}{
+		{
+			pgutils.MajorVersion96,
+			effectiveIODefaultOldVersions,
+		},
+		{
+			pgutils.MajorVersion10,
+			effectiveIODefaultOldVersions,
+		},
+		{
+			pgutils.MajorVersion11,
+			effectiveIODefaultOldVersions,
+		},
+		{
+			pgutils.MajorVersion12,
+			effectiveIODefaultOldVersions,
+		},
+		{
+			pgutils.MajorVersion13,
+			effectiveIODefault,
+		},
+		{
+			/* a new version, not yet released */
+			"15",
+			effectiveIODefault,
+		},
+	}
+	for _, c := range cases {
+		t.Run(fmt.Sprintf("test effective_io_concurrency (v%s)", c.pgMajorVersion), func(t *testing.T) {
+			if got := getEffectiveIOConcurrency(c.pgMajorVersion); got != c.want {
+				t.Errorf("incorrect effective_io_concurrency: got %s, want %s", got, c.want)
+			}
+		})
+	}
+}
+
 func TestNewMiscRecommender(t *testing.T) {
 	for i := 0; i < 1000000; i++ {
 		mem := rand.Uint64()
 		conns := rand.Uint64()
-		r := NewMiscRecommender(mem, conns)
+		r := NewMiscRecommender(mem, conns, pgutils.MajorVersion12)
 		if r == nil {
 			t.Errorf("unexpected nil recommender")
 			continue
@@ -132,7 +173,7 @@ func TestNewMiscRecommender(t *testing.T) {
 func TestMiscRecommenderRecommend(t *testing.T) {
 	for totalMemory, outerMatrix := range miscSettingsMatrix {
 		for maxConns, matrix := range outerMatrix {
-			r := &MiscRecommender{totalMemory, maxConns}
+			r := &MiscRecommender{totalMemory, maxConns, pgutils.MajorVersion12}
 			testRecommender(t, r, MiscKeys, matrix)
 		}
 	}

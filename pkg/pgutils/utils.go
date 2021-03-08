@@ -8,8 +8,6 @@ import (
 
 // Major version strings for recent PostgreSQL versions
 const (
-	MajorVersion94 = "9.4"
-	MajorVersion95 = "9.5"
 	MajorVersion96 = "9.6"
 	MajorVersion10 = "10"
 	MajorVersion11 = "11"
