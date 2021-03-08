@@ -72,7 +72,7 @@ func GetSettingsGroup(label string, config *SystemConfig) SettingsGroup {
 	case label == WALLabel:
 		return &WALSettingsGroup{config.Memory, config.WALDiskSize}
 	case label == MiscLabel:
-		return &MiscSettingsGroup{config.Memory, config.maxConns}
+		return &MiscSettingsGroup{config.Memory, config.maxConns, config.PGMajorVersion}
 	}
 	panic("unknown label: " + label)
 }
