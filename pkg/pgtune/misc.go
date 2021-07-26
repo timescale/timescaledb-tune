@@ -25,10 +25,12 @@ const (
 	randomPageCostDefault       = "1.1"
 	autovacuumMaxWorkersDefault = "10"
 	autovacuumNaptimeDefault    = "10"
-	// see https://www.postgresql.org/docs/13/release-13.html
-	// on how to translate between the old and the new value.
+	// effective io concurrency has changed in v13: https://www.postgresql.org/docs/13/release-13.html
+	// However, our previous value of 200 is translated to 1176, which seems excessively high
+	// (the upper limit is 1000. For the SSDs we'll follow up the wise man's advice here:
+	// https://www.postgresql.org/message-id/20210422195232.GA25061%40momjian.us
 	effectiveIODefaultOldVersions = "200"
-	effectiveIODefault            = "1176"
+	effectiveIODefault            = "256"
 
 	minMaxConns = 20
 )
