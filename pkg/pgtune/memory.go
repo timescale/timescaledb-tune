@@ -6,6 +6,7 @@ import (
 	"runtime"
 
 	"github.com/timescale/timescaledb-tune/internal/parse"
+	"github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
 
 // Keys in the conf file that are tuned related to memory
@@ -38,18 +39,18 @@ var MemoryKeys = []string{
 // MemoryRecommender gives recommendations for ParallelKeys based on system resources
 type MemoryRecommender struct {
 	totalMemory uint64
-	cpus        int
+	milliCPUs   int
 	conns       uint64
 }
 
 // NewMemoryRecommender returns a MemoryRecommender that recommends based on the given
 // number of cpus and system memory
-func NewMemoryRecommender(totalMemory uint64, cpus int, maxConns uint64) *MemoryRecommender {
+func NewMemoryRecommender(totalMemory uint64, milliCPUs int, maxConns uint64) *MemoryRecommender {
 	conns := maxConns
 	if conns == 0 {
 		conns = getMaxConns(totalMemory)
 	}
-	return &MemoryRecommender{totalMemory, cpus, conns}
+	return &MemoryRecommender{totalMemory, milliCPUs, conns}
 }
 
 // IsAvailable returns whether this Recommender is usable given the system resources. Always true.
@@ -79,7 +80,8 @@ func (r *MemoryRecommender) Recommend(key string) string {
 		if runtime.GOOS == osWindows {
 			val = r.recommendWindows()
 		} else {
-			cpuFactor := math.Round(float64(r.cpus) / 2.0)
+			cpuFactor := math.Max(math.Round(float64(r.milliCPUs)/(pgutils.MilliScaleFactor*2.0)), 1)
+
 			gigs := float64(r.totalMemory) / float64(parse.Gigabyte)
 			temp := uint64(gigs * (workMemPerGigPerConn * float64(parse.Megabyte) / float64(r.conns)) / cpuFactor)
 			if temp < workMemMin {
@@ -95,7 +97,8 @@ func (r *MemoryRecommender) Recommend(key string) string {
 }
 
 func (r *MemoryRecommender) recommendWindows() string {
-	cpuFactor := math.Round(float64(r.cpus) / 2.0)
+	cpuFactor := math.Max(math.Round(float64(r.milliCPUs)/(pgutils.MilliScaleFactor*2.0)), 1)
+
 	var temp uint64
 
 	if r.totalMemory <= 2*parse.Gigabyte {
@@ -115,7 +118,7 @@ func (r *MemoryRecommender) recommendWindows() string {
 // MemorySettingsGroup is the SettingsGroup to represent settings that affect memory usage.
 type MemorySettingsGroup struct {
 	totalMemory uint64
-	cpus        int
+	milliCPUs   int
 	maxConns    uint64
 }
 
@@ -127,5 +130,5 @@ func (sg *MemorySettingsGroup) Keys() []string { return MemoryKeys }
 
 // GetRecommender should return a new MemoryRecommender.
 func (sg *MemorySettingsGroup) GetRecommender() Recommender {
-	return NewMemoryRecommender(sg.totalMemory, sg.cpus, sg.maxConns)
+	return NewMemoryRecommender(sg.totalMemory, sg.milliCPUs, sg.maxConns)
 }

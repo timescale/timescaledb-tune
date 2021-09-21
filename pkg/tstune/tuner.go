@@ -18,6 +18,7 @@ import (
 	"github.com/pbnjay/memory"
 	"github.com/timescale/timescaledb-tune/internal/parse"
 	"github.com/timescale/timescaledb-tune/pkg/pgtune"
+	utils "github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
 
 const (
@@ -54,7 +55,7 @@ const (
 	plainSharedLibLine             = "shared_preload_libraries = 'timescaledb'"
 	plainSharedLibLineWithComments = plainSharedLibLine + "	# (change requires restart)"
 
-	statementTunableIntro = "Recommendations based on %s of available memory and %d CPUs for PostgreSQL %s"
+	statementTunableIntro = "Recommendations based on %s of available memory and %d milliCPUs for PostgreSQL %s"
 	promptTune            = "Tune memory/parallelism/WAL and other settings? "
 
 	successQuiet = "all settings tuned, no changes needed"
@@ -73,6 +74,7 @@ var filepathAbsFn = filepath.Abs
 type TunerFlags struct {
 	Memory       string // amount of memory to base recommendations on
 	NumCPUs      uint   // number of CPUs to base recommendations on
+	NumMilliCPUs uint   // number of milliCPUS, when less than 1 CPU
 	WALDiskSize  string // disk size of WAL to base recommendations on
 	PGVersion    string // major version of PostgreSQL to base recommendations on
 	PGConfig     string // path to pg_config binary
@@ -155,10 +157,15 @@ func (t *Tuner) initializeSystemConfig() (*pgtune.SystemConfig, error) {
 		walDisk = temp
 	}
 
-	// Default to the number of cores
-	cpus := int(t.flags.NumCPUs)
-	if t.flags.NumCPUs == 0 {
-		cpus = runtime.NumCPU()
+	var milliCPUs int
+	switch {
+	case t.flags.NumCPUs > 0:
+		milliCPUs = int(t.flags.NumCPUs) * utils.MilliScaleFactor
+	case t.flags.NumMilliCPUs > 0:
+		milliCPUs = int(t.flags.NumMilliCPUs)
+	default:
+		// Default to the number of cores
+		milliCPUs = runtime.NumCPU() * utils.MilliScaleFactor
 	}
 
 	// Use default BG Workers if not provided
@@ -167,7 +174,7 @@ func (t *Tuner) initializeSystemConfig() (*pgtune.SystemConfig, error) {
 		maxBGWorkers = pgtune.MaxBackgroundWorkersDefault
 	}
 
-	return pgtune.NewSystemConfig(totalMemory, cpus, pgVersion, walDisk, t.flags.MaxConns, maxBGWorkers)
+	return pgtune.NewSystemConfig(totalMemory, milliCPUs, pgVersion, walDisk, t.flags.MaxConns, maxBGWorkers)
 }
 
 func (t *Tuner) restore(r restorer, filePath string) error {
@@ -550,7 +557,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 func (t *Tuner) processTunables(config *pgtune.SystemConfig) error {
 	quiet := t.flags.Quiet
 	if !quiet {
-		t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.CPUs, config.PGMajorVersion)
+		t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.MilliCPUs, config.PGMajorVersion)
 	}
 	tunables := []string{
 		pgtune.MemoryLabel,
@@ -630,7 +637,7 @@ func (w *counterWriter) Write(p []byte) (int, error) {
 
 // processQuiet handles the iteractions when the user wants "quiet" output.
 func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
-	t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.CPUs, config.PGMajorVersion)
+	t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.MilliCPUs, config.PGMajorVersion)
 
 	// Replace the print function with a version that counts how many times it
 	// is invoked so we can know whether to prompt the user or not. It doesn't

@@ -12,7 +12,7 @@ import (
 // parallelSettingsMatrix stores the test cases for ParallelRecommender along
 // with the expected values for its keys
 var parallelSettingsMatrix = map[int]map[int]map[string]string{
-	2: {
+	2 * pgutils.MilliScaleFactor: {
 		MaxBackgroundWorkersDefault: {
 			MaxBackgroundWorkers:        fmt.Sprintf("%d", MaxBackgroundWorkersDefault),
 			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 2+minBuiltInProcesses+MaxBackgroundWorkersDefault),
@@ -26,7 +26,7 @@ var parallelSettingsMatrix = map[int]map[int]map[string]string{
 			MaxParallelWorkers:          "2",
 		},
 	},
-	4: {
+	4 * pgutils.MilliScaleFactor: {
 		MaxBackgroundWorkersDefault: {
 			MaxBackgroundWorkers:        fmt.Sprintf("%d", MaxBackgroundWorkersDefault),
 			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 4+minBuiltInProcesses+MaxBackgroundWorkersDefault),
@@ -40,7 +40,7 @@ var parallelSettingsMatrix = map[int]map[int]map[string]string{
 			MaxParallelWorkers:          "4",
 		},
 	},
-	5: {
+	5 * pgutils.MilliScaleFactor: {
 		MaxBackgroundWorkersDefault: {
 			MaxBackgroundWorkers:        fmt.Sprintf("%d", MaxBackgroundWorkersDefault),
 			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 5+minBuiltInProcesses+MaxBackgroundWorkersDefault),
@@ -59,15 +59,15 @@ var parallelSettingsMatrix = map[int]map[int]map[string]string{
 func TestNewParallelRecommender(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	for i := 0; i < 1000000; i++ {
-		cpus := rand.Intn(128)
+		milliCPUs := rand.Intn(128) * pgutils.MilliScaleFactor
 		// ensure a minimum of background workers
 		workers := rand.Intn(128-MaxBackgroundWorkersDefault+1) + MaxBackgroundWorkersDefault
-		r := NewParallelRecommender(cpus, workers)
+		r := NewParallelRecommender(milliCPUs, workers)
 		if r == nil {
 			t.Errorf("unexpected nil recommender")
 		}
-		if got := r.cpus; got != cpus {
-			t.Errorf("recommender has incorrect cpus: got %d want %d", got, cpus)
+		if got := r.milliCPUs; got != milliCPUs {
+			t.Errorf("recommender has incorrect cpus: got %d want %d", got, milliCPUs)
 		}
 		if got := r.maxBGWorkers; got != workers {
 			t.Errorf("recommender has incorrect workers: got %d want %d", got, workers)
@@ -79,13 +79,16 @@ func TestParallelRecommenderIsAvailable(t *testing.T) {
 	if r := NewParallelRecommender(0, MaxBackgroundWorkersDefault); r.IsAvailable() {
 		t.Errorf("unexpectedly available for 0 cpus")
 	}
-	if r := NewParallelRecommender(1, MaxBackgroundWorkersDefault); r.IsAvailable() {
+	if r := NewParallelRecommender(1*pgutils.MilliScaleFactor, MaxBackgroundWorkersDefault); r.IsAvailable() {
 		t.Errorf("unexpectedly available for 1 cpus")
+	}
+	if r := NewParallelRecommender(500, MaxBackgroundWorkersDefault); r.IsAvailable() {
+		t.Errorf("unexpectedly available for 500 milliCPUS")
 	}
 
 	for i := 2; i < 1000; i++ {
-		if r := NewParallelRecommender(i, MaxBackgroundWorkersDefault); !r.IsAvailable() {
-			t.Errorf("unexpected UNavailable for %d cpus", i)
+		if r := NewParallelRecommender(i*pgutils.MilliScaleFactor, MaxBackgroundWorkersDefault); !r.IsAvailable() {
+			t.Errorf("unexpected Unavailable for %d cpus", i)
 		}
 	}
 }
@@ -118,7 +121,7 @@ func TestParallelRecommenderRecommendPanics(t *testing.T) {
 				t.Errorf("did not panic when should")
 			}
 		}()
-		r := &ParallelRecommender{1, MaxBackgroundWorkersDefault}
+		r := &ParallelRecommender{1 * pgutils.MilliScaleFactor, MaxBackgroundWorkersDefault}
 		r.Recommend("foo")
 	}()
 
@@ -129,17 +132,17 @@ func TestParallelRecommenderRecommendPanics(t *testing.T) {
 				t.Errorf("did not panic when should")
 			}
 		}()
-		r := &ParallelRecommender{5, MaxBackgroundWorkersDefault - 1}
+		r := &ParallelRecommender{5 * pgutils.MilliScaleFactor, MaxBackgroundWorkersDefault - 1}
 		r.Recommend("foo")
 	}()
 }
 
 func TestParallelSettingsGroup(t *testing.T) {
 	keyCount := len(ParallelKeys)
-	for cpus, tempMatrix := range parallelSettingsMatrix {
+	for milliCpus, tempMatrix := range parallelSettingsMatrix {
 		for workers, matrix := range tempMatrix {
 			config := getDefaultTestSystemConfig(t)
-			config.CPUs = cpus
+			config.MilliCPUs = milliCpus
 			config.PGMajorVersion = pgutils.MajorVersion96 // 9.6 lacks one key
 			config.MaxBGWorkers = workers
 			sg := GetSettingsGroup(ParallelLabel, config)

@@ -90,7 +90,7 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 		flagPGVersion    string
 		flagWALDisk      string
 		wantMemory       uint64
-		wantCPUs         int
+		wantMilliCPUs    int
 		wantMaxBGWorkers int
 		wantPGVersion    string
 		wantWALDisk      uint64
@@ -124,7 +124,7 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			flagMemory:       "1" + parse.GB,
 			wantMemory:       1 * parse.Gigabyte,
 			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault,
-			wantCPUs:         runtime.NumCPU(),
+			wantMilliCPUs:    runtime.NumCPU() * pgutils.MilliScaleFactor,
 			wantPGVersion:    okPGVersion,
 		},
 		{
@@ -133,7 +133,7 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			flagNumCPUs:      2,
 			wantMemory:       totalMemory,
 			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault,
-			wantCPUs:         2,
+			wantMilliCPUs:    2 * pgutils.MilliScaleFactor,
 			wantPGVersion:    okPGVersion,
 		},
 		{
@@ -141,7 +141,7 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			flagPGVersion:    pgutils.MajorVersion10,
 			wantMemory:       totalMemory,
 			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault,
-			wantCPUs:         runtime.NumCPU(),
+			wantMilliCPUs:    runtime.NumCPU() * pgutils.MilliScaleFactor,
 			wantPGVersion:    pgutils.MajorVersion10,
 		},
 		{
@@ -150,7 +150,7 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			flagWALDisk:      "4GB",
 			wantMemory:       totalMemory,
 			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault,
-			wantCPUs:         runtime.NumCPU(),
+			wantMilliCPUs:    runtime.NumCPU() * pgutils.MilliScaleFactor,
 			wantPGVersion:    okPGVersion,
 			wantWALDisk:      4 * parse.Gigabyte,
 		},
@@ -160,7 +160,7 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			flagMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault * 2,
 			wantMemory:       totalMemory,
 			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault * 2,
-			wantCPUs:         runtime.NumCPU(),
+			wantMilliCPUs:    runtime.NumCPU() * pgutils.MilliScaleFactor,
 			wantPGVersion:    okPGVersion,
 		},
 		{
@@ -172,7 +172,7 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			flagPGVersion:    pgutils.MajorVersion96,
 			wantMemory:       128 * parse.Gigabyte,
 			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault * 3,
-			wantCPUs:         1,
+			wantMilliCPUs:    1 * pgutils.MilliScaleFactor,
 			wantPGVersion:    pgutils.MajorVersion96,
 		},
 		{
@@ -180,7 +180,7 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 			flagPGConfig:     okPGConfig,
 			wantMemory:       totalMemory,
 			wantMaxBGWorkers: pgtune.MaxBackgroundWorkersDefault,
-			wantCPUs:         runtime.NumCPU(),
+			wantMilliCPUs:    runtime.NumCPU() * pgutils.MilliScaleFactor,
 			wantPGVersion:    okPGVersion,
 		},
 	}
@@ -213,8 +213,8 @@ func TestTunerInitializeSystemConfig(t *testing.T) {
 					t.Errorf("incorrect amount of memory: got %d want %d", got, c.wantMemory)
 				}
 
-				if got := config.CPUs; got != c.wantCPUs {
-					t.Errorf("incorrect number of CPUs: got %d want %d", got, c.wantCPUs)
+				if got := config.MilliCPUs; got != c.wantMilliCPUs {
+					t.Errorf("incorrect number of MilliCPUs: got %d want %d", got, c.wantMilliCPUs)
 				}
 				if got := config.PGMajorVersion; got != c.wantPGVersion {
 					t.Errorf("incorrect pg version: got %s want %s", got, c.wantPGVersion)
@@ -1064,7 +1064,7 @@ func (sg *testSettingsGroup) Keys() []string                     { return sg.key
 func (sg *testSettingsGroup) GetRecommender() pgtune.Recommender { return &badRecommender{} }
 
 func getDefaultSystemConfig(t *testing.T) *pgtune.SystemConfig {
-	config, err := pgtune.NewSystemConfig(testMem, testCPUs, pgutils.MajorVersion10, testWALDisk, testMaxConns, testWorkers)
+	config, err := pgtune.NewSystemConfig(testMem, testCPUs*pgutils.MilliScaleFactor, pgutils.MajorVersion10, testWALDisk, testMaxConns, testWorkers)
 	if err != nil {
 		t.Fatalf("unexpected error in config creation: got %v", err)
 	}
@@ -1261,7 +1261,7 @@ func TestTunerProcessTunables(t *testing.T) {
 			t.Errorf("incorrect number of statements: got %d, want %d", got, wantStatements)
 		}
 
-		wantStatement := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.CPUs, config.PGMajorVersion)
+		wantStatement := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.MilliCPUs, config.PGMajorVersion)
 		if got := tp.statements[0]; got != wantStatement {
 			t.Errorf("incorrect first statement: got\n%s\nwant\n%s\n", got, wantStatement)
 		}
@@ -1298,7 +1298,7 @@ func TestTunerProcessTunables(t *testing.T) {
 	tuner.processTunables(config)
 	check(tuner.handler, config, 4)
 
-	config.CPUs = 1
+	config.MilliCPUs = 1 * pgutils.MilliScaleFactor
 	handler = setupDefaultTestIO(input)
 	cfs = &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner = newTunerWithDefaultFlags(handler, cfs)
@@ -1497,7 +1497,7 @@ func TestTunerProcessQuiet(t *testing.T) {
 		if got := tp.statementCalls; got != 1 {
 			t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, 1)
 		} else {
-			want := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.CPUs, config.PGMajorVersion)
+			want := fmt.Sprintf(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.MilliCPUs, config.PGMajorVersion)
 			if got := tp.statements[0]; got != want {
 				t.Errorf("%s: incorrect statement: got\n%s\nwant\n%s", c.desc, got, want)
 			}

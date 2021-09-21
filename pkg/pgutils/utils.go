@@ -22,6 +22,7 @@ const (
 
 	errCouldNotParseVersionFmt = "unable to parse PG version string: %s"
 	errUnknownMajorVersionFmt  = "unknown major PG version: %s"
+	MilliScaleFactor           = 1000
 )
 
 var (

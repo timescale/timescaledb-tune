@@ -3,6 +3,8 @@ package pgtune
 import (
 	"fmt"
 	"math"
+
+	"github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
 
 // Keys in the conf file that are tuned related to parallelism
@@ -31,29 +33,30 @@ var ParallelKeys = []string{
 
 // ParallelRecommender gives recommendations for ParallelKeys based on system resources.
 type ParallelRecommender struct {
-	cpus         int
+	milliCPUs    int
 	maxBGWorkers int
 }
 
 // NewParallelRecommender returns a ParallelRecommender that recommends based on
 // the given number of cpus.
-func NewParallelRecommender(cpus, maxBGWorkers int) *ParallelRecommender {
-	return &ParallelRecommender{cpus, maxBGWorkers}
+func NewParallelRecommender(milliCPUs, maxBGWorkers int) *ParallelRecommender {
+	return &ParallelRecommender{milliCPUs, maxBGWorkers}
 }
 
 // IsAvailable returns whether this Recommender is usable given the system
 // resources. True when number of CPUS > 1.
 func (r *ParallelRecommender) IsAvailable() bool {
-	return r.cpus > 1
+	return r.milliCPUs > 1*pgutils.MilliScaleFactor
 }
 
 // Recommend returns the recommended PostgreSQL formatted value for the conf
 // file for a given key.
 func (r *ParallelRecommender) Recommend(key string) string {
 	var val string
-	if r.cpus <= 1 {
+	if r.milliCPUs <= 1*pgutils.MilliScaleFactor {
 		panic(errOneCPU)
 	}
+	cpus := r.milliCPUs / pgutils.MilliScaleFactor
 	if r.maxBGWorkers < MaxBackgroundWorkersDefault {
 		panic(fmt.Sprintf(errWorkers, MaxBackgroundWorkersDefault))
 	}
@@ -61,11 +64,11 @@ func (r *ParallelRecommender) Recommend(key string) string {
 		// Need enough processes to handle built-ins (e.g., autovacuum),
 		// TimescaleDB background workers, and the number of parallel workers
 		// (equal to the number of CPUs).
-		val = fmt.Sprintf("%d", minBuiltInProcesses+r.maxBGWorkers+r.cpus)
+		val = fmt.Sprintf("%d", minBuiltInProcesses+r.maxBGWorkers+cpus)
 	} else if key == MaxParallelWorkers {
-		val = fmt.Sprintf("%d", r.cpus)
+		val = fmt.Sprintf("%d", cpus)
 	} else if key == MaxParallelWorkersGatherKey {
-		val = fmt.Sprintf("%d", int(math.Round(float64(r.cpus)/2.0)))
+		val = fmt.Sprintf("%d", int(math.Round(float64(cpus)/2.0)))
 	} else if key == MaxBackgroundWorkers {
 		val = fmt.Sprintf("%d", r.maxBGWorkers)
 	} else {
@@ -77,7 +80,7 @@ func (r *ParallelRecommender) Recommend(key string) string {
 // ParallelSettingsGroup is the SettingsGroup to represent parallelism settings.
 type ParallelSettingsGroup struct {
 	pgVersion    string
-	cpus         int
+	milliCPUs    int
 	maxBGWorkers int
 }
 
@@ -94,5 +97,5 @@ func (sg *ParallelSettingsGroup) Keys() []string {
 
 // GetRecommender should return a new ParallelRecommender.
 func (sg *ParallelSettingsGroup) GetRecommender() Recommender {
-	return NewParallelRecommender(sg.cpus, sg.maxBGWorkers)
+	return NewParallelRecommender(sg.milliCPUs, sg.maxBGWorkers)
 }

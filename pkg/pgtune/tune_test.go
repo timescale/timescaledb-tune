@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+
+	"github.com/timescale/timescaledb-tune/pkg/pgutils"
 )
 
 const (
@@ -13,7 +15,7 @@ const (
 )
 
 func getDefaultTestSystemConfig(t *testing.T) *SystemConfig {
-	config, err := NewSystemConfig(1024, 4, "10", walDiskUnset, testMaxConns, MaxBackgroundWorkersDefault)
+	config, err := NewSystemConfig(1024, 4*pgutils.MilliScaleFactor, "10", walDiskUnset, testMaxConns, MaxBackgroundWorkersDefault)
 	if err != nil {
 		t.Errorf("unexpected error: got %v", err)
 	}
@@ -23,21 +25,21 @@ func getDefaultTestSystemConfig(t *testing.T) *SystemConfig {
 func TestNewSystemConfig(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		mem := rand.Uint64()
-		cpus := rand.Intn(32)
+		milliCPUs := rand.Intn(32) * pgutils.MilliScaleFactor
 		pgVersion := "10"
 		if i%2 == 0 {
 			pgVersion = "9.6"
 		}
 
-		config, err := NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConns, MaxBackgroundWorkersDefault)
+		config, err := NewSystemConfig(mem, milliCPUs, pgVersion, walDiskUnset, testMaxConns, MaxBackgroundWorkersDefault)
 		if err != nil {
 			t.Errorf("unexpected error: got %v", err)
 		}
 		if config.Memory != mem {
 			t.Errorf("incorrect memory: got %d want %d", config.Memory, mem)
 		}
-		if config.CPUs != cpus {
-			t.Errorf("incorrect cpus: got %d want %d", config.CPUs, cpus)
+		if config.MilliCPUs != milliCPUs {
+			t.Errorf("incorrect milliCpus: got %d want %d", config.MilliCPUs, milliCPUs)
 		}
 		if config.PGMajorVersion != pgVersion {
 			t.Errorf("incorrect pg version: got %s want %s", config.PGMajorVersion, pgVersion)
@@ -50,7 +52,7 @@ func TestNewSystemConfig(t *testing.T) {
 		}
 
 		// test invalid number of connections
-		_, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConnsBad, MaxBackgroundWorkersDefault)
+		_, err = NewSystemConfig(mem, milliCPUs, pgVersion, walDiskUnset, testMaxConnsBad, MaxBackgroundWorkersDefault)
 		wantErr := fmt.Sprintf(errMaxConnsTooLowFmt, minMaxConns, testMaxConnsBad)
 		if err == nil {
 			t.Errorf("unexpected lack of error")
@@ -59,7 +61,7 @@ func TestNewSystemConfig(t *testing.T) {
 		}
 
 		// test 0 connections
-		config, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConnsSpecial, MaxBackgroundWorkersDefault)
+		config, err = NewSystemConfig(mem, milliCPUs, pgVersion, walDiskUnset, testMaxConnsSpecial, MaxBackgroundWorkersDefault)
 		if err != nil {
 			t.Errorf("unexpected error: got %v", err)
 		}
@@ -68,7 +70,7 @@ func TestNewSystemConfig(t *testing.T) {
 		}
 
 		// test invalid number of background workers
-		_, err = NewSystemConfig(mem, cpus, pgVersion, walDiskUnset, testMaxConns, MaxBackgroundWorkersDefault-1)
+		_, err = NewSystemConfig(mem, milliCPUs, pgVersion, walDiskUnset, testMaxConns, MaxBackgroundWorkersDefault-1)
 		wantErr = fmt.Sprintf(errMaxBGWorkersTooLowFmt, MaxBackgroundWorkersDefault, MaxBackgroundWorkersDefault-1)
 		if err == nil {
 			t.Errorf("unexpected lack of error")
@@ -89,15 +91,15 @@ func TestGetSettingsGroup(t *testing.T) {
 		}
 		switch x := sg.(type) {
 		case *MemorySettingsGroup:
-			if x.totalMemory != config.Memory || x.cpus != config.CPUs {
+			if x.totalMemory != config.Memory || x.milliCPUs != config.MilliCPUs {
 				t.Errorf("memory group incorrect (memory): got %d want %d", x.totalMemory, config.Memory)
 			}
-			if x.cpus != config.CPUs {
-				t.Errorf("memory group incorrect (CPUs): got %d want %d", x.cpus, config.CPUs)
+			if x.milliCPUs != config.MilliCPUs {
+				t.Errorf("memory group incorrect (milliCPUs): got %d want %d", x.milliCPUs, config.MilliCPUs)
 			}
 		case *ParallelSettingsGroup:
-			if x.cpus != config.CPUs {
-				t.Errorf("parallel group incorrect (CPUs): got %d want %d", x.cpus, config.CPUs)
+			if x.milliCPUs != config.MilliCPUs {
+				t.Errorf("parallel group incorrect (milliCPUs): got %d want %d", x.milliCPUs, config.MilliCPUs)
 			}
 			if x.pgVersion != config.PGMajorVersion {
 				t.Errorf("parallel group incorrect (PG version): got %s want %s", x.pgVersion, config.PGMajorVersion)
