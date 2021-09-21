@@ -64,7 +64,7 @@ func TestNewParallelRecommender(t *testing.T) {
 		workers := rand.Intn(128-MaxBackgroundWorkersDefault+1) + MaxBackgroundWorkersDefault
 		r := NewParallelRecommender(milliCPUs, workers)
 		if r == nil {
-			t.Errorf("unexpected nil recommender")
+			t.Fatalf("unexpected nil recommender")
 		}
 		if got := r.milliCPUs; got != milliCPUs {
 			t.Errorf("recommender has incorrect cpus: got %d want %d", got, milliCPUs)

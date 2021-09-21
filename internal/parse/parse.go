@@ -19,23 +19,20 @@ const (
 
 // Suffixes for byte measurements that are valid to PostgreSQL
 const (
-	TB = "TB"    // terabyte
-	GB = "GB"    // gigabyte
-	MB = "MB"    // megabyte
-	KB = "kB"    // kilobyte
-	B  = ""      // no unit, therefore: bytes
+	TB = "TB" // terabyte
+	GB = "GB" // gigabyte
+	MB = "MB" // megabyte
+	KB = "kB" // kilobyte
+	B  = ""   // no unit, therefore: bytes
 )
 
 const (
-	errIncorrectFormatFmt      = "incorrect PostgreSQL bytes format: '%s'"
-	errCouldNotParseBytesFmt   = "could not parse bytes number: %v"
-	errCouldNotParseVersionFmt = "unable to parse PG version string: %s"
-	errUnknownMajorVersionFmt  = "unknown major PG version: %s"
+	errIncorrectFormatFmt    = "incorrect PostgreSQL bytes format: '%s'"
+	errCouldNotParseBytesFmt = "could not parse bytes number: %v"
 )
 
 var (
-	pgBytesRegex   = regexp.MustCompile("^([0-9]+)((?:k|M|G|T)B)?$")
-	pgVersionRegex = regexp.MustCompile("^PostgreSQL ([0-9]+?).([0-9]+?).*")
+	pgBytesRegex = regexp.MustCompile("^([0-9]+)((?:k|M|G|T)B)?$")
 )
 
 func parseIntToFloatUnits(bytes uint64) (float64, string) {

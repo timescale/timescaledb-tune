@@ -50,7 +50,7 @@ func TestNewWALRecommender(t *testing.T) {
 		mem := rand.Uint64()
 		r := NewWALRecommender(mem, walDiskUnset)
 		if r == nil {
-			t.Errorf("unexpected nil recommender")
+			t.Fatalf("unexpected nil recommender")
 		}
 		if got := r.totalMemory; got != mem {
 			t.Errorf("recommender has incorrect memory: got %d want %d", got, mem)

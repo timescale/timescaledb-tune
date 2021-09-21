@@ -242,7 +242,7 @@ type testRestorer struct {
 	errMsg string
 }
 
-func (r *testRestorer) Restore(backupPath, confPath string) error {
+func (r *testRestorer) Restore(_, _ string) error {
 	if r.errMsg != "" {
 		return fmt.Errorf(r.errMsg)
 	}
@@ -1295,14 +1295,18 @@ func TestTunerProcessTunables(t *testing.T) {
 	handler := setupDefaultTestIO(input)
 	cfs := &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner := newTunerWithDefaultFlags(handler, cfs)
-	tuner.processTunables(config)
+	if err := tuner.processTunables(config); err != nil {
+		t.Errorf("processTunable returned an error: %v", err)
+	}
 	check(tuner.handler, config, 4)
 
 	config.MilliCPUs = 1 * pgutils.MilliScaleFactor
 	handler = setupDefaultTestIO(input)
 	cfs = &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner = newTunerWithDefaultFlags(handler, cfs)
-	tuner.processTunables(config)
+	if err := tuner.processTunables(config); err != nil {
+		t.Errorf("processTunable returned an error: %v", err)
+	}
 	check(tuner.handler, config, 3)
 }
 

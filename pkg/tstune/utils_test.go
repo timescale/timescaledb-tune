@@ -134,7 +134,7 @@ func TestGetPGMajorVersion(t *testing.T) {
 		{
 			desc:    "failed major parse",
 			binPath: okPath60,
-			errMsg:  fmt.Sprintf("unknown major PG version: PostgreSQL 6.0.5"),
+			errMsg:  "unknown major PG version: PostgreSQL 6.0.5",
 		},
 		{
 			desc:    "failed unsupported",

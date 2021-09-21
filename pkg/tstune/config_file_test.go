@@ -23,7 +23,9 @@ func TestRemoveDuplicatesProcessor(t *testing.T) {
 		{content: "foo = 'quaz'"},
 	}
 	p := &removeDuplicatesProcessor{regex: keyToRegexQuoted("foo")}
-	p.Process(lines[0])
+	if err := p.Process(lines[0]); err != nil {
+		t.Errorf("Process returned error: %v", err)
+	}
 	if lines[0].remove {
 		t.Errorf("first instance incorrectly marked for remove")
 	}

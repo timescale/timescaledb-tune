@@ -7,7 +7,7 @@ import (
 
 const extName = "timescaledb"
 
-var sharedRegex = regexp.MustCompile("(#+?\\s*)?shared_preload_libraries = '(.*?)'.*")
+var sharedRegex = regexp.MustCompile(`(#+?\s*)?shared_preload_libraries = '(.*?)'.*`)
 
 // sharedLibResult holds the results of extracting/parsing the shared_preload_libraries
 // line of a postgresql.conf file.

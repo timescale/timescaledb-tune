@@ -87,7 +87,7 @@ func TestNewMemoryRecommender(t *testing.T) {
 		milliCPus := rand.Intn(128) * pgutils.MilliScaleFactor
 		r := NewMemoryRecommender(mem, milliCPus, MaxConnectionsDefault)
 		if r == nil {
-			t.Errorf("unexpected nil recommender")
+			t.Fatalf("unexpected nil recommender")
 		}
 		if got := r.totalMemory; got != mem {
 			t.Errorf("recommender has incorrect memory: got %d want %d", got, mem)

@@ -316,7 +316,9 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	// Add our params to the conf file, and cleanup because old versions of Tuner
 	// were noisy and left these params each time.
 	t.processOurParams()
-	t.cfs.ProcessLines(getRemoveDuplicatesProcessors(ourParams)...)
+	if err = t.cfs.ProcessLines(getRemoveDuplicatesProcessors(ourParams)...); err != nil {
+		t.handler.errorExit(fmt.Errorf("ProcessLines returned an error: %v", err))
+	}
 
 	// Wrap up: Either write it out, or show success in --dry-run
 	if !t.flags.DryRun {
