@@ -32,7 +32,7 @@ const (
 	effectiveIODefaultOldVersions = "200"
 	effectiveIODefault            = "256"
 
-	minMaxConns = 20
+	minMaxConns = 25
 )
 
 // MaxConnectionsDefault is the recommended default value for max_connections.
