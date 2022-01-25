@@ -10,7 +10,7 @@ memory, parallelism, WAL, and other settings.
 ### Getting started
 You need the Go runtime (1.12+) installed, then simply `go get` this repo:
 ```bash
-$ go get github.com/timescale/timescaledb-tune/cmd/timescaledb-tune
+$ go install github.com/timescale/timescaledb-tune/cmd/timescaledb-tune@master
 ```
 
 It is also available as a binary package on a variety systems using
