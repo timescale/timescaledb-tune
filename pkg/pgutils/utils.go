@@ -14,6 +14,7 @@ const (
 	MajorVersion12 = "12"
 	MajorVersion13 = "13"
 	MajorVersion14 = "14"
+	MajorVersion15 = "15"
 )
 
 const (
@@ -25,7 +26,7 @@ const (
 )
 
 var (
-	pgVersionRegex = regexp.MustCompile("^PostgreSQL ([0-9]+?).([0-9]+?).*")
+	pgVersionRegex = regexp.MustCompile("^PostgreSQL ([0-9]+)([.][0-9]+|devel|beta)")
 
 	execFn = func(name string, args ...string) ([]byte, error) {
 		return exec.Command(name, args...).Output()
@@ -44,10 +45,10 @@ func ToPGMajorVersion(val string) (string, error) {
 		return "", fmt.Errorf(errCouldNotParseVersionFmt, val)
 	}
 	switch res[1] {
-	case MajorVersion10, MajorVersion11, MajorVersion12, MajorVersion13, MajorVersion14:
+	case MajorVersion10, MajorVersion11, MajorVersion12, MajorVersion13, MajorVersion14, MajorVersion15:
 		return res[1], nil
 	case "7", "8", "9":
-		return res[1] + "." + res[2], nil
+		return res[1] + res[2], nil
 	default:
 		return "", fmt.Errorf(errUnknownMajorVersionFmt, val)
 	}
