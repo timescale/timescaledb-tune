@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -31,7 +32,7 @@ type truncateWriter interface {
 // getConfigFilePath attempts to find the postgresql.conf file using path heuristics
 // for different operating systems. If successful it returns the full path to
 // the file; otherwise, it returns with an empty path and error.
-func getConfigFilePath(os, pgVersion string) (string, error) {
+func getConfigFilePath(system, pgVersion string) (string, error) {
 	tried := []string{}
 	try := func(format string, args ...interface{}) string {
 		fileName := fmt.Sprintf(format, args...)
@@ -41,7 +42,14 @@ func getConfigFilePath(os, pgVersion string) (string, error) {
 		}
 		return ""
 	}
-	switch os {
+	pgdata := os.Getenv("PGDATA")
+	if pgdata != "" {
+		fileName := try(pgdata + "/postgresql.conf")
+		if fileName != "" {
+			return fileName, nil
+		}
+	}
+	switch system {
 	case osMac:
 		fileName := try(fileNameMac)
 		if fileName != "" {
