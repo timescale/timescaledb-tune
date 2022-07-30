@@ -35,7 +35,7 @@ const (
 	// If you want to lower this value, consider that Patroni will not accept anything less than 25 as
 	// a valid max_connections and will replace it with 100, per
 	// https://github.com/zalando/patroni/blob/00cc62726d6df25d31f9b0baa082c83cd3f7bef9/patroni/postgresql/config.py#L280
-	minMaxConns = 20
+	minMaxConns = 25
 )
 
 // MaxConnectionsDefault is the recommended default value for max_connections.
