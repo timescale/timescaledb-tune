@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/pbnjay/memory"
+
 	"github.com/timescale/timescaledb-tune/internal/parse"
 	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 	"github.com/timescale/timescaledb-tune/pkg/pgutils"
@@ -1011,7 +1012,7 @@ var (
 	}
 	memSettingsCommented = []string{
 		"#shared_buffers = 2GB  # should be uncommented",
-		"work_mem = 26214kB",
+		"work_mem = 20971kB",
 		"effective_cache_size = 6GB",
 		"maintenance_work_mem = 1GB",
 	}
@@ -1023,13 +1024,13 @@ var (
 	}
 	memSettingsMissing = []string{
 		"shared_buffers = 2GB",
-		"work_mem = 26214kB",
+		"work_mem = 20971kB",
 		// missing effective cache size
 		"maintenance_work_mem = 1GB",
 	}
 	memSettingsCommentWrong = []string{
 		"#shared_buffers = 0GB  # should be uncommented, and 2GB",
-		"work_mem = 26214kB",
+		"work_mem = 20971kB",
 		"effective_cache_size = 6GB",
 		"maintenance_work_mem = 0GB  # should be non-0",
 	}
@@ -1048,7 +1049,7 @@ var (
 )
 
 const (
-	testMaxConns        = 20
+	testMaxConns        = 25
 	testMem      uint64 = 8 * parse.Gigabyte
 	testCPUs            = 4
 	testWorkers         = pgtune.MaxBackgroundWorkersDefault
@@ -1231,6 +1232,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		}
 
 		out := tuner.handler.out.(*testWriter)
+
 		if got := len(out.lines); got != c.wantPrints {
 			t.Errorf("%s: incorrect number of prints: got %d want %d", c.desc, got, c.wantPrints)
 		}
@@ -1315,7 +1317,7 @@ var (
 		"shared_buffers = 2GB",
 		"effective_cache_size = 6GB",
 		"maintenance_work_mem = 1GB",
-		"work_mem = 26214kB",
+		"work_mem = 20971kB",
 		"timescaledb.max_background_workers = 8",
 		"max_worker_processes = 15",
 		"max_parallel_workers_per_gather = 2",
@@ -1370,13 +1372,13 @@ func TestTunerProcessOurParams(t *testing.T) {
 			lines: []string{
 				"not a useful line",
 				ourParamString(lastTunedParam),
-				ourParamString(lastTunedParam), //repeat
+				ourParamString(lastTunedParam), // repeat
 				ourParamString(lastTunedVersionParam),
 			},
 			wantLines: []string{
 				"not a useful line",
 				ourParamString(lastTunedParam),
-				ourParamString(lastTunedParam), //repeat
+				ourParamString(lastTunedParam), // repeat
 				ourParamString(lastTunedVersionParam),
 			},
 		},
@@ -1512,6 +1514,9 @@ func TestTunerProcessQuiet(t *testing.T) {
 		}
 
 		if c.wantSuccesses == 1 {
+			if len(tp.successes) == 0 {
+				t.Fatal("no successes when successes are expected")
+			}
 			if got := tp.successes[0]; got != successQuiet {
 				t.Errorf("%s: incorrect success: got\n%s\nwant\n%s", c.desc, got, successQuiet)
 			}
