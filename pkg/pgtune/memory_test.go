@@ -214,16 +214,11 @@ func TestMemoryRecommenderRecommend(t *testing.T) {
 	}
 }
 
-func TestMemoryRecommenderRecommendPanic(t *testing.T) {
-	func() {
-		r := NewMemoryRecommender(1, 1, 1)
-		defer func() {
-			if re := recover(); re == nil {
-				t.Errorf("did not panic when should")
-			}
-		}()
-		r.Recommend("foo")
-	}()
+func TestMemoryRecommenderNoRecommendation(t *testing.T) {
+	r := NewMemoryRecommender(1, 1, 1)
+	if r.Recommend("foo") != NoRecommendation {
+		t.Error("Recommendation was provided when there should have been none")
+	}
 }
 
 func TestMemorySettingsGroup(t *testing.T) {
@@ -236,7 +231,7 @@ func TestMemorySettingsGroup(t *testing.T) {
 				config.maxConns = conns
 
 				sg := GetSettingsGroup(MemoryLabel, config)
-				testSettingGroup(t, sg, matrix, MemoryLabel, MemoryKeys)
+				testSettingGroup(t, sg, DefaultProfile, matrix, MemoryLabel, MemoryKeys)
 			}
 		}
 	}

@@ -3,6 +3,7 @@ package pgtune
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 )
 
@@ -80,7 +81,7 @@ func TestNewSystemConfig(t *testing.T) {
 }
 
 func TestGetSettingsGroup(t *testing.T) {
-	okLabels := []string{MemoryLabel, ParallelLabel, WALLabel, MiscLabel}
+	okLabels := []string{MemoryLabel, ParallelLabel, WALLabel, BgwriterLabel, MiscLabel}
 	config := getDefaultTestSystemConfig(t)
 	for _, label := range okLabels {
 		sg := GetSettingsGroup(label, config)
@@ -109,6 +110,9 @@ func TestGetSettingsGroup(t *testing.T) {
 			if x.walDiskSize != config.WALDiskSize {
 				t.Errorf("WAL group incorrect (wal disk): got %d want %d", x.walDiskSize, config.WALDiskSize)
 			}
+		case *BgwriterSettingsGroup:
+			// nothing to check here
+			continue
 		case *MiscSettingsGroup:
 			if x.totalMemory != config.Memory {
 				t.Errorf("Misc group incorrect (memory): got %d want %d", x.totalMemory, config.Memory)
@@ -132,7 +136,7 @@ func TestGetSettingsGroup(t *testing.T) {
 	}()
 }
 
-func testSettingGroup(t *testing.T, sg SettingsGroup, cases map[string]string, wantLabel string, wantKeys []string) {
+func testSettingGroup(t *testing.T, sg SettingsGroup, profile Profile, cases map[string]string, wantLabel string, wantKeys []string) {
 	t.Helper()
 
 	// No matter how many calls, all calls should return the same
@@ -149,7 +153,7 @@ func testSettingGroup(t *testing.T, sg SettingsGroup, cases map[string]string, w
 			}
 		}
 
-		r := sg.GetRecommender()
+		r := sg.GetRecommender(profile)
 
 		testRecommender(t, r, sg.Keys(), cases)
 	}
@@ -168,7 +172,31 @@ func testRecommender(t *testing.T, r Recommender, keys []string, wants map[strin
 	for _, key := range keys {
 		want := wants[key]
 		if got := r.Recommend(key); got != want {
-			t.Errorf("%v: incorrect result for key %s: got\n%s\nwant\n%s", r, key, got, want)
+			t.Errorf("%T: incorrect result for key %s: got\n%s\nwant\n%s", r, key, got, want)
 		}
+	}
+}
+
+func TestParseProfile(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected Profile
+	}{
+		{input: DefaultProfile.String(), expected: DefaultProfile},
+		{input: PromscaleProfile.String(), expected: PromscaleProfile},
+		{input: strings.ToUpper(PromscaleProfile.String()), expected: PromscaleProfile},
+	}
+	for _, kase := range cases {
+		actual, err := ParseProfile(kase.input)
+		if err != nil {
+			t.Errorf("expected %v for input %s but got an error: %v", kase.expected, kase.input, err)
+		}
+		if actual != kase.expected {
+			t.Errorf("expected %v for input %s but got %v", kase.expected, kase.input, actual)
+		}
+	}
+
+	if actual, err := ParseProfile("garbage"); err == nil {
+		t.Errorf("expected to get an error for unrecognized input, but did not. got %v", actual)
 	}
 }

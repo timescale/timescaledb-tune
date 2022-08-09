@@ -1,7 +1,6 @@
 package pgtune
 
 import (
-	"fmt"
 	"math"
 	"runtime"
 
@@ -89,7 +88,7 @@ func (r *MemoryRecommender) Recommend(key string) string {
 		}
 
 	} else {
-		panic(fmt.Sprintf("unknown key: %s", key))
+		val = NoRecommendation
 	}
 	return val
 }
@@ -126,6 +125,6 @@ func (sg *MemorySettingsGroup) Label() string { return MemoryLabel }
 func (sg *MemorySettingsGroup) Keys() []string { return MemoryKeys }
 
 // GetRecommender should return a new MemoryRecommender.
-func (sg *MemorySettingsGroup) GetRecommender() Recommender {
+func (sg *MemorySettingsGroup) GetRecommender(profile Profile) Recommender {
 	return NewMemoryRecommender(sg.totalMemory, sg.cpus, sg.maxConns)
 }

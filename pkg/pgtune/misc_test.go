@@ -179,16 +179,11 @@ func TestMiscRecommenderRecommend(t *testing.T) {
 	}
 }
 
-func TestMiscRecommenderRecommendPanic(t *testing.T) {
-	func() {
-		r := &MiscRecommender{}
-		defer func() {
-			if re := recover(); re == nil {
-				t.Errorf("did not panic when should")
-			}
-		}()
-		r.Recommend("foo")
-	}()
+func TestMiscRecommenderNoRecommendation(t *testing.T) {
+	r := &MiscRecommender{}
+	if r.Recommend("foo") != NoRecommendation {
+		t.Error("Recommendation was provided when there should have been none")
+	}
 }
 
 func TestMiscSettingsGroup(t *testing.T) {
@@ -200,7 +195,7 @@ func TestMiscSettingsGroup(t *testing.T) {
 			}
 			sg := GetSettingsGroup(MiscLabel, config)
 
-			testSettingGroup(t, sg, matrix, MiscLabel, MiscKeys)
+			testSettingGroup(t, sg, DefaultProfile, matrix, MiscLabel, MiscKeys)
 		}
 	}
 }

@@ -69,7 +69,7 @@ func (r *ParallelRecommender) Recommend(key string) string {
 	} else if key == MaxBackgroundWorkers {
 		val = fmt.Sprintf("%d", r.maxBGWorkers)
 	} else {
-		panic(fmt.Sprintf("unknown key: %s", key))
+		val = NoRecommendation
 	}
 	return val
 }
@@ -93,6 +93,6 @@ func (sg *ParallelSettingsGroup) Keys() []string {
 }
 
 // GetRecommender should return a new ParallelRecommender.
-func (sg *ParallelSettingsGroup) GetRecommender() Recommender {
+func (sg *ParallelSettingsGroup) GetRecommender(profile Profile) Recommender {
 	return NewParallelRecommender(sg.cpus, sg.maxBGWorkers)
 }

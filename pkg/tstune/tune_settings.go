@@ -3,10 +3,8 @@ package tstune
 import (
 	"fmt"
 	"regexp"
-	"strconv"
 	"time"
 
-	"github.com/timescale/timescaledb-tune/internal/parse"
 	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
 
@@ -59,35 +57,7 @@ func init() {
 	setup(pgtune.ParallelKeys)
 	setup(pgtune.WALKeys)
 	setup(pgtune.MiscKeys)
-}
-
-type floatParser interface {
-	ParseFloat(string) (float64, error)
-}
-
-type bytesFloatParser struct{}
-
-func (v *bytesFloatParser) ParseFloat(s string) (float64, error) {
-	temp, err := parse.PGFormatToBytes(s)
-	return float64(temp), err
-}
-
-type numericFloatParser struct{}
-
-func (v *numericFloatParser) ParseFloat(s string) (float64, error) {
-	return strconv.ParseFloat(s, 64)
-}
-
-// getFloatParser returns the correct floatParser for a given pgtune.Recommender.
-func getFloatParser(r pgtune.Recommender) floatParser {
-	switch r.(type) {
-	case *pgtune.MemoryRecommender:
-		return &bytesFloatParser{}
-	case *pgtune.WALRecommender:
-		return &bytesFloatParser{}
-	default:
-		return &numericFloatParser{}
-	}
+	setup(pgtune.BgwriterKeys)
 }
 
 // keyToRegex takes a conf file key/param name and creates the correct regular

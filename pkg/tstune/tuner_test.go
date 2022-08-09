@@ -1060,9 +1060,11 @@ type testSettingsGroup struct {
 	keys []string
 }
 
-func (sg *testSettingsGroup) Label() string                      { return "foo" }
-func (sg *testSettingsGroup) Keys() []string                     { return sg.keys }
-func (sg *testSettingsGroup) GetRecommender() pgtune.Recommender { return &badRecommender{} }
+func (sg *testSettingsGroup) Label() string  { return "foo" }
+func (sg *testSettingsGroup) Keys() []string { return sg.keys }
+func (sg *testSettingsGroup) GetRecommender(profile pgtune.Profile) pgtune.Recommender {
+	return &badRecommender{}
+}
 
 func getDefaultSystemConfig(t *testing.T) *pgtune.SystemConfig {
 	config, err := pgtune.NewSystemConfig(testMem, testCPUs, pgutils.MajorVersion10, testWALDisk, testMaxConns, testWorkers)
@@ -1077,6 +1079,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 	cases := []struct {
 		desc           string
 		ts             pgtune.SettingsGroup
+		profile        pgtune.Profile
 		lines          []string
 		input          string
 		wantStatements uint64
@@ -1089,6 +1092,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "bad recommender",
 			ts:             &testSettingsGroup{pgtune.ParallelKeys},
+			profile:        pgtune.DefaultProfile,
 			lines:          []string{fmt.Sprintf("%s = 1.0", pgtune.ParallelKeys[0])},
 			wantStatements: 1, // only intro remark
 			wantPrints:     1, // one for initial newline
@@ -1097,6 +1101,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "no keys, no need to prompt",
 			ts:             &testSettingsGroup{},
+			profile:        pgtune.DefaultProfile,
 			lines:          memSettingsCorrect,
 			wantStatements: 1, // only intro remark
 			wantPrompts:    0,
@@ -1107,6 +1112,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "memory - commented",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
+			profile:        pgtune.DefaultProfile,
 			lines:          memSettingsCommented,
 			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -1118,6 +1124,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "memory - wrong",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
+			profile:        pgtune.DefaultProfile,
 			lines:          memSettingsWrongVal,
 			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -1129,6 +1136,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "memory - missing",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
+			profile:        pgtune.DefaultProfile,
 			lines:          memSettingsMissing,
 			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -1141,6 +1149,19 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "memory - comment+wrong",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
+			profile:        pgtune.DefaultProfile,
+			lines:          memSettingsCommentWrong,
+			input:          " \ny\n",
+			wantStatements: 3, // intro remark + current label + recommend label
+			wantPrompts:    2, // first input is blank
+			wantPrints:     5, // one for initial newline + two settings, displayed twice
+			successMsg:     "memory settings will be updated",
+			shouldErr:      false,
+		},
+		{
+			desc:           "memory - comment+wrong promscale",
+			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
+			profile:        pgtune.PromscaleProfile, // should produce the same results as the default profile
 			lines:          memSettingsCommentWrong,
 			input:          " \ny\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -1152,6 +1173,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "memory - comment+wrong+missing",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
+			profile:        pgtune.DefaultProfile,
 			lines:          memSettingsCommentWrongMissing,
 			input:          " \n \ny\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -1164,6 +1186,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "memory - all wrong, but skip",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
+			profile:        pgtune.DefaultProfile,
 			lines:          memSettingsAllWrong,
 			input:          "s\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -1176,6 +1199,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "memory - all wrong, but quit",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
+			profile:        pgtune.DefaultProfile,
 			lines:          memSettingsAllWrong,
 			input:          " \nqUIt\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -1187,6 +1211,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "memory - all wrong",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
+			profile:        pgtune.DefaultProfile,
 			lines:          memSettingsAllWrong,
 			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
@@ -1198,6 +1223,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "label capitalized",
 			ts:             pgtune.GetSettingsGroup(pgtune.WALLabel, config),
+			profile:        pgtune.DefaultProfile,
 			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    1,
@@ -1206,12 +1232,38 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 			successMsg:     "WAL settings will be updated",
 			shouldErr:      false,
 		},
+		{
+			desc:           "wal - checkpoint_timeout promscale",
+			ts:             pgtune.GetSettingsGroup(pgtune.WALLabel, config),
+			profile:        pgtune.PromscaleProfile,
+			lines:          []string{"checkpoint_timeout = 5m"},
+			input:          "y\n",
+			wantStatements: 3, // intro remark + current label + recommend label
+			wantPrompts:    1,
+			wantPrints:     6, // one for initial newline + 3 for recommendations
+			wantErrors:     3, // 3 are missing
+			successMsg:     "WAL settings will be updated",
+			shouldErr:      false,
+		},
+		{
+			desc:           "bgwriter",
+			ts:             pgtune.GetSettingsGroup(pgtune.BgwriterLabel, config),
+			profile:        pgtune.PromscaleProfile,
+			lines:          []string{"bgwriter_delay = 13s", "bgwriter_lru_maxpages = 1000"},
+			input:          "y\n",
+			wantStatements: 3, // intro remark + current label + recommend label
+			wantPrompts:    1,
+			wantPrints:     5,
+			wantErrors:     0,
+			successMsg:     "background writer settings will be updated",
+			shouldErr:      false,
+		},
 	}
 
 	for _, c := range cases {
 		tuner := newTunerWithDefaultFlagsForInputs(t, c.input, c.lines)
 
-		err := tuner.processSettingsGroup(c.ts)
+		err := tuner.processSettingsGroup(c.ts, c.profile)
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {
@@ -1285,10 +1337,11 @@ func TestTunerProcessTunables(t *testing.T) {
 			idx += 3
 		}
 		checkStmt("Memory settings recommendations")
-		if wantGroups > 3 {
+		if wantGroups > 4 {
 			checkStmt("Parallelism settings recommendations")
 		}
 		checkStmt("WAL settings recommendations")
+		checkStmt("Background writer settings recommendations")
 		checkStmt("Miscellaneous settings recommendations")
 	}
 	input := "y\ny\ny\ny\n"
@@ -1297,15 +1350,31 @@ func TestTunerProcessTunables(t *testing.T) {
 	handler := setupDefaultTestIO(input)
 	cfs := &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner := newTunerWithDefaultFlags(handler, cfs)
-	tuner.processTunables(config)
-	check(tuner.handler, config, 4)
+	tuner.processTunables(config, pgtune.DefaultProfile)
+	check(tuner.handler, config, 5)
 
+	// changes to parallelism settings should not be recommended if only 1 CPU
 	config.CPUs = 1
 	handler = setupDefaultTestIO(input)
 	cfs = &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
 	tuner = newTunerWithDefaultFlags(handler, cfs)
-	tuner.processTunables(config)
-	check(tuner.handler, config, 3)
+	tuner.processTunables(config, pgtune.DefaultProfile)
+	check(tuner.handler, config, 4)
+
+	config = getDefaultSystemConfig(t)
+	handler = setupDefaultTestIO(input)
+	cfs = &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
+	tuner = newTunerWithDefaultFlags(handler, cfs)
+	tuner.processTunables(config, pgtune.PromscaleProfile)
+	check(tuner.handler, config, 5)
+
+	// changes to parallelism settings should not be recommended if only 1 CPU
+	config.CPUs = 1
+	handler = setupDefaultTestIO(input)
+	cfs = &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
+	tuner = newTunerWithDefaultFlags(handler, cfs)
+	tuner.processTunables(config, pgtune.PromscaleProfile)
+	check(tuner.handler, config, 4)
 }
 
 var (
@@ -1460,7 +1529,7 @@ func TestTunerProcessQuiet(t *testing.T) {
 		tuner := newTunerWithDefaultFlagsForInputs(t, input, c.lines)
 		tuner.flags.Quiet = true
 
-		err := tuner.processQuiet(config)
+		err := tuner.processQuiet(config, pgtune.DefaultProfile)
 		if err != nil && !c.shouldErr {
 			t.Errorf("%s: unexpected error: %v", c.desc, err)
 		} else if err == nil && c.shouldErr {
