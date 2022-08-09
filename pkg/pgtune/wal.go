@@ -1,21 +1,22 @@
 package pgtune
 
 import (
-	"fmt"
-
 	"github.com/timescale/timescaledb-tune/internal/parse"
 )
 
 // Keys in the conf file that are tuned related to the WAL
 const (
-	WALBuffersKey = "wal_buffers"
-	MinWALKey     = "min_wal_size"
-	MaxWALKey     = "max_wal_size"
+	WALBuffersKey        = "wal_buffers"
+	MinWALKey            = "min_wal_size"
+	MaxWALKey            = "max_wal_size"
+	CheckpointTimeoutKey = "checkpoint_timeout"
 
-	walMaxDiskPct       = 60 // max_wal_size should be 60% of the WAL disk
-	walBuffersThreshold = 2 * parse.Gigabyte
-	walBuffersDefault   = 16 * parse.Megabyte
-	defaultMaxWALBytes  = 1 * parse.Gigabyte
+	walMaxDiskPct                     = 60 // max_wal_size should be 60% of the WAL disk
+	walBuffersThreshold               = 2 * parse.Gigabyte
+	walBuffersDefault                 = 16 * parse.Megabyte
+	defaultMaxWALBytes                = 1 * parse.Gigabyte
+	promscaleDefaultMaxWALBytes       = 4 * parse.Gigabyte
+	promscaleDefaultCheckpointTimeout = "900" // 15 minutes expressed in seconds
 )
 
 // WALLabel is the label used to refer to the WAL settings group
@@ -26,6 +27,7 @@ var WALKeys = []string{
 	WALBuffersKey,
 	MinWALKey,
 	MaxWALKey,
+	CheckpointTimeoutKey,
 }
 
 // WALRecommender gives recommendations for WALKeys based on system resources
@@ -66,7 +68,7 @@ func (r *WALRecommender) Recommend(key string) string {
 		temp := r.calcMaxWALBytes()
 		val = parse.BytesToPGFormat(temp)
 	} else {
-		panic(fmt.Sprintf("unknown key: %s", key))
+		val = NoRecommendation
 	}
 	return val
 }
@@ -102,6 +104,87 @@ func (sg *WALSettingsGroup) Label() string { return WALLabel }
 func (sg *WALSettingsGroup) Keys() []string { return WALKeys }
 
 // GetRecommender should return a new WALRecommender.
-func (sg *WALSettingsGroup) GetRecommender() Recommender {
-	return NewWALRecommender(sg.totalMemory, sg.walDiskSize)
+func (sg *WALSettingsGroup) GetRecommender(profile Profile) Recommender {
+	switch profile {
+	case PromscaleProfile:
+		return NewPromscaleWALRecommender(sg.totalMemory, sg.walDiskSize)
+	default:
+		return NewWALRecommender(sg.totalMemory, sg.walDiskSize)
+	}
+}
+
+// PromscaleWALRecommender gives recommendations for WALKeys based on system resources
+type PromscaleWALRecommender struct {
+	WALRecommender
+}
+
+// NewPromscaleWALRecommender returns a PromscaleWALRecommender that recommends based on the given
+// totalMemory bytes.
+func NewPromscaleWALRecommender(totalMemory, walDiskSize uint64) *PromscaleWALRecommender {
+	return &PromscaleWALRecommender{
+		WALRecommender: WALRecommender{
+			totalMemory: totalMemory,
+			walDiskSize: walDiskSize,
+		},
+	}
+}
+
+// IsAvailable returns whether this Recommender is usable given the system resources. Always true.
+func (r *PromscaleWALRecommender) IsAvailable() bool {
+	return true
+}
+
+// Recommend returns the recommended PostgreSQL formatted value for the conf
+// file for a given key.
+func (r *PromscaleWALRecommender) Recommend(key string) string {
+	switch key {
+	case MinWALKey:
+		temp := r.promscaleCalcMaxWALBytes() / 2
+		return parse.BytesToPGFormat(temp)
+	case MaxWALKey:
+		temp := r.promscaleCalcMaxWALBytes()
+		return parse.BytesToPGFormat(temp)
+	case CheckpointTimeoutKey:
+		return promscaleDefaultCheckpointTimeout
+	default:
+		return r.WALRecommender.Recommend(key)
+	}
+}
+
+func (r *WALRecommender) promscaleCalcMaxWALBytes() uint64 {
+	// If disk size is not given, just use default
+	if r.walDiskSize == 0 {
+		return promscaleDefaultMaxWALBytes
+	}
+
+	// With size given, we want to take up at most walMaxDiskPct, to give
+	// additional room for safety.
+	max := uint64(r.walDiskSize*walMaxDiskPct) / 100
+
+	// WAL segments are 16MB, so it doesn't make sense not to round
+	// up to the nearest 16MB boundary.
+	if max%(16*parse.Megabyte) != 0 {
+		max = (max/(16*parse.Megabyte) + 1) * 16 * parse.Megabyte
+	}
+	return max
+}
+
+type WALFloatParser struct{}
+
+func (v *WALFloatParser) ParseFloat(key string, s string) (float64, error) {
+	switch key {
+	case CheckpointTimeoutKey:
+		val, units, err := parse.PGFormatToTime(s, parse.Milliseconds, parse.VarTypeInteger)
+		if err != nil {
+			return val, err
+		}
+		conv, err := parse.TimeConversion(units, parse.Milliseconds)
+		if err != nil {
+			return val, err
+		}
+		return val * conv, nil
+	default:
+		bfp := &bytesFloatParser{}
+		return bfp.ParseFloat(key, s)
+	}
 }

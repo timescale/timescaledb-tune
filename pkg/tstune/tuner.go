@@ -83,8 +83,9 @@ type TunerFlags struct {
 	YesAlways    bool   // always respond yes to prompts
 	Quiet        bool   // show only the bare necessities
 	UseColor     bool   // use color in output
-	DryRun       bool   // whether to actual persist changes to disk
+	DryRun       bool   // whether to actually persist changes to disk
 	Restore      bool   // whether to restore a backup
+	Profile      string // a specific "mode" to provide recommendations tailored to a special workload type, e.g. "promscale"
 }
 
 // Tuner represents the tuning program for TimescaleDB.
@@ -247,6 +248,12 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		}
 	}
 
+	profile, err := pgtune.ParseProfile(t.flags.Profile)
+	ifErrHandle(err)
+	if profile != pgtune.DefaultProfile {
+		t.handler.p.Statement("Tuning with profile: %s", profile)
+	}
+
 	// Before proceeding, make sure we have a valid system config
 	config, err := t.initializeSystemConfig()
 	ifErrHandle(err)
@@ -290,7 +297,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 
 	// Process the tuning of settings
 	if t.flags.Quiet {
-		err = t.processQuiet(config)
+		err = t.processQuiet(config, profile)
 		ifErrHandle(err)
 	} else {
 		err = t.processSharedLibLine()
@@ -299,7 +306,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		fmt.Fprintf(t.handler.outErr, "\n")
 		err = t.promptUntilValidInput(promptTune+promptYesNo, newYesNoChecker(""))
 		if err == nil {
-			err = t.processTunables(config)
+			err = t.processTunables(config, profile)
 			ifErrHandle(err)
 		} else if err.Error() != "" { // error msg of "" is response when user selects no to tuning
 			t.handler.errorExit(err)
@@ -435,10 +442,10 @@ func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunablePar
 			continue
 		}
 
-		rv := getFloatParser(recommender)
+		rv := pgtune.GetFloatParser(recommender)
 
 		// parse the value already there; if unparseable, should show our rec
-		curr, err := rv.ParseFloat(r.value)
+		curr, err := rv.ParseFloat(k, r.value)
 		if err != nil {
 			show[k] = true
 			continue
@@ -446,7 +453,11 @@ func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunablePar
 
 		// get and parse our recommendation; fail if for we can't
 		rec := recommender.Recommend(k)
-		target, err := rv.ParseFloat(rec)
+		if rec == pgtune.NoRecommendation {
+			// don't bother adding it to the map. no recommendation
+			continue
+		}
+		target, err := rv.ParseFloat(k, rec)
 		if err != nil {
 			return nil, fmt.Errorf("unexpected parsing problem: %v", err)
 		}
@@ -459,7 +470,7 @@ func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunablePar
 	return show, nil
 }
 
-func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
+func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, profile pgtune.Profile) error {
 	label := sg.Label()
 	quiet := t.flags.Quiet
 	if !quiet {
@@ -467,7 +478,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 		t.handler.p.Statement(fmt.Sprintf("%s%s settings recommendations", strings.ToUpper(label[:1]), label[1:]))
 	}
 	keys := sg.Keys()
-	recommender := sg.GetRecommender()
+	recommender := sg.GetRecommender(profile)
 
 	// Get a map of only the settings that are missing, commented out, or not "close enough" to our recommendation.
 	show, err := checkIfShouldShowSetting(keys, t.cfs.tuneParseResults, recommender)
@@ -497,6 +508,11 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 			// Display current settings, but only those with new recommendations
 			t.handler.p.Statement(currentLabel)
 			doWithVisibile(func(r *tunableParseResult) {
+				// don't bother displaying current settings for keys for which we have no recommendation
+				rec := recommender.Recommend(r.key)
+				if rec == pgtune.NoRecommendation {
+					return
+				}
 				if r.idx == -1 {
 					t.handler.p.Error("missing", r.key)
 					return
@@ -513,7 +529,12 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 		}
 		// Recommendations are always displayed, but the label above may not be
 		doWithVisibile(func(r *tunableParseResult) {
-			fmt.Fprintf(t.handler.out, fmtTunableParam+"\n", r.key, recommender.Recommend(r.key), "") // don't print comment, too cluttered
+			rec := recommender.Recommend(r.key)
+			// skip keys for which we have no recommendation
+			if rec == pgtune.NoRecommendation {
+				return
+			}
+			fmt.Fprintf(t.handler.out, fmtTunableParam+"\n", r.key, rec, "") // don't print comment, too cluttered
 		})
 
 		// Prompt the user for input (only in non-quiet mode)
@@ -531,7 +552,11 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 
 		// If we reach here, it means the user accepted our recommendations, so update the lines
 		doWithVisibile(func(r *tunableParseResult) {
-			newLine := &configLine{content: fmt.Sprintf(fmtTunableParam, r.key, recommender.Recommend(r.key), r.extra)} // do write comment into file
+			rec := recommender.Recommend(r.key)
+			if rec == pgtune.NoRecommendation {
+				return
+			}
+			newLine := &configLine{content: fmt.Sprintf(fmtTunableParam, r.key, rec, r.extra)} // do write comment into file
 			if r.idx == -1 {
 				t.cfs.lines = append(t.cfs.lines, newLine)
 			} else {
@@ -547,7 +572,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup) error {
 
 // processTunables handles user interactions for updating the conf file when it comes
 // to parameters than be tuned, e.g. memory.
-func (t *Tuner) processTunables(config *pgtune.SystemConfig) error {
+func (t *Tuner) processTunables(config *pgtune.SystemConfig, profile pgtune.Profile) error {
 	quiet := t.flags.Quiet
 	if !quiet {
 		t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.CPUs, config.PGMajorVersion)
@@ -556,16 +581,17 @@ func (t *Tuner) processTunables(config *pgtune.SystemConfig) error {
 		pgtune.MemoryLabel,
 		pgtune.ParallelLabel,
 		pgtune.WALLabel,
+		pgtune.BgwriterLabel,
 		pgtune.MiscLabel,
 	}
 
 	for _, label := range tunables {
 		sg := pgtune.GetSettingsGroup(label, config)
-		r := sg.GetRecommender()
+		r := sg.GetRecommender(profile)
 		if !r.IsAvailable() {
 			continue
 		}
-		err := t.processSettingsGroup(sg)
+		err := t.processSettingsGroup(sg, profile)
 		if err != nil {
 			return err
 		}
@@ -629,7 +655,7 @@ func (w *counterWriter) Write(p []byte) (int, error) {
 }
 
 // processQuiet handles the iteractions when the user wants "quiet" output.
-func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
+func (t *Tuner) processQuiet(config *pgtune.SystemConfig, profile pgtune.Profile) error {
 	t.handler.p.Statement(statementTunableIntro, parse.BytesToDecimalFormat(config.Memory), config.CPUs, config.PGMajorVersion)
 
 	// Replace the print function with a version that counts how many times it
@@ -656,7 +682,7 @@ func (t *Tuner) processQuiet(config *pgtune.SystemConfig) error {
 	}
 
 	// print out all tunables that need to be changed
-	err := t.processTunables(config)
+	err := t.processTunables(config, profile)
 	if err != nil {
 		return err
 	}

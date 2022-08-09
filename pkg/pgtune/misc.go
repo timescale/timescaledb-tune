@@ -141,7 +141,7 @@ func (r *MiscRecommender) Recommend(key string) string {
 	} else if key == EffectiveIOKey {
 		val = getEffectiveIOConcurrency(r.pgMajorVersion)
 	} else {
-		panic(fmt.Sprintf("unknown key: %s", key))
+		val = NoRecommendation
 	}
 	return val
 }
@@ -165,6 +165,6 @@ func (sg *MiscSettingsGroup) Keys() []string {
 }
 
 // GetRecommender should return a new MiscRecommender.
-func (sg *MiscSettingsGroup) GetRecommender() Recommender {
+func (sg *MiscSettingsGroup) GetRecommender(profile Profile) Recommender {
 	return NewMiscRecommender(sg.totalMemory, sg.maxConns, sg.pgMajorVersion)
 }

@@ -45,9 +45,16 @@ func init() {
 	flag.BoolVar(&f.UseColor, "color", true, "Use color in output (works best on dark terminals)")
 	flag.BoolVar(&f.DryRun, "dry-run", false, "Whether to just show the changes without overwriting the configuration file")
 	flag.BoolVar(&f.Restore, "restore", false, "Whether to restore a previously made conf file backup")
+	flag.StringVar(&f.Profile, "profile", "", "a specific \"mode\" for tailoring recommendations to a special workload type. If blank or unspecified, a default is used unless the TSTUNE_PROFILE environment variable is set. Valid values: \"promscale\"")
 
 	flag.BoolVar(&showVersion, "version", false, "Show the version of this tool")
 	flag.Parse()
+
+	// the TSTUNE_PROFILE environment variable overrides the --profile flag if the --profile is blank or unset
+	// this is designed for docker usage
+	if val := os.Getenv("TSTUNE_PROFILE"); val != "" && f.Profile == "" {
+		f.Profile = val
+	}
 }
 
 func main() {

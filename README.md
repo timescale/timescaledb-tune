@@ -71,6 +71,14 @@ that you accepted from the prompts.
 
 #### Other invocations
 
+By default, timescaledb-tune provides recommendations for a typical timescaledb workload. The `--profile` flag can be
+used to tailor the recommendations for other workload types. Currently, the only non-default profile is "promscale".
+The `TSTUNE_PROFILE` environment variable can also be used to affect this behavior.
+
+```bash
+$ timescaledb-tune --profile promscale
+```
+
 If you want recommendations for a specific amount of memory and/or CPUs:
 ```bash
 $ timescaledb-tune --memory="4GB" --cpus=2

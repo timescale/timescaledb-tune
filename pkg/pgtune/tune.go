@@ -3,13 +3,50 @@
 // for groups of settings in a PostgreSQL conf file.
 package pgtune
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const (
 	osWindows                = "windows"
 	errMaxConnsTooLowFmt     = "maxConns must be 0 OR >= %d: got %d"
 	errMaxBGWorkersTooLowFmt = "maxBGWorkers must be >= %d: got %d"
+	errUnrecognizedProfile   = "unrecognized profile: %s"
 )
+
+// Profile is a specific "mode" in which timescaledb-tune can be run to provide recommendations tailored to a
+// special workload type, e.g. "promscale"
+type Profile int64
+
+const (
+	DefaultProfile Profile = iota
+	PromscaleProfile
+)
+
+func ParseProfile(s string) (Profile, error) {
+	switch strings.ToLower(s) {
+	case "":
+		return DefaultProfile, nil
+	case "promscale":
+		return PromscaleProfile, nil
+	default:
+		return DefaultProfile, fmt.Errorf(errUnrecognizedProfile, s)
+	}
+}
+
+func (p Profile) String() string {
+	switch p {
+	case DefaultProfile:
+		return ""
+	case PromscaleProfile:
+		return "promscale"
+	default:
+		return "unrecognized"
+	}
+}
+
+const NoRecommendation = ""
 
 // Recommender is an interface that gives setting recommendations for a given
 // key, usually grouped by logical settings groups (e.g. MemoryRecommender for memory settings).
@@ -29,7 +66,7 @@ type SettingsGroup interface {
 	// Keys are the parameter names/keys as they appear in the PostgreSQL conf file, e.g. "shared_buffers".
 	Keys() []string
 	// GetRecommender returns the Recommender that should be used for this group of settings.
-	GetRecommender() Recommender
+	GetRecommender(Profile) Recommender
 }
 
 // SystemConfig represents a system's resource configuration, to be used when generating
@@ -71,6 +108,8 @@ func GetSettingsGroup(label string, config *SystemConfig) SettingsGroup {
 		return &ParallelSettingsGroup{config.PGMajorVersion, config.CPUs, config.MaxBGWorkers}
 	case label == WALLabel:
 		return &WALSettingsGroup{config.Memory, config.WALDiskSize}
+	case label == BgwriterLabel:
+		return &BgwriterSettingsGroup{}
 	case label == MiscLabel:
 		return &MiscSettingsGroup{config.Memory, config.maxConns, config.PGMajorVersion}
 	}

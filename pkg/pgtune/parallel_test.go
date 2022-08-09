@@ -99,18 +99,14 @@ func TestParallelRecommenderRecommend(t *testing.T) {
 	}
 }
 
-func TestParallelRecommenderRecommendPanics(t *testing.T) {
-	// test invalid key panic
-	func() {
-		r := &ParallelRecommender{5, MaxBackgroundWorkersDefault}
-		defer func() {
-			if re := recover(); re == nil {
-				t.Errorf("did not panic when should")
-			}
-		}()
-		r.Recommend("foo")
-	}()
+func TestParallelRecommenderNoRecommendation(t *testing.T) {
+	r := &ParallelRecommender{5, MaxBackgroundWorkersDefault}
+	if r.Recommend("foo") != NoRecommendation {
+		t.Error("Recommendation was provided when there should have been none")
+	}
+}
 
+func TestParallelRecommenderRecommendPanics(t *testing.T) {
 	// test invalid CPU panic
 	func() {
 		defer func() {
@@ -146,7 +142,7 @@ func TestParallelSettingsGroup(t *testing.T) {
 			if got := len(sg.Keys()); got != keyCount-1 {
 				t.Errorf("incorrect number of keys for PG %s: got %d want %d", pgutils.MajorVersion96, got, keyCount-1)
 			}
-			testSettingGroup(t, sg, matrix, ParallelLabel, ParallelKeys)
+			testSettingGroup(t, sg, DefaultProfile, matrix, ParallelLabel, ParallelKeys)
 
 			// PG10 adds a key
 			config.PGMajorVersion = pgutils.MajorVersion10
@@ -154,14 +150,14 @@ func TestParallelSettingsGroup(t *testing.T) {
 			if got := len(sg.Keys()); got != keyCount {
 				t.Errorf("incorrect number of keys for PG %s: got %d want %d", pgutils.MajorVersion10, got, keyCount)
 			}
-			testSettingGroup(t, sg, matrix, ParallelLabel, ParallelKeys)
+			testSettingGroup(t, sg, DefaultProfile, matrix, ParallelLabel, ParallelKeys)
 
 			config.PGMajorVersion = pgutils.MajorVersion11
 			sg = GetSettingsGroup(ParallelLabel, config)
 			if got := len(sg.Keys()); got != keyCount {
 				t.Errorf("incorrect number of keys for PG %s: got %d want %d", pgutils.MajorVersion11, got, keyCount)
 			}
-			testSettingGroup(t, sg, matrix, ParallelLabel, ParallelKeys)
+			testSettingGroup(t, sg, DefaultProfile, matrix, ParallelLabel, ParallelKeys)
 		}
 	}
 

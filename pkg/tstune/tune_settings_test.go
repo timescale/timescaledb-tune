@@ -5,9 +5,6 @@ import (
 	"regexp"
 	"testing"
 	"time"
-
-	"github.com/timescale/timescaledb-tune/internal/parse"
-	"github.com/timescale/timescaledb-tune/pkg/pgtune"
 )
 
 // To make the test less flaky, we 0 out the seconds to make the comparison
@@ -40,58 +37,6 @@ func TestOurParamToValue(t *testing.T) {
 		}
 	}()
 	_ = ourParamString("not_a_real_param")
-}
-
-func TestBytesFloatParserParseFloat(t *testing.T) {
-	s := "8" + parse.GB
-	want := float64(8 * parse.Gigabyte)
-	v := &bytesFloatParser{}
-	got, err := v.ParseFloat(s)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if got != want {
-		t.Errorf("incorrect result: got %f want %f", got, want)
-	}
-}
-
-func TestNumericFloatParserParseFloat(t *testing.T) {
-	s := "8.245"
-	want := 8.245
-	v := &numericFloatParser{}
-	got, err := v.ParseFloat(s)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if got != want {
-		t.Errorf("incorrect result: got %f want %f", got, want)
-	}
-}
-
-func TestGetFloatParser(t *testing.T) {
-	switch x := (getFloatParser(&pgtune.MemoryRecommender{})).(type) {
-	case *bytesFloatParser:
-	default:
-		t.Errorf("wrong validator type for MemoryRecommender: got %T", x)
-	}
-
-	switch x := (getFloatParser(&pgtune.WALRecommender{})).(type) {
-	case *bytesFloatParser:
-	default:
-		t.Errorf("wrong validator type for WALRecommender: got %T", x)
-	}
-
-	switch x := (getFloatParser(&pgtune.ParallelRecommender{})).(type) {
-	case *numericFloatParser:
-	default:
-		t.Errorf("wrong validator type for ParallelRecommender: got %T", x)
-	}
-
-	switch x := (getFloatParser(&pgtune.MiscRecommender{})).(type) {
-	case *numericFloatParser:
-	default:
-		t.Errorf("wrong validator type for MiscRecommender: got %T", x)
-	}
 }
 
 const (
