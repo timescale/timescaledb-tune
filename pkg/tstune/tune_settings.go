@@ -38,10 +38,10 @@ const (
 	// conf file that just needs to be Sprintf'd with the key name. That is, its
 	// usage is usually:
 	// regex := fmt.Sprintf(tuneRegexFmt, "key_name")
-	tuneRegexFmt = "^(\\s*#+?\\s*)?(%s) = (\\S+?)(\\s*(?:#.*|))$"
+	tuneRegexFmt = `^(\s*#+?\s*)?(%s)\s*=\s*(\S+?)(\s*(?:#.*|))$`
 	// tuneRegexQuotedFmt is similar to the format above but for string parameters
 	// that need single quotes around them
-	tuneRegexQuotedFmt = "^(\\s*#+?\\s*)?(%s) = '(.+?)'(\\s*(?:#.*|))$"
+	tuneRegexQuotedFmt = `^(\s*#+?\s*)?(%s)\s*=\s*'(.+?)'(\s*(?:#.*|))$`
 )
 
 var regexes = make(map[string]*regexp.Regexp)
