@@ -147,6 +147,27 @@ func TestParseWithRegex(t *testing.T) {
 			},
 		},
 		{
+			desc:  "correct, no whitespace surrounding =",
+			input: testKey + "=50.0",
+			want: &tunableParseResult{
+				commented: false,
+				key:       testKey,
+				value:     "50.0",
+				extra:     "",
+			},
+		},
+		{
+			desc:  "correct, much whitespace surrounding =",
+			input: testKey + "    =      50.0",
+			want: &tunableParseResult{
+				commented: false,
+				key:       testKey,
+				value:     "50.0",
+				extra:     "",
+			},
+		},
+
+		{
 			desc:  "correct, comment at end",
 			input: testKey + " = 50.0 # do not change!",
 			want: &tunableParseResult{
