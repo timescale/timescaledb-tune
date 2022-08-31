@@ -150,3 +150,8 @@ success: restored successfully
 We welcome contributions to this utility, which like TimescaleDB is
 released under the Apache2 Open Source License.  The same [Contributors Agreement](//github.com/timescale/timescaledb/blob/master/CONTRIBUTING.md)
 applies; please sign the [Contributor License Agreement](https://cla-assistant.io/timescale/timescaledb-tune) (CLA) if you're a new contributor.
+
+### Releasing
+
+Please follow the instructions [here](https://github.com/timescale/release-build-scripts/blob/release_tools/README.md#publishing-changes-to-timescaledb-tune) 
+to publish a release of this tool.
