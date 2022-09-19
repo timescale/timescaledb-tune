@@ -12,6 +12,5 @@ jobs:
       - uses: actions/add-to-project@v0.1.0
         with:
           project-url: https://github.com/orgs/timescale/projects/55
-          # Token will expire Oct 2, 2022
-          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          github-token: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           labeled: bug
