@@ -16,6 +16,7 @@ const (
 	fileNameMac       = "/usr/local/var/postgres/postgresql.conf"
 	fileNameMacFmt    = "/usr/local/var/postgresql@%s/postgresql.conf"
 	fileNameMacM1     = "/opt/homebrew/var/postgres/postgresql.conf"
+	fileNameMacM1Fmt  = "/opt/homebrew/var/postgresql@%s/postgresql.conf"
 	fileNameDebianFmt = "/etc/postgresql/%s/main/postgresql.conf"
 	fileNameRPMFmt    = "/var/lib/pgsql/%s/data/postgresql.conf"
 	fileNameArch      = "/var/lib/postgres/data/postgresql.conf"
@@ -61,6 +62,10 @@ func getConfigFilePath(system, pgVersion string) (string, error) {
 			return fileName, nil
 		}
 		fileName = try(fileNameMacM1)
+		if fileName != "" {
+			return fileName, nil
+		}
+		fileName = try(fileNameMacM1Fmt, pgVersion)
 		if fileName != "" {
 			return fileName, nil
 		}
