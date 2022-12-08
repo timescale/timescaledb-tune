@@ -1161,12 +1161,12 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 		{
 			desc:           "memory - comment+wrong promscale",
 			ts:             pgtune.GetSettingsGroup(pgtune.MemoryLabel, config),
-			profile:        pgtune.PromscaleProfile, // should produce the same results as the default profile
+			profile:        pgtune.PromscaleProfile,
 			lines:          memSettingsCommentWrong,
 			input:          " \ny\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    2, // first input is blank
-			wantPrints:     5, // one for initial newline + two settings, displayed twice
+			wantPrints:     9,
 			successMsg:     "memory settings will be updated",
 			shouldErr:      false,
 		},
@@ -1240,20 +1240,46 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    1,
-			wantPrints:     6, // one for initial newline + 3 for recommendations
-			wantErrors:     3, // 3 are missing
+			wantPrints:     7,
+			wantErrors:     4,
 			successMsg:     "WAL settings will be updated",
 			shouldErr:      false,
 		},
 		{
-			desc:           "bgwriter",
-			ts:             pgtune.GetSettingsGroup(pgtune.BgwriterLabel, config),
+			desc:           "wal - wal_compression promscale",
+			ts:             pgtune.GetSettingsGroup(pgtune.WALLabel, config),
 			profile:        pgtune.PromscaleProfile,
-			lines:          []string{"bgwriter_delay = 13s", "bgwriter_lru_maxpages = 1000"},
+			lines:          []string{"wal_compression = off"},
 			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    1,
-			wantPrints:     5,
+			wantPrints:     7,
+			wantErrors:     4,
+			successMsg:     "WAL settings will be updated",
+			shouldErr:      false,
+		},
+		{
+			desc:           "bgwriter wrong promscale",
+			ts:             pgtune.GetSettingsGroup(pgtune.BgwriterLabel, config),
+			profile:        pgtune.PromscaleProfile,
+			lines:          []string{"bgwriter_flush_after = 100"},
+			input:          "y\n",
+			wantStatements: 3, // intro remark + current label + recommend label
+			wantPrompts:    1,
+			wantPrints:     3,
+			wantErrors:     0,
+			successMsg:     "background writer settings will be updated",
+			shouldErr:      false,
+		},
+		{
+			desc:           "bgwriter correct",
+			ts:             pgtune.GetSettingsGroup(pgtune.BgwriterLabel, config),
+			profile:        pgtune.PromscaleProfile,
+			lines:          []string{"bgwriter_flush_after = 0"},
+			input:          "y\n",
+			wantStatements: 3, // intro remark + current label + recommend label
+			wantPrompts:    1,
+			wantPrints:     3,
 			wantErrors:     0,
 			successMsg:     "background writer settings will be updated",
 			shouldErr:      false,

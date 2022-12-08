@@ -53,6 +53,7 @@ func init() {
 			walSettingsMatrix[memory][walSize][MaxWALKey] = parse.BytesToPGFormat(walDiskToMaxBytes[walSize])
 			walSettingsMatrix[memory][walSize][WALBuffersKey] = parse.BytesToPGFormat(walBuffers)
 			walSettingsMatrix[memory][walSize][CheckpointTimeoutKey] = NoRecommendation
+			walSettingsMatrix[memory][walSize][WALCompressionKey] = NoRecommendation
 		}
 	}
 
@@ -64,6 +65,7 @@ func init() {
 			promscaleWalSettingsMatrix[memory][walSize][MaxWALKey] = parse.BytesToPGFormat(promscaleWALDiskToMaxBytes[walSize])
 			promscaleWalSettingsMatrix[memory][walSize][WALBuffersKey] = parse.BytesToPGFormat(walBuffers)
 			promscaleWalSettingsMatrix[memory][walSize][CheckpointTimeoutKey] = promscaleDefaultCheckpointTimeout
+			promscaleWalSettingsMatrix[memory][walSize][WALCompressionKey] = promscaleDefaultWALCompression
 		}
 	}
 }
