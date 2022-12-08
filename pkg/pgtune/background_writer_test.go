@@ -3,8 +3,6 @@ package pgtune
 import (
 	"fmt"
 	"testing"
-
-	"github.com/timescale/timescaledb-tune/internal/parse"
 )
 
 func TestBgwriterSettingsGroup_GetRecommender(t *testing.T) {
@@ -31,20 +29,14 @@ func TestBgwriterSettingsGroupRecommend(t *testing.T) {
 
 	// the default profile should provide no recommendations
 	r := sg.GetRecommender(DefaultProfile)
-	if val := r.Recommend(BgwriterDelayKey); val != NoRecommendation {
-		t.Errorf("Expected no recommendation for key %s but got %s", BgwriterDelayKey, val)
-	}
-	if val := r.Recommend(BgwriterLRUMaxPagesKey); val != NoRecommendation {
-		t.Errorf("Expected no recommendation for key %s but got %s", BgwriterLRUMaxPagesKey, val)
+	if val := r.Recommend(BgwriterFlushAfterKey); val != NoRecommendation {
+		t.Errorf("Expected no recommendation for key %s but got %s", BgwriterFlushAfterKey, val)
 	}
 
 	// the promscale profile should have recommendations
 	r = sg.GetRecommender(PromscaleProfile)
-	if val := r.Recommend(BgwriterDelayKey); val != promscaleDefaultBgwriterDelay {
-		t.Errorf("Expected %s for key %s but got %s", promscaleDefaultBgwriterDelay, BgwriterDelayKey, val)
-	}
-	if val := r.Recommend(BgwriterLRUMaxPagesKey); val != promscaleDefaultBgwriterLRUMaxPages {
-		t.Errorf("Expected %s for key %s but got %s", promscaleDefaultBgwriterLRUMaxPages, BgwriterLRUMaxPagesKey, val)
+	if val := r.Recommend(BgwriterFlushAfterKey); val != promscaleDefaultBgwriterFlushAfter {
+		t.Errorf("Expected %s for key %s but got %s", promscaleDefaultBgwriterFlushAfter, BgwriterFlushAfterKey, val)
 	}
 }
 
@@ -53,35 +45,7 @@ func TestPromscaleBgwriterRecommender(t *testing.T) {
 	if !r.IsAvailable() {
 		t.Error("PromscaleBgwriterRecommender should always be available")
 	}
-	if val := r.Recommend(BgwriterDelayKey); val != promscaleDefaultBgwriterDelay {
-		t.Errorf("Expected %s for key %s but got %s", promscaleDefaultBgwriterDelay, BgwriterDelayKey, val)
-	}
-	if val := r.Recommend(BgwriterLRUMaxPagesKey); val != promscaleDefaultBgwriterLRUMaxPages {
-		t.Errorf("Expected %s for key %s but got %s", promscaleDefaultBgwriterLRUMaxPages, BgwriterLRUMaxPagesKey, val)
-	}
-}
-
-func TestBgwriterFloatParserParseFloat(t *testing.T) {
-	v := &BgwriterFloatParser{}
-
-	s := "100"
-	want := 100.0
-	got, err := v.ParseFloat(BgwriterLRUMaxPagesKey, s)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if got != want {
-		t.Errorf("incorrect result: got %f want %f", got, want)
-	}
-
-	s = "33" + parse.Minutes.String()
-	conversion, _ := parse.TimeConversion(parse.Minutes, parse.Milliseconds)
-	want = 33.0 * conversion
-	got, err = v.ParseFloat(BgwriterDelayKey, s)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if got != want {
-		t.Errorf("incorrect result: got %f want %f", got, want)
+	if val := r.Recommend(BgwriterFlushAfterKey); val != promscaleDefaultBgwriterFlushAfter {
+		t.Errorf("Expected %s for key %s but got %s", promscaleDefaultBgwriterFlushAfter, BgwriterFlushAfterKey, val)
 	}
 }

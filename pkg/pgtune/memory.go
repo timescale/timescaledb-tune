@@ -111,6 +111,41 @@ func (r *MemoryRecommender) recommendWindows() string {
 	return parse.BytesToPGFormat(temp)
 }
 
+// PromscaleMemoryRecommender gives recommendations for ParallelKeys based on system resources
+type PromscaleMemoryRecommender struct {
+	*MemoryRecommender
+}
+
+// NewPromscaleMemoryRecommender returns a PromscaleMemoryRecommender that recommends based on the given
+// number of cpus and system memory
+func NewPromscaleMemoryRecommender(totalMemory uint64, cpus int, maxConns uint64) *PromscaleMemoryRecommender {
+	return &PromscaleMemoryRecommender{
+		MemoryRecommender: NewMemoryRecommender(totalMemory, cpus, maxConns),
+	}
+}
+
+// IsAvailable returns whether this Recommender is usable given the system resources. Always true.
+func (r *PromscaleMemoryRecommender) IsAvailable() bool {
+	return true
+}
+
+// Recommend returns the recommended PostgreSQL formatted value for the conf
+// file for a given key.
+func (r *PromscaleMemoryRecommender) Recommend(key string) string {
+	var val string
+	switch key {
+	case SharedBuffersKey:
+		if runtime.GOOS == osWindows {
+			val = parse.BytesToPGFormat(sharedBuffersWindows)
+		} else {
+			val = parse.BytesToPGFormat(r.totalMemory / 2)
+		}
+	default:
+		val = r.MemoryRecommender.Recommend(key)
+	}
+	return val
+}
+
 // MemorySettingsGroup is the SettingsGroup to represent settings that affect memory usage.
 type MemorySettingsGroup struct {
 	totalMemory uint64
@@ -126,5 +161,10 @@ func (sg *MemorySettingsGroup) Keys() []string { return MemoryKeys }
 
 // GetRecommender should return a new MemoryRecommender.
 func (sg *MemorySettingsGroup) GetRecommender(profile Profile) Recommender {
-	return NewMemoryRecommender(sg.totalMemory, sg.cpus, sg.maxConns)
+	switch profile {
+	case PromscaleProfile:
+		return NewPromscaleMemoryRecommender(sg.totalMemory, sg.cpus, sg.maxConns)
+	default:
+		return NewMemoryRecommender(sg.totalMemory, sg.cpus, sg.maxConns)
+	}
 }

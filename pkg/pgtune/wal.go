@@ -10,6 +10,7 @@ const (
 	MinWALKey            = "min_wal_size"
 	MaxWALKey            = "max_wal_size"
 	CheckpointTimeoutKey = "checkpoint_timeout"
+	WALCompressionKey    = "wal_compression"
 
 	walMaxDiskPct                     = 60 // max_wal_size should be 60% of the WAL disk
 	walBuffersThreshold               = 2 * parse.Gigabyte
@@ -17,6 +18,7 @@ const (
 	defaultMaxWALBytes                = 1 * parse.Gigabyte
 	promscaleDefaultMaxWALBytes       = 4 * parse.Gigabyte
 	promscaleDefaultCheckpointTimeout = "900" // 15 minutes expressed in seconds
+	promscaleDefaultWALCompression    = "1"
 )
 
 // WALLabel is the label used to refer to the WAL settings group
@@ -28,6 +30,7 @@ var WALKeys = []string{
 	MinWALKey,
 	MaxWALKey,
 	CheckpointTimeoutKey,
+	WALCompressionKey,
 }
 
 // WALRecommender gives recommendations for WALKeys based on system resources
@@ -146,6 +149,8 @@ func (r *PromscaleWALRecommender) Recommend(key string) string {
 		return parse.BytesToPGFormat(temp)
 	case CheckpointTimeoutKey:
 		return promscaleDefaultCheckpointTimeout
+	case WALCompressionKey:
+		return promscaleDefaultWALCompression
 	default:
 		return r.WALRecommender.Recommend(key)
 	}
@@ -173,6 +178,9 @@ type WALFloatParser struct{}
 
 func (v *WALFloatParser) ParseFloat(key string, s string) (float64, error) {
 	switch key {
+	case WALCompressionKey:
+		bfp := &boolFloatParser{}
+		return bfp.ParseFloat(key, s)
 	case CheckpointTimeoutKey:
 		val, units, err := parse.PGFormatToTime(s, parse.Milliseconds, parse.VarTypeInteger)
 		if err != nil {

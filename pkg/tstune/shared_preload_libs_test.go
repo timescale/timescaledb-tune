@@ -9,7 +9,7 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 		want  *sharedLibResult
 	}{
 		{
-			desc: "initial config value",
+			desc:  "initial config value",
 			input: "#shared_preload_libraries = ''		# (change requires restart)",
 			want: &sharedLibResult{
 				commented:    true,
@@ -18,7 +18,7 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 			},
 		},
 		{
-			desc: "extra commented out",
+			desc:  "extra commented out",
 			input: "###shared_preload_libraries = ''		# (change requires restart)",
 			want: &sharedLibResult{
 				commented:    true,
@@ -27,7 +27,7 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 			},
 		},
 		{
-			desc: "commented with space after",
+			desc:  "commented with space after",
 			input: "# shared_preload_libraries = ''		# (change requires restart)",
 			want: &sharedLibResult{
 				commented:    true,
@@ -36,7 +36,7 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 			},
 		},
 		{
-			desc: "extra commented with space after",
+			desc:  "extra commented with space after",
 			input: "## shared_preload_libraries = ''		# (change requires restart)",
 			want: &sharedLibResult{
 				commented:    true,
@@ -45,7 +45,7 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 			},
 		},
 		{
-			desc: "initial config value, uncommented",
+			desc:  "initial config value, uncommented",
 			input: "shared_preload_libraries = ''		# (change requires restart)",
 			want: &sharedLibResult{
 				commented:    false,
@@ -54,7 +54,7 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 			},
 		},
 		{
-			desc: "initial config value, uncommented with leading space",
+			desc:  "initial config value, uncommented with leading space",
 			input: "  shared_preload_libraries = ''		# (change requires restart)",
 			want: &sharedLibResult{
 				commented:    false,
@@ -63,7 +63,7 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 			},
 		},
 		{
-			desc: "timescaledb already there but commented",
+			desc:  "timescaledb already there but commented",
 			input: "#shared_preload_libraries = 'timescaledb'		# (change requires restart)",
 			want: &sharedLibResult{
 				commented:    true,
@@ -90,7 +90,7 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 			},
 		},
 		{
-			desc: "don't be greedy with things between single quotes",
+			desc:  "don't be greedy with things between single quotes",
 			input: "#shared_preload_libraries = 'timescaledb'		# comment with single quote ' test",
 			want: &sharedLibResult{
 				commented:    true,

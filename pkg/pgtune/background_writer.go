@@ -1,21 +1,16 @@
 package pgtune
 
-import "github.com/timescale/timescaledb-tune/internal/parse"
-
 const (
-	BgwriterDelayKey       = "bgwriter_delay"
-	BgwriterLRUMaxPagesKey = "bgwriter_lru_maxpages"
+	BgwriterFlushAfterKey = "bgwriter_flush_after"
 
-	promscaleDefaultBgwriterDelay       = "10ms"
-	promscaleDefaultBgwriterLRUMaxPages = "100000"
+	promscaleDefaultBgwriterFlushAfter = "0"
 )
 
 // BgwriterLabel is the label used to refer to the background writer settings group
 const BgwriterLabel = "background writer"
 
 var BgwriterKeys = []string{
-	BgwriterDelayKey,
-	BgwriterLRUMaxPagesKey,
+	BgwriterFlushAfterKey,
 }
 
 // PromscaleBgwriterRecommender gives recommendations for the background writer for the promscale profile
@@ -30,10 +25,8 @@ func (r *PromscaleBgwriterRecommender) IsAvailable() bool {
 // file for a given key.
 func (r *PromscaleBgwriterRecommender) Recommend(key string) string {
 	switch key {
-	case BgwriterDelayKey:
-		return promscaleDefaultBgwriterDelay
-	case BgwriterLRUMaxPagesKey:
-		return promscaleDefaultBgwriterLRUMaxPages
+	case BgwriterFlushAfterKey:
+		return promscaleDefaultBgwriterFlushAfter
 	default:
 		return NoRecommendation
 	}
@@ -59,25 +52,5 @@ func (sg *BgwriterSettingsGroup) GetRecommender(profile Profile) Recommender {
 		return &PromscaleBgwriterRecommender{}
 	default:
 		return &NullRecommender{}
-	}
-}
-
-type BgwriterFloatParser struct{}
-
-func (v *BgwriterFloatParser) ParseFloat(key string, s string) (float64, error) {
-	switch key {
-	case BgwriterDelayKey:
-		val, units, err := parse.PGFormatToTime(s, parse.Milliseconds, parse.VarTypeInteger)
-		if err != nil {
-			return val, err
-		}
-		conv, err := parse.TimeConversion(units, parse.Milliseconds)
-		if err != nil {
-			return val, err
-		}
-		return val * conv, nil
-	default:
-		bfp := &numericFloatParser{}
-		return bfp.ParseFloat(key, s)
 	}
 }

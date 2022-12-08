@@ -143,23 +143,23 @@ func TestParseWithRegex(t *testing.T) {
 			},
 		},
 		{
-			desc: "correct, comment at end tabs",
+			desc:  "correct, comment at end tabs",
 			input: testKey + " = 50.0	# do not change!",
 			want: &tunableParseResult{
 				commented: false,
 				key:       testKey,
 				value:     "50.0",
-				extra: "	# do not change!",
+				extra:     "	# do not change!",
 			},
 		},
 		{
-			desc: "correct, tabs at the end",
+			desc:  "correct, tabs at the end",
 			input: testKey + " = 50.0			",
 			want: &tunableParseResult{
 				commented: false,
 				key:       testKey,
 				value:     "50.0",
-				extra: "			",
+				extra:     "			",
 			},
 		},
 		{
@@ -173,7 +173,7 @@ func TestParseWithRegex(t *testing.T) {
 			},
 		},
 		{
-			desc: "commented with spaces",
+			desc:  "commented with spaces",
 			input: "	#	" + testKey + " = 50.0",
 			want: &tunableParseResult{
 				commented: true,
@@ -183,13 +183,13 @@ func TestParseWithRegex(t *testing.T) {
 			},
 		},
 		{
-			desc: "commented with ending comment",
+			desc:  "commented with ending comment",
 			input: "#	" + testKey + " = 50.0	# do not change",
 			want: &tunableParseResult{
 				commented: true,
 				key:       testKey,
 				value:     "50.0",
-				extra: "	# do not change",
+				extra:     "	# do not change",
 			},
 		},
 		{

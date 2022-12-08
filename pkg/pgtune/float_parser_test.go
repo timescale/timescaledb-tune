@@ -32,6 +32,119 @@ func TestNumericFloatParserParseFloat(t *testing.T) {
 	}
 }
 
+func Test_boolFloatParser_ParseFloat(t *testing.T) {
+	tests := []struct {
+		name    string
+		arg     string
+		want    float64
+		wantErr bool
+	}{
+		{
+			name:    "on",
+			arg:     "on",
+			want:    1.0,
+			wantErr: false,
+		},
+		{
+			name:    "oN",
+			arg:     "oN",
+			want:    1.0,
+			wantErr: false,
+		},
+		{
+			name:    "'ON'",
+			arg:     "'ON'",
+			want:    1.0,
+			wantErr: false,
+		},
+		{
+			name:    "off",
+			arg:     "off",
+			want:    0.0,
+			wantErr: false,
+		},
+		{
+			name:    "OfF",
+			arg:     "OfF",
+			want:    0.0,
+			wantErr: false,
+		},
+		{
+			name:    "'OFF'",
+			arg:     "'OFF'",
+			want:    0.0,
+			wantErr: false,
+		},
+		{
+			name:    "true",
+			arg:     "true",
+			want:    1.0,
+			wantErr: false,
+		},
+		{
+			name:    "false",
+			arg:     "false",
+			want:    0.0,
+			wantErr: false,
+		},
+		{
+			name:    "yes",
+			arg:     "yes",
+			want:    1.0,
+			wantErr: false,
+		},
+		{
+			name:    "no",
+			arg:     "no",
+			want:    0.0,
+			wantErr: false,
+		},
+		{
+			name:    "1",
+			arg:     "1",
+			want:    1.0,
+			wantErr: false,
+		},
+		{
+			name:    "0",
+			arg:     "0",
+			want:    0.0,
+			wantErr: false,
+		},
+		{
+			name:    "bob",
+			arg:     "bob",
+			want:    0.0,
+			wantErr: true,
+		},
+		{
+			name:    "99",
+			arg:     "99",
+			want:    0.0,
+			wantErr: true,
+		},
+		{
+			name:    "0.1",
+			arg:     "0.1",
+			want:    0.0,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := &boolFloatParser{}
+			got, err := v.ParseFloat("", tt.arg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseFloat() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("ParseFloat() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGetFloatParser(t *testing.T) {
 	switch x := (GetFloatParser(&MemoryRecommender{})).(type) {
 	case *bytesFloatParser:
@@ -58,7 +171,7 @@ func TestGetFloatParser(t *testing.T) {
 	}
 
 	switch x := (GetFloatParser(&PromscaleBgwriterRecommender{})).(type) {
-	case *BgwriterFloatParser:
+	case *numericFloatParser:
 	default:
 		t.Errorf("wrong validator type for PromscaleBgwriterRecommender: got %T", x)
 	}
