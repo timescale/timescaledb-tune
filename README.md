@@ -153,5 +153,5 @@ applies; please sign the [Contributor License Agreement](https://cla-assistant.i
 
 ### Releasing
 
-Please follow the instructions [here](https://github.com/timescale/release-build-scripts/blob/release_tools/README.md#publishing-changes-to-timescaledb-tune) 
+Please follow the instructions [here](https://github.com/timescale/eng-database/wiki/Releasing-timescaledb-tune) 
 to publish a release of this tool.
