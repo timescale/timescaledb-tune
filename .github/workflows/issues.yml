@@ -35,8 +35,47 @@ jobs:
     name: Waiting for Engineering
     runs-on: ubuntu-latest
     if: github.event_name == 'issue_comment' && !github.event.issue.pull_request
-      && contains(github.event.issue.labels.*.name, 'waiting-for-author')
     steps:
+      - name: Get board column of issue
+        uses: octokit/graphql-action@v2.x
+        id: get_board_column
+        continue-on-error: true
+        with:
+          query: |
+            query board_column($issue:Int!,$project:Int!,$owner:String!,$repo:String!) {
+              repository(owner:$owner,name:$repo) {
+                issue(number: $issue) {
+                  projectV2(number: $project) {
+                    items(last: 1) {
+                      nodes {
+                        fieldValueByName(name: "Status") {
+                          ... on ProjectV2ItemFieldSingleSelectValue {
+                            name
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          variables: |
+            owner: timescale
+            repo: ${{ github.event.repository.name }}
+            project: 55
+            issue: ${{ github.event.issue.number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
+
+      - name: Extract board column name
+        id: extract_board_column
+        run: |
+           sudo apt-get update
+           sudo apt-get install jq
+           bord_column=$(echo '${{ steps.get_board_column.outputs.data }}' | jq -r '.repository.issue.projectV2.items.nodes[].fieldValueByName.name')
+           echo "Issue is in column $bord_column"
+           echo "issue_board_column=$bord_column" >> "$GITHUB_OUTPUT"
+
       - name: Check if organization member
         uses: tspascoal/get-user-teams-membership@v2
         id: checkUserMember
@@ -47,12 +86,14 @@ jobs:
          GITHUB_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
       - name: Remove waiting-for-author label
         if: ${{ steps.checkUserMember.outputs.isTeamMember == 'false' }}
+          && steps.extract_board_column.outputs.issue_board_column == 'Waiting for Author'
         uses: andymckay/labeler@3a4296e9dcdf9576b0456050db78cfd34853f260
         with:
           remove-labels: 'waiting-for-author, no-activity'
           repo-token: ${{ secrets.ORG_AUTOMATION_TOKEN }}
       - name: Move to waiting for engineering column
         if: ${{ steps.checkUserMember.outputs.isTeamMember == 'false' }}
+          && steps.extract_board_column.outputs.issue_board_column == 'Waiting for Author'
         uses: leonsteinhaeuser/project-beta-automations@v2.0.0
         with:
           gh_token: ${{ secrets.ORG_AUTOMATION_TOKEN }}
