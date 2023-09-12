@@ -85,15 +85,15 @@ jobs:
          team: 'database-eng'
          GITHUB_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
       - name: Remove waiting-for-author label
-        if: ${{ steps.checkUserMember.outputs.isTeamMember == 'false' }}
-          && steps.extract_board_column.outputs.issue_board_column == 'Waiting for Author'
+        if: ${{ steps.checkUserMember.outputs.isTeamMember == 'false'
+          && steps.extract_board_column.outputs.issue_board_column == 'Waiting for Author' }}
         uses: andymckay/labeler@3a4296e9dcdf9576b0456050db78cfd34853f260
         with:
           remove-labels: 'waiting-for-author, no-activity'
           repo-token: ${{ secrets.ORG_AUTOMATION_TOKEN }}
       - name: Move to waiting for engineering column
-        if: ${{ steps.checkUserMember.outputs.isTeamMember == 'false' }}
-          && steps.extract_board_column.outputs.issue_board_column == 'Waiting for Author'
+        if: ${{ steps.checkUserMember.outputs.isTeamMember == 'false'
+          && steps.extract_board_column.outputs.issue_board_column == 'Waiting for Author' }}
         uses: leonsteinhaeuser/project-beta-automations@v2.0.0
         with:
           gh_token: ${{ secrets.ORG_AUTOMATION_TOKEN }}
