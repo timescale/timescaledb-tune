@@ -36,45 +36,63 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'issue_comment' && !github.event.issue.pull_request
     steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install jq
       - name: Get board column of issue
-        uses: octokit/graphql-action@v2.x
-        id: get_board_column
+        id: extract_board_column
         continue-on-error: true
-        with:
-          query: |
-            query board_column($issue:Int!,$project:Int!,$owner:String!,$repo:String!) {
-              repository(owner:$owner,name:$repo) {
+        run: |
+          # Request all issues from project (server-side filtering is not supported bit GitHub yet)
+          gh api graphql --paginate -F issue=$ISSUE -F project=$PROJECT -F owner=$OWNER -F repo=$REPO -f query='
+            query board_column($issue: Int!, $project: Int!, $owner: String!, $repo: String!, $endCursor: String) {
+              repository(owner: $owner, name: $repo) {
                 issue(number: $issue) {
                   projectV2(number: $project) {
-                    items(last: 1) {
+                    items(first: 100, after: $endCursor) {
                       nodes {
                         fieldValueByName(name: "Status") {
                           ... on ProjectV2ItemFieldSingleSelectValue {
                             name
                           }
                         }
+                        content {
+                          ... on Issue {
+                           id
+                           title
+                           number
+                           repository {
+                             name
+                             owner {
+                               login
+                              }
+                            }
+                          }
+                        }
+                      }
+                      pageInfo {
+                         hasNextPage
+                         endCursor
                       }
                     }
                   }
                 }
               }
             }
-          variables: |
-            owner: timescale
-            repo: ${{ github.event.repository.name }}
-            project: 55
-            issue: ${{ github.event.issue.number }}
+            ' > api_result
+            # Get board column for issue
+            board_column=$(cat api_result | jq -r ".data.repository.issue.projectV2.items.nodes[] |
+                select (.content.number == $ISSUE and .content.repository.name == \"$REPO\" and .content.repository.owner.login == \"$OWNER\") |
+                .fieldValueByName.name")
+            echo "Issue is in column: $board_column"
+            echo "issue_board_column=$board_column" >> "$GITHUB_OUTPUT"   
         env:
+          OWNER: timescale
+          REPO: ${{ github.event.repository.name }}
+          PROJECT: 55
+          ISSUE: ${{ github.event.issue.number }}
           GITHUB_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
-
-      - name: Extract board column name
-        id: extract_board_column
-        run: |
-           sudo apt-get update
-           sudo apt-get install jq
-           bord_column=$(echo '${{ steps.get_board_column.outputs.data }}' | jq -r '.repository.issue.projectV2.items.nodes[].fieldValueByName.name')
-           echo "Issue is in column $bord_column"
-           echo "issue_board_column=$bord_column" >> "$GITHUB_OUTPUT"
 
       - name: Check if organization member
         uses: tspascoal/get-user-teams-membership@v2
