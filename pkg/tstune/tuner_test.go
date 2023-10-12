@@ -1420,7 +1420,7 @@ var (
 		"wal_buffers = 16MB",
 		"min_wal_size = 512MB",
 		"max_wal_size = 1GB",
-		"default_statistics_target = 500",
+		"default_statistics_target = 100",
 		"random_page_cost = 1.1",
 		"checkpoint_completion_target = 0.9",
 		fmt.Sprintf("max_connections = %d", testMaxConns),
