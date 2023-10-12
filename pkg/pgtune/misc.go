@@ -21,7 +21,7 @@ const (
 	EffectiveIOKey          = "effective_io_concurrency" // linux only
 
 	checkpointDefault           = "0.9"
-	statsTargetDefault          = "500"
+	statsTargetDefault          = "100"
 	randomPageCostDefault       = "1.1"
 	autovacuumMaxWorkersDefault = "10"
 	autovacuumNaptimeDefault    = "10"
