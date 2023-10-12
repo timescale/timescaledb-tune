@@ -15,6 +15,7 @@ const (
 	MajorVersion13 = "13"
 	MajorVersion14 = "14"
 	MajorVersion15 = "15"
+	MajorVersion16 = "16"
 )
 
 const (
@@ -45,7 +46,7 @@ func ToPGMajorVersion(val string) (string, error) {
 		return "", fmt.Errorf(errCouldNotParseVersionFmt, val)
 	}
 	switch res[1] {
-	case MajorVersion10, MajorVersion11, MajorVersion12, MajorVersion13, MajorVersion14, MajorVersion15:
+	case MajorVersion10, MajorVersion11, MajorVersion12, MajorVersion13, MajorVersion14, MajorVersion15, MajorVersion16:
 		return res[1], nil
 	case "7", "8", "9":
 		return res[1] + res[2], nil
