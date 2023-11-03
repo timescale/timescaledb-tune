@@ -22,7 +22,7 @@ import (
 
 const (
 	// Version is the version of this library
-	Version = "0.14.3"
+	Version = "0.15.0"
 
 	errCouldNotExecuteFmt  = "could not execute `%s --version`: %v"
 	errUnsupportedMajorFmt = "unsupported major PG version: %s"
