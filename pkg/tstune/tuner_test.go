@@ -1426,9 +1426,9 @@ var (
 		fmt.Sprintf("max_connections = %d", testMaxConns),
 		"autovacuum_max_workers = 10",
 		"autovacuum_naptime = 10",
-		"max_locks_per_transaction = 64",
-		"effective_io_concurrency = 200",
 		"max_locks_per_transaction = 128",
+		"effective_io_concurrency = 200",
+		"max_locks_per_transaction = 256",
 	}
 )
 

@@ -72,11 +72,11 @@ func getEffectiveIOConcurrency(pgMajorVersion string) string {
 
 // maxLocksValues gives the number of locks for a power-2 memory starting
 // with sub-8GB. i.e.:
-// < 8GB = 64
-// >=8GB, < 16GB = 128
-// >=16GB, < 32GB = 256
-// >=32GB = 512
-var maxLocksValues = []string{"64", "128", "256", "512"}
+// < 8GB = 128
+// >=8GB, < 16GB = 256
+// >=16GB, < 32GB = 512
+// >=32GB = 1024
+var maxLocksValues = []string{"128", "256", "512", "1024"}
 
 // MiscLabel is the label used to refer to the miscellaneous settings group
 const MiscLabel = "miscellaneous"
