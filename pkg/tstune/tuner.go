@@ -713,6 +713,7 @@ func (t *Tuner) writeConfFile(confPath string) error {
 	}
 
 	t.handler.p.Statement("Saving changes to: " + outPath)
+	t.handler.p.Statement("Restart PostgreSQL to apply the modified configuration")
 	f, err := osCreateFn(outPath)
 	if err != nil {
 		return fmt.Errorf(errCouldNotWriteFmt, outPath, err)
