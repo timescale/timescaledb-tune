@@ -147,6 +147,68 @@ func TestGetEffectiveIOConcurrency(t *testing.T) {
 	}
 }
 
+func TestDefaultToastCompression(t *testing.T) {
+	cases := []struct {
+		pgMajorVersions []string
+		want            string
+	}{
+		{
+			[]string{pgutils.MajorVersion96, pgutils.MajorVersion10, pgutils.MajorVersion11, pgutils.MajorVersion12, pgutils.MajorVersion13},
+			NoRecommendation,
+		},
+		{
+			[]string{pgutils.MajorVersion14, pgutils.MajorVersion15, pgutils.MajorVersion16, pgutils.MajorVersion17,
+				"18", //future versions
+			},
+			"lz4",
+		},
+	}
+	for _, c := range cases {
+		for _, v := range c.pgMajorVersions {
+			t.Run("default_toast_compression:"+v, func(t *testing.T) {
+				r := NewMiscRecommender(1000, 32, v)
+
+				rec := r.Recommend(DefaultToastCompression)
+				if rec != c.want {
+					t.Errorf("wanted %s got: %s", c.want, rec)
+				}
+
+			})
+		}
+	}
+}
+
+func TestJIT(t *testing.T) {
+	cases := []struct {
+		pgMajorVersions []string
+		want            string
+	}{
+		{
+			[]string{pgutils.MajorVersion96, pgutils.MajorVersion10, pgutils.MajorVersion11},
+			NoRecommendation,
+		},
+		{
+			[]string{pgutils.MajorVersion12, pgutils.MajorVersion13, pgutils.MajorVersion14, pgutils.MajorVersion15, pgutils.MajorVersion16, pgutils.MajorVersion17,
+				"18", //future versions
+			},
+			"off",
+		},
+	}
+	for _, c := range cases {
+		for _, v := range c.pgMajorVersions {
+			t.Run("default_toast_compression:"+v, func(t *testing.T) {
+				r := NewMiscRecommender(1000, 32, v)
+
+				rec := r.Recommend(Jit)
+				if rec != c.want {
+					t.Errorf("wanted %s got: %s", c.want, rec)
+				}
+
+			})
+		}
+	}
+}
+
 func TestNewMiscRecommender(t *testing.T) {
 	for i := 0; i < 1000000; i++ {
 		mem := rand.Uint64()
@@ -173,7 +235,7 @@ func TestNewMiscRecommender(t *testing.T) {
 func TestMiscRecommenderRecommend(t *testing.T) {
 	for totalMemory, outerMatrix := range miscSettingsMatrix {
 		for maxConns, matrix := range outerMatrix {
-			r := &MiscRecommender{totalMemory, maxConns, pgutils.MajorVersion12}
+			r := &MiscRecommender{totalMemory, maxConns, pgutils.MajorVersion10}
 			testRecommender(t, r, MiscKeys, matrix)
 		}
 	}

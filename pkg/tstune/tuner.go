@@ -444,6 +444,21 @@ func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunablePar
 
 		rv := pgtune.GetFloatParser(recommender)
 
+		// get and parse our recommendation; fail if for we can't
+		rec := recommender.Recommend(k)
+
+		switch {
+		case rec == pgtune.NoRecommendation:
+			// don't bother adding it to the map. no recommendation
+			continue
+		case r.commented:
+			show[k] = true
+		case r.value == rec:
+			// don't bother adding it to the map. no recommendation
+			continue
+
+		}
+
 		// parse the value already there; if unparseable, should show our rec
 		curr, err := rv.ParseFloat(k, r.value)
 		if err != nil {
@@ -451,19 +466,13 @@ func checkIfShouldShowSetting(keys []string, parseResults map[string]*tunablePar
 			continue
 		}
 
-		// get and parse our recommendation; fail if for we can't
-		rec := recommender.Recommend(k)
-		if rec == pgtune.NoRecommendation {
-			// don't bother adding it to the map. no recommendation
-			continue
-		}
 		target, err := rv.ParseFloat(k, rec)
 		if err != nil {
 			return nil, fmt.Errorf("unexpected parsing problem: %v", err)
 		}
 
 		// only show if our recommendation is significantly different, or config is commented
-		if !isCloseEnough(curr, target, fudgeFactor) || r.commented {
+		if !isCloseEnough(curr, target, fudgeFactor) {
 			show[k] = true
 		}
 	}

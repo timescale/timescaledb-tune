@@ -938,55 +938,94 @@ func TestCheckIfShouldShowSetting(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		reset()
-		// change those keys who are supposed to be commented out
-		for _, k := range c.commented {
-			c.parseResults[k].commented = true
-		}
-		// change values, but still within fudge factor so it shouldn't be shown
-		for _, k := range c.okFudge {
-			temp, err := parse.PGFormatToBytes(c.parseResults[k].value)
-			if err != nil {
-				t.Errorf("%s: unexpected err in parsing: %v", c.desc, err)
-			}
-			temp = temp + uint64(float64(temp)*(fudgeFactor-.01))
-			c.parseResults[k].value = parse.BytesToPGFormat(temp)
-		}
-		// change values to higher fudge factor, so it should be shown
-		for _, k := range c.highFudge {
-			temp, err := parse.PGFormatToBytes(c.parseResults[k].value)
-			if err != nil {
-				t.Errorf("%s: unexpected err in parsing: %v", c.desc, err)
-			}
-			temp = temp + uint64(float64(temp)*(fudgeFactor+.01))
-			c.parseResults[k].value = parse.BytesToPGFormat(temp)
-		}
-		// change values to lower fudge factor, so it should be shown
-		for _, k := range c.lowFudge {
-			temp, err := parse.PGFormatToBytes(c.parseResults[k].value)
-			if err != nil {
-				t.Errorf("%s: unexpected err in parsing: %v", c.desc, err)
-			}
-			temp = temp - uint64(float64(temp)*(fudgeFactor+.01))
-			c.parseResults[k].value = parse.BytesToPGFormat(temp)
-		}
-		mr := pgtune.NewMemoryRecommender(8*parse.Gigabyte, 1, 20)
-		show, err := checkIfShouldShowSetting(pgtune.MemoryKeys, c.parseResults, mr)
-		if len(c.errMsg) > 0 {
+		t.Run(c.desc, func(t *testing.T) {
 
-		} else if err != nil {
-			t.Errorf("%s: unexpected err: %v", c.desc, err)
-		} else {
-			if got := len(show); got != len(c.want) {
-				t.Errorf("%s: incorrect show length: got %d want %d", c.desc, got, len(c.want))
+			reset()
+			// change those keys who are supposed to be commented out
+			for _, k := range c.commented {
+				c.parseResults[k].commented = true
 			}
-			for _, k := range c.want {
-				if _, ok := show[k]; !ok {
-					t.Errorf("%s: key not found: %s", c.desc, k)
+			// change values, but still within fudge factor so it shouldn't be shown
+			for _, k := range c.okFudge {
+				temp, err := parse.PGFormatToBytes(c.parseResults[k].value)
+				if err != nil {
+					t.Errorf("%s: unexpected err in parsing: %v", c.desc, err)
+				}
+				temp = temp + uint64(float64(temp)*(fudgeFactor-.01))
+				c.parseResults[k].value = parse.BytesToPGFormat(temp)
+			}
+			// change values to higher fudge factor, so it should be shown
+			for _, k := range c.highFudge {
+				temp, err := parse.PGFormatToBytes(c.parseResults[k].value)
+				if err != nil {
+					t.Errorf("%s: unexpected err in parsing: %v", c.desc, err)
+				}
+				temp = temp + uint64(float64(temp)*(fudgeFactor+.01))
+				c.parseResults[k].value = parse.BytesToPGFormat(temp)
+			}
+			// change values to lower fudge factor, so it should be shown
+			for _, k := range c.lowFudge {
+				temp, err := parse.PGFormatToBytes(c.parseResults[k].value)
+				if err != nil {
+					t.Errorf("%s: unexpected err in parsing: %v", c.desc, err)
+				}
+				temp = temp - uint64(float64(temp)*(fudgeFactor+.01))
+				c.parseResults[k].value = parse.BytesToPGFormat(temp)
+			}
+			mr := pgtune.NewMemoryRecommender(8*parse.Gigabyte, 1, 20)
+
+			show, err := checkIfShouldShowSetting(pgtune.MemoryKeys, c.parseResults, mr)
+			if len(c.errMsg) > 0 {
+
+			} else if err != nil {
+				t.Errorf("%s: unexpected err: %v", c.desc, err)
+			} else {
+				if got := len(show); got != len(c.want) {
+					t.Errorf("%s: incorrect show length: got %d want %d", c.desc, got, len(c.want))
+				}
+				for _, k := range c.want {
+					if _, ok := show[k]; !ok {
+						t.Errorf("%s: key not found: %s", c.desc, k)
+					}
 				}
 			}
-		}
+		})
 	}
+}
+
+func TestCheckIfShouldShowSettingNonNumeric(t *testing.T) {
+	mr := pgtune.NewMiscRecommender(1000, 32, "18")
+
+	show, err := checkIfShouldShowSetting([]string{pgtune.DefaultToastCompression, pgtune.Jit},
+		map[string]*tunableParseResult{
+			pgtune.DefaultToastCompression: {
+				idx:       0,
+				commented: false,
+				key:       pgtune.SharedBuffersKey,
+				value:     "pgz",
+			},
+			pgtune.Jit: {
+				idx:       1,
+				commented: false,
+				key:       pgtune.SharedBuffersKey,
+				value:     "off",
+			},
+		},
+		mr,
+	)
+
+	if err != nil {
+		t.Errorf("%s: unexpected err: %v", t.Name(), err)
+	}
+
+	if len(show) != 1 {
+		t.Errorf("%s: incorrect show length: got %d want %d", t.Name(), len(show), 1)
+	}
+
+	if show[pgtune.DefaultToastCompression] != true {
+		t.Errorf("exepcted %s to be shown", pgtune.DefaultToastCompression)
+	}
+
 }
 
 func TestCheckIfShouldShowSettingErr(t *testing.T) {
@@ -1166,7 +1205,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 			input:          " \ny\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    2, // first input is blank
-			wantPrints:     9,
+			wantPrints:     5,
 			successMsg:     "memory settings will be updated",
 			shouldErr:      false,
 		},
@@ -1275,7 +1314,7 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 			desc:           "bgwriter correct",
 			ts:             pgtune.GetSettingsGroup(pgtune.BgwriterLabel, config),
 			profile:        pgtune.PromscaleProfile,
-			lines:          []string{"bgwriter_flush_after = 0"},
+			lines:          []string{"bgwriter_flush_after = 9"}, // will change to 0
 			input:          "y\n",
 			wantStatements: 3, // intro remark + current label + recommend label
 			wantPrompts:    1,
@@ -1287,46 +1326,49 @@ func TestTunerProcessSettingsGroup(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		tuner := newTunerWithDefaultFlagsForInputs(t, c.input, c.lines)
+		t.Run(c.desc, func(t *testing.T) {
 
-		err := tuner.processSettingsGroup(c.ts, c.profile)
-		if err != nil && !c.shouldErr {
-			t.Errorf("%s: unexpected error: %v", c.desc, err)
-		} else if err == nil && c.shouldErr {
-			t.Errorf("%s: unexpected lack of error", c.desc)
-		}
+			tuner := newTunerWithDefaultFlagsForInputs(t, c.input, c.lines)
 
-		tp := tuner.handler.p.(*testPrinter)
-		if got := strings.ToUpper(strings.TrimSpace(tp.statements[0])[:1]); got != strings.ToUpper(c.ts.Label()[:1]) {
-			t.Errorf("%s: label not capitalized in first statement: got %s want %s", c.desc, got, strings.ToUpper(c.ts.Label()[:1]))
-		}
-
-		if got := tp.statementCalls; got != c.wantStatements {
-			t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, c.wantStatements)
-		}
-
-		if got := tp.promptCalls; got != c.wantPrompts {
-			t.Errorf("%s: incorrect number of prompts: got %d want %d", c.desc, got, c.wantPrompts)
-		}
-
-		out := tuner.handler.out.(*testWriter)
-
-		if got := len(out.lines); got != c.wantPrints {
-			t.Errorf("%s: incorrect number of prints: got %d want %d", c.desc, got, c.wantPrints)
-		}
-
-		if got := tp.errorCalls; got != c.wantErrors {
-			t.Errorf("%s: incorrect number of errors: got %d want %d", c.desc, got, c.wantErrors)
-		} else if len(c.successMsg) > 0 {
-			if got := tp.successCalls; got != 1 {
-				t.Errorf("%s: incorrect number of successes: got %d want %d", c.desc, got, 1)
+			err := tuner.processSettingsGroup(c.ts, c.profile)
+			if err != nil && !c.shouldErr {
+				t.Errorf("%s: unexpected error: %v", c.desc, err)
+			} else if err == nil && c.shouldErr {
+				t.Errorf("%s: unexpected lack of error", c.desc)
 			}
-			if got := tp.successes[0]; got != c.successMsg {
-				t.Errorf("%s: incorrect success message: got\n%s\nwant\n%s\n", c.desc, got, c.successMsg)
+
+			tp := tuner.handler.p.(*testPrinter)
+			if got := strings.ToUpper(strings.TrimSpace(tp.statements[0])[:1]); got != strings.ToUpper(c.ts.Label()[:1]) {
+				t.Errorf("%s: label not capitalized in first statement: got %s want %s", c.desc, got, strings.ToUpper(c.ts.Label()[:1]))
 			}
-		} else if tp.successCalls > 0 {
-			t.Errorf("%s: got success without expecting it: %s", c.desc, tp.successes[0])
-		}
+
+			if got := tp.statementCalls; got != c.wantStatements {
+				t.Errorf("%s: incorrect number of statements: got %d want %d", c.desc, got, c.wantStatements)
+			}
+
+			if got := tp.promptCalls; got != c.wantPrompts {
+				t.Errorf("%s: incorrect number of prompts: got %d want %d", c.desc, got, c.wantPrompts)
+			}
+
+			out := tuner.handler.out.(*testWriter)
+
+			if got := len(out.lines); got != c.wantPrints {
+				t.Errorf("%s: incorrect number of prints: got %d want %d", c.desc, got, c.wantPrints)
+			}
+
+			if got := tp.errorCalls; got != c.wantErrors {
+				t.Errorf("%s: incorrect number of errors: got %d want %d", c.desc, got, c.wantErrors)
+			} else if len(c.successMsg) > 0 {
+				if got := tp.successCalls; got != 1 {
+					t.Errorf("%s: incorrect number of successes: got %d want %d", c.desc, got, 1)
+				}
+				if got := tp.successes[0]; got != c.successMsg {
+					t.Errorf("%s: incorrect success message: got\n%s\nwant\n%s\n", c.desc, got, c.successMsg)
+				}
+			} else if tp.successCalls > 0 {
+				t.Errorf("%s: got success without expecting it: %s", c.desc, tp.successes[0])
+			}
+		})
 	}
 }
 

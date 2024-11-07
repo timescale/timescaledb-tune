@@ -20,6 +20,10 @@ const (
 	AutovacuumNaptimeKey    = "autovacuum_naptime"
 	EffectiveIOKey          = "effective_io_concurrency" // linux only
 
+	// nonnumeric
+	DefaultToastCompression = "default_toast_compression"
+	Jit                     = "jit"
+
 	checkpointDefault           = "0.9"
 	statsTargetDefault          = "100"
 	randomPageCostDefault       = "1.1"
@@ -31,6 +35,8 @@ const (
 	// https://www.postgresql.org/message-id/20210422195232.GA25061%40momjian.us
 	effectiveIODefaultOldVersions = "200"
 	effectiveIODefault            = "256"
+	lz4Compression                = "lz4"
+	off                           = "off"
 
 	// If you want to lower this value, consider that Patroni will not accept anything less than 25 as
 	// a valid max_connections and will replace it with 100, per
@@ -59,12 +65,18 @@ func getMaxConns(totalMemory uint64) uint64 {
 	}
 }
 
+func getValueForVersion(currentVersion string, oldVersions []string, oldVersionValue, newVersionValue string) string {
+	for _, ov := range oldVersions {
+		if ov == currentVersion {
+			return oldVersionValue
+		}
+	}
+	return newVersionValue
+}
+
 func getEffectiveIOConcurrency(pgMajorVersion string) string {
 	switch pgMajorVersion {
-	case pgutils.MajorVersion96,
-		pgutils.MajorVersion10,
-		pgutils.MajorVersion11,
-		pgutils.MajorVersion12:
+	case pgutils.MajorVersion96, pgutils.MajorVersion10, pgutils.MajorVersion11, pgutils.MajorVersion12:
 		return effectiveIODefaultOldVersions
 	}
 	return effectiveIODefault
@@ -90,7 +102,10 @@ var MiscKeys = []string{
 	MaxLocksPerTxKey,
 	AutovacuumMaxWorkersKey,
 	AutovacuumNaptimeKey,
-	EffectiveIOKey,
+	DefaultToastCompression,
+	Jit,
+
+	EffectiveIOKey, //linux only
 }
 
 // MiscRecommender gives recommendations for MiscKeys based on system resources.
@@ -113,20 +128,38 @@ func (r *MiscRecommender) IsAvailable() bool {
 // Recommend returns the recommended PostgreSQL formatted value for the conf
 // file for a given key.
 func (r *MiscRecommender) Recommend(key string) string {
-	var val string
-	if key == CheckpointKey {
-		val = checkpointDefault
-	} else if key == StatsTargetKey {
-		val = statsTargetDefault
-	} else if key == MaxConnectionsKey {
-		conns := getMaxConns(r.totalMemory)
+	switch key {
+	case CheckpointKey:
+		return checkpointDefault
+	case StatsTargetKey:
+		return statsTargetDefault
+	case AutovacuumMaxWorkersKey:
+		return autovacuumMaxWorkersDefault
+	case AutovacuumNaptimeKey:
+		return autovacuumNaptimeDefault
+	case RandomPageCostKey:
+		return randomPageCostDefault
+	case EffectiveIOKey:
+		return getValueForVersion(r.pgMajorVersion, []string{
+			pgutils.MajorVersion96, pgutils.MajorVersion10, pgutils.MajorVersion11, pgutils.MajorVersion12},
+			effectiveIODefaultOldVersions, effectiveIODefault,
+		)
+	case DefaultToastCompression:
+		return getValueForVersion(r.pgMajorVersion, []string{
+			pgutils.MajorVersion96, pgutils.MajorVersion10, pgutils.MajorVersion11, pgutils.MajorVersion12, pgutils.MajorVersion13},
+			NoRecommendation, lz4Compression,
+		)
+	case Jit:
+		return getValueForVersion(r.pgMajorVersion, []string{
+			pgutils.MajorVersion96, pgutils.MajorVersion10, pgutils.MajorVersion11},
+			NoRecommendation, off,
+		)
+	case MaxConnectionsKey:
 		if r.maxConns != 0 {
-			conns = r.maxConns
+			return fmt.Sprintf("%d", r.maxConns)
 		}
-		val = fmt.Sprintf("%d", conns)
-	} else if key == RandomPageCostKey {
-		val = randomPageCostDefault
-	} else if key == MaxLocksPerTxKey {
+		return fmt.Sprintf("%d", getMaxConns(r.totalMemory))
+	case MaxLocksPerTxKey:
 		for i := len(maxLocksValues) - 1; i >= 1; i-- {
 			limit := uint64(math.Pow(2.0, float64(2+i)))
 			if r.totalMemory >= limit*parse.Gigabyte {
@@ -134,16 +167,10 @@ func (r *MiscRecommender) Recommend(key string) string {
 			}
 		}
 		return maxLocksValues[0]
-	} else if key == AutovacuumMaxWorkersKey {
-		val = autovacuumMaxWorkersDefault
-	} else if key == AutovacuumNaptimeKey {
-		val = autovacuumNaptimeDefault
-	} else if key == EffectiveIOKey {
-		val = getEffectiveIOConcurrency(r.pgMajorVersion)
-	} else {
-		val = NoRecommendation
 	}
-	return val
+
+	//unknown key no recommendation
+	return NoRecommendation
 }
 
 // MiscSettingsGroup is the SettingsGroup to represent settings that do not fit in other SettingsGroups.
