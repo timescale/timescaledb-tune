@@ -14,44 +14,50 @@ import (
 var parallelSettingsMatrix = map[int]map[int]map[string]string{
 	2: {
 		MaxBackgroundWorkersDefault: {
-			MaxBackgroundWorkers:        fmt.Sprintf("%d", MaxBackgroundWorkersDefault),
-			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 2+minBuiltInProcesses+MaxBackgroundWorkersDefault),
-			MaxParallelWorkersGatherKey: "1",
-			MaxParallelWorkers:          "2",
+			MaxBackgroundWorkers:          fmt.Sprintf("%d", MaxBackgroundWorkersDefault),
+			MaxWorkerProcessesKey:         fmt.Sprintf("%d", 2+minBuiltInProcesses+MaxBackgroundWorkersDefault),
+			MaxParallelWorkersGatherKey:   "1",
+			MaxParallelWorkers:            "2",
+			MaxParallelMaintenanceWorkers: "2",
 		},
 		MaxBackgroundWorkersDefault * 2: {
-			MaxBackgroundWorkers:        fmt.Sprintf("%d", MaxBackgroundWorkersDefault*2),
-			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 2+minBuiltInProcesses+MaxBackgroundWorkersDefault*2),
-			MaxParallelWorkersGatherKey: "1",
-			MaxParallelWorkers:          "2",
+			MaxBackgroundWorkers:          fmt.Sprintf("%d", MaxBackgroundWorkersDefault*2),
+			MaxWorkerProcessesKey:         fmt.Sprintf("%d", 2+minBuiltInProcesses+MaxBackgroundWorkersDefault*2),
+			MaxParallelWorkersGatherKey:   "1",
+			MaxParallelWorkers:            "2",
+			MaxParallelMaintenanceWorkers: "2",
 		},
 	},
 	4: {
 		MaxBackgroundWorkersDefault: {
-			MaxBackgroundWorkers:        fmt.Sprintf("%d", MaxBackgroundWorkersDefault),
-			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 4+minBuiltInProcesses+MaxBackgroundWorkersDefault),
-			MaxParallelWorkersGatherKey: "2",
-			MaxParallelWorkers:          "4",
+			MaxBackgroundWorkers:          fmt.Sprintf("%d", MaxBackgroundWorkersDefault),
+			MaxWorkerProcessesKey:         fmt.Sprintf("%d", 4+minBuiltInProcesses+MaxBackgroundWorkersDefault),
+			MaxParallelWorkersGatherKey:   "2",
+			MaxParallelWorkers:            "4",
+			MaxParallelMaintenanceWorkers: "3",
 		},
 		MaxBackgroundWorkersDefault * 4: {
-			MaxBackgroundWorkers:        fmt.Sprintf("%d", MaxBackgroundWorkersDefault*4),
-			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 4+minBuiltInProcesses+MaxBackgroundWorkersDefault*4),
-			MaxParallelWorkersGatherKey: "2",
-			MaxParallelWorkers:          "4",
+			MaxBackgroundWorkers:          fmt.Sprintf("%d", MaxBackgroundWorkersDefault*4),
+			MaxWorkerProcessesKey:         fmt.Sprintf("%d", 4+minBuiltInProcesses+MaxBackgroundWorkersDefault*4),
+			MaxParallelWorkersGatherKey:   "2",
+			MaxParallelWorkers:            "4",
+			MaxParallelMaintenanceWorkers: "3",
 		},
 	},
 	5: {
 		MaxBackgroundWorkersDefault: {
-			MaxBackgroundWorkers:        fmt.Sprintf("%d", MaxBackgroundWorkersDefault),
-			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 5+minBuiltInProcesses+MaxBackgroundWorkersDefault),
-			MaxParallelWorkersGatherKey: "3",
-			MaxParallelWorkers:          "5",
+			MaxBackgroundWorkers:          fmt.Sprintf("%d", MaxBackgroundWorkersDefault),
+			MaxWorkerProcessesKey:         fmt.Sprintf("%d", 5+minBuiltInProcesses+MaxBackgroundWorkersDefault),
+			MaxParallelWorkersGatherKey:   "3",
+			MaxParallelWorkers:            "5",
+			MaxParallelMaintenanceWorkers: "4",
 		},
 		MaxBackgroundWorkersDefault * 5: {
-			MaxBackgroundWorkers:        fmt.Sprintf("%d", MaxBackgroundWorkersDefault*5),
-			MaxWorkerProcessesKey:       fmt.Sprintf("%d", 5+minBuiltInProcesses+MaxBackgroundWorkersDefault*5),
-			MaxParallelWorkersGatherKey: "3",
-			MaxParallelWorkers:          "5",
+			MaxBackgroundWorkers:          fmt.Sprintf("%d", MaxBackgroundWorkersDefault*5),
+			MaxWorkerProcessesKey:         fmt.Sprintf("%d", 5+minBuiltInProcesses+MaxBackgroundWorkersDefault*5),
+			MaxParallelWorkersGatherKey:   "3",
+			MaxParallelWorkers:            "5",
+			MaxParallelMaintenanceWorkers: "4",
 		},
 	},
 }
@@ -139,7 +145,7 @@ func TestParallelSettingsGroup(t *testing.T) {
 			config.PGMajorVersion = pgutils.MajorVersion96 // 9.6 lacks one key
 			config.MaxBGWorkers = workers
 			sg := GetSettingsGroup(ParallelLabel, config)
-			if got := len(sg.Keys()); got != keyCount-1 {
+			if got := len(sg.Keys()); got != keyCount-2 {
 				t.Errorf("incorrect number of keys for PG %s: got %d want %d", pgutils.MajorVersion96, got, keyCount-1)
 			}
 			testSettingGroup(t, sg, DefaultProfile, matrix, ParallelLabel, ParallelKeys)
@@ -147,7 +153,7 @@ func TestParallelSettingsGroup(t *testing.T) {
 			// PG10 adds a key
 			config.PGMajorVersion = pgutils.MajorVersion10
 			sg = GetSettingsGroup(ParallelLabel, config)
-			if got := len(sg.Keys()); got != keyCount {
+			if got := len(sg.Keys()); got != keyCount-1 {
 				t.Errorf("incorrect number of keys for PG %s: got %d want %d", pgutils.MajorVersion10, got, keyCount)
 			}
 			testSettingGroup(t, sg, DefaultProfile, matrix, ParallelLabel, ParallelKeys)

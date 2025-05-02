@@ -7,10 +7,11 @@ import (
 
 // Keys in the conf file that are tuned related to parallelism
 const (
-	MaxBackgroundWorkers        = "timescaledb.max_background_workers"
-	MaxWorkerProcessesKey       = "max_worker_processes"
-	MaxParallelWorkersGatherKey = "max_parallel_workers_per_gather"
-	MaxParallelWorkers          = "max_parallel_workers" // pg10+
+	MaxBackgroundWorkers          = "timescaledb.max_background_workers"
+	MaxWorkerProcessesKey         = "max_worker_processes"
+	MaxParallelWorkersGatherKey   = "max_parallel_workers_per_gather"
+	MaxParallelWorkers            = "max_parallel_workers"             // pg10+
+	MaxParallelMaintenanceWorkers = "max_parallel_maintenance_workers" // pg11+
 
 	minBuiltInProcesses = 3 // at least checkpointer, WALwriter, vacuum
 
@@ -27,6 +28,7 @@ var ParallelKeys = []string{
 	MaxWorkerProcessesKey,
 	MaxParallelWorkersGatherKey,
 	MaxParallelWorkers,
+	MaxParallelMaintenanceWorkers,
 }
 
 // ParallelRecommender gives recommendations for ParallelKeys based on system resources.
@@ -64,6 +66,12 @@ func (r *ParallelRecommender) Recommend(key string) string {
 		val = fmt.Sprintf("%d", minBuiltInProcesses+r.maxBGWorkers+r.cpus)
 	} else if key == MaxParallelWorkers {
 		val = fmt.Sprintf("%d", r.cpus)
+	} else if key == MaxParallelMaintenanceWorkers {
+		if r.cpus <= 3 {
+			val = "2"
+		} else {
+			val = fmt.Sprintf("%d", r.cpus-1)
+		}
 	} else if key == MaxParallelWorkersGatherKey {
 		val = fmt.Sprintf("%d", int(math.Round(float64(r.cpus)/2.0)))
 	} else if key == MaxBackgroundWorkers {
@@ -87,6 +95,8 @@ func (sg *ParallelSettingsGroup) Label() string { return ParallelLabel }
 // Keys should always return the ParallelKeys slice.
 func (sg *ParallelSettingsGroup) Keys() []string {
 	if sg.pgVersion == "9.6" {
+		return ParallelKeys[:len(ParallelKeys)-2]
+	} else if sg.pgVersion == "10" {
 		return ParallelKeys[:len(ParallelKeys)-1]
 	}
 	return ParallelKeys
