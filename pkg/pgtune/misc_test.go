@@ -157,8 +157,8 @@ func TestDefaultToastCompression(t *testing.T) {
 			NoRecommendation,
 		},
 		{
-			[]string{pgutils.MajorVersion14, pgutils.MajorVersion15, pgutils.MajorVersion16, pgutils.MajorVersion17,
-				"18", //future versions
+			[]string{pgutils.MajorVersion14, pgutils.MajorVersion15, pgutils.MajorVersion16, pgutils.MajorVersion17, pgutils.MajorVersion18,
+				"19", //future versions
 			},
 			"lz4",
 		},
@@ -188,8 +188,8 @@ func TestJIT(t *testing.T) {
 			NoRecommendation,
 		},
 		{
-			[]string{pgutils.MajorVersion12, pgutils.MajorVersion13, pgutils.MajorVersion14, pgutils.MajorVersion15, pgutils.MajorVersion16, pgutils.MajorVersion17,
-				"18", //future versions
+			[]string{pgutils.MajorVersion12, pgutils.MajorVersion13, pgutils.MajorVersion14, pgutils.MajorVersion15, pgutils.MajorVersion16, pgutils.MajorVersion17, pgutils.MajorVersion18,
+				"19", //future versions
 			},
 			"off",
 		},
