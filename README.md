@@ -8,7 +8,7 @@ extension is appropriately installed and provides recommendations for
 memory, parallelism, WAL, and other settings.
 
 ### Getting started
-You need the Go runtime (1.12+) installed, then simply `go install` this repo:
+You need the Go runtime (1.18+) installed, then simply `go install` this repo:
 ```bash
 $ go install github.com/timescale/timescaledb-tune/cmd/timescaledb-tune@main
 ```
