@@ -1,0 +1,150 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build timescaledb-tune
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      
+      - name: Cache build
+        id: cache-build
+        uses: actions/cache@v4
+        with:
+          path: build/timescaledb-tune
+          key: ${{ runner.os }}-go-${{ hashFiles('go.mod', 'go.sum', '**/*.go', 'Makefile') }}
+      
+      - name: Build binary
+        if: steps.cache-build.outputs.cache-hit != 'true'
+        run: make build
+      
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: timescaledb-tune-${{ github.sha }}
+          path: build/timescaledb-tune
+          retention-days: 1
+
+  test:
+    name: Test PostgreSQL ${{ matrix.pg-version }}
+    runs-on: ubuntu-latest
+    needs: build
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        pg-version: ["10", "11", "12", "13", "14", "15", "16", "17", "18"]
+    
+    steps:
+      - name: Download binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: timescaledb-tune-${{ github.sha }}
+      
+      - name: Make binary executable
+        run: chmod +x timescaledb-tune
+      
+      - name: Start PostgreSQL container
+        run: |
+          docker run -d \
+            --name pg-test-pg${{ matrix.pg-version }} \
+            --cpus=1 \
+            --memory=256m \
+            -e POSTGRES_PASSWORD=password \
+            -p 5432:5432 \
+            timescale/timescaledb:latest-pg${{ matrix.pg-version }}
+          
+          # Wait for PostgreSQL
+          for i in {1..30}; do
+            if docker exec pg-test-pg${{ matrix.pg-version }} pg_isready -U postgres > /dev/null 2>&1; then
+              echo "PostgreSQL ready"
+              break
+            fi
+            sleep 2
+          done
+      
+      - name: Get config and tune
+        run: |
+          set -xeu
+          # Get config path
+          CONFIG_PATH=$(docker exec pg-test-pg${{ matrix.pg-version }} psql -U postgres -t -c "SHOW config_file" | xargs)
+          
+          # Save original config
+          docker cp pg-test-pg${{ matrix.pg-version }}:${CONFIG_PATH} ./postgresql.conf.original
+          
+          # Copy binary to container
+          docker cp ./timescaledb-tune pg-test-pg${{ matrix.pg-version }}:/tmp/timescaledb-tune
+          
+          # Generate tune.conf
+          docker exec -u root -e TMPDIR=/var/lib/postgresql/data pg-test-pg${{ matrix.pg-version }} \
+             /tmp/timescaledb-tune \
+              --conf-path="${CONFIG_PATH}" \
+              --pg-version=${{ matrix.pg-version }} \
+              --pg-config=/usr/local/bin/pg_config \
+              --memory="256MB" \
+              --cpus=1 \
+              --yes
+          
+          # Copy modified config back to compare
+          docker cp pg-test-pg${{ matrix.pg-version }}:${CONFIG_PATH} ./postgresql.conf.tuned
+      
+      - name: Show tuning changes
+        run: |
+          # Display in job summary UI
+          echo "## 📊 PostgreSQL ${{ matrix.pg-version }} - Configuration Changes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`diff" >> $GITHUB_STEP_SUMMARY
+          diff -u ./postgresql.conf.original ./postgresql.conf.tuned >> $GITHUB_STEP_SUMMARY || true
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Also show in logs
+          echo "📊 Configuration changes for PostgreSQL ${{ matrix.pg-version }}:"
+          diff -u ./postgresql.conf.original ./postgresql.conf.tuned || true
+
+      - name: Restart and verify
+        run: |
+          docker restart pg-test-pg${{ matrix.pg-version }}
+          sleep 3
+          
+          # Wait for PostgreSQL
+          for i in {1..30}; do
+            if docker exec pg-test-pg${{ matrix.pg-version }} pg_isready -U postgres > /dev/null 2>&1; then
+              echo "✅ PostgreSQL restarted successfully"
+              break
+            fi
+            sleep 2
+          done
+          
+          # Check for actual errors (not shutdown/benign messages)
+          ERRORS=$(docker logs pg-test-pg${{ matrix.pg-version }} 2>&1 | \
+            grep -i "FATAL\|ERROR" | \
+            grep -v -E "(received (fast )?shutdown request|terminating|due to administrator command|background worker|database system (was interrupted|is shut down)|connected to template database|SSL error|telemetry|exited with exit code)" || true)
+          
+          if [ -n "$ERRORS" ]; then
+            echo "❌ Found errors in logs:"
+            echo "$ERRORS"
+            docker logs pg-test-pg${{ matrix.pg-version }}
+            exit 1
+          fi
+          
+          echo "✅ PostgreSQL ${{ matrix.pg-version }} - All tests passed!"
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f pg-test-pg${{ matrix.pg-version }} || true
+          rm -f ./postgresql.conf.original ./postgresql.conf.tuned
