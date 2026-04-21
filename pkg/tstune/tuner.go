@@ -69,14 +69,20 @@ const (
 // allows us to substitute mock versions in tests
 var filepathAbsFn = filepath.Abs
 
-// displayLabel formats a settings-group label for display in statements.
-// It capitalizes the first letter, but leaves labels that look like
-// extension/GUC names (containing '_') unchanged so "pg_textsearch" renders
-// as "pg_textsearch" rather than "Pg_textsearch".
-func displayLabel(label string) string {
-	if strings.Contains(label, "_") {
-		return label
+// displayLabeler is optionally implemented by a SettingsGroup to supply a
+// verbatim display name for the "X settings recommendations" heading when the
+// default title-casing is not appropriate (e.g. for extension/GUC names).
+type displayLabeler interface {
+	DisplayLabel() string
+}
+
+// displayLabel returns the string to show for a settings group's heading.
+// Groups may implement displayLabeler to opt out of the default title-casing.
+func displayLabel(sg pgtune.SettingsGroup) string {
+	if d, ok := sg.(displayLabeler); ok {
+		return d.DisplayLabel()
 	}
+	label := sg.Label()
 	return strings.ToUpper(label[:1]) + label[1:]
 }
 
@@ -300,9 +306,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 
 	// Surface pg_textsearch presence to the tuning recommenders so the
 	// dedicated settings group only runs when the extension is loaded.
-	if t.cfs.sharedLibResult != nil && t.cfs.sharedLibResult.hasPgTextsearch {
-		config.PgTextsearchEnabled = true
-	}
+	config.PgTextsearchEnabled = pgTextsearchDetected(t.cfs.sharedLibResult)
 
 	// Write backup
 	if !t.flags.DryRun {
@@ -501,7 +505,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, profile pgtune.Pro
 	quiet := t.flags.Quiet
 	if !quiet {
 		fmt.Fprintf(t.handler.out, "\n")
-		t.handler.p.Statement(fmt.Sprintf("%s settings recommendations", displayLabel(label)))
+		t.handler.p.Statement(fmt.Sprintf("%s settings recommendations", displayLabel(sg)))
 	}
 	keys := sg.Keys()
 	recommender := sg.GetRecommender(profile)

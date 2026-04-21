@@ -32,13 +32,33 @@ func parseLineForSharedLibResult(line string) *sharedLibResult {
 	if len(res) > 0 {
 		return &sharedLibResult{
 			commented:       len(res[1]) > 0,
-			hasTimescale:    strings.Contains(res[2], extName),
-			hasPgTextsearch: strings.Contains(res[2], pgTextsearchExtName),
+			hasTimescale:    hasLibToken(res[2], extName),
+			hasPgTextsearch: hasLibToken(res[2], pgTextsearchExtName),
 			commentGroup:    res[1],
 			libs:            res[2],
 		}
 	}
 	return nil
+}
+
+// hasLibToken reports whether libs contains name as a comma-separated token,
+// so substrings like "my_timescaledb" or "pg_textsearch_ext" don't match.
+func hasLibToken(libs, name string) bool {
+	for _, tok := range strings.Split(libs, ",") {
+		if strings.TrimSpace(tok) == name {
+			return true
+		}
+	}
+	return false
+}
+
+// pgTextsearchDetected reports whether pg_textsearch will actually be loaded
+// once tuning completes. A commented-out shared_preload_libraries line gets
+// uncommented (with timescaledb merged in) by processSharedLibLine, so a
+// pg_textsearch entry there still counts — the caller has already gated on
+// whether the tuning flow will proceed to write those changes.
+func pgTextsearchDetected(res *sharedLibResult) bool {
+	return res != nil && res.hasPgTextsearch
 }
 
 // updateSharedLibLine takes a given line that matched the shared_preload_libraries

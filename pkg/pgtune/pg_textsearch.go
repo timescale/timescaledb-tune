@@ -42,9 +42,10 @@ func (r *PgTextsearchRecommender) Recommend(key string) string {
 	if key != MemoryLimitKey {
 		return NoRecommendation
 	}
-	// The promscale profile sets shared_buffers to totalMemory/2 rather than
-	// the default totalMemory/4, so leave a proportionally smaller share for
-	// pg_textsearch memtables to keep overall memory usage safely bounded.
+	// memory_limit caps the DSA shared memory pg_textsearch uses for its
+	// in-memory write buffers. The promscale profile sets shared_buffers to
+	// totalMemory/2 rather than the default totalMemory/4, so leave a
+	// proportionally smaller share here to keep overall memory use bounded.
 	divisor := uint64(4)
 	if r.profile == PromscaleProfile {
 		divisor = 8
@@ -60,6 +61,10 @@ type PgTextsearchSettingsGroup struct {
 
 // Label should always return PgTextsearchLabel.
 func (sg *PgTextsearchSettingsGroup) Label() string { return PgTextsearchLabel }
+
+// DisplayLabel renders the group's heading verbatim so it appears as
+// "pg_textsearch settings recommendations" rather than "Pg_textsearch ...".
+func (sg *PgTextsearchSettingsGroup) DisplayLabel() string { return PgTextsearchLabel }
 
 // Keys should always return PgTextsearchKeys.
 func (sg *PgTextsearchSettingsGroup) Keys() []string { return PgTextsearchKeys }
