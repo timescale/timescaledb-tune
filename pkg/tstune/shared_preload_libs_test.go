@@ -12,9 +12,60 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 			desc:  "initial config value",
 			input: "#shared_preload_libraries = ''		# (change requires restart)",
 			want: &sharedLibResult{
-				commented:    true,
-				hasTimescale: false,
-				libs:         "",
+				commented:       true,
+				hasTimescale:    false,
+				hasPgTextsearch: false,
+				libs:            "",
+			},
+		},
+		{
+			desc:  "pg_textsearch only, uncommented",
+			input: "shared_preload_libraries = 'pg_textsearch'",
+			want: &sharedLibResult{
+				commented:       false,
+				hasTimescale:    false,
+				hasPgTextsearch: true,
+				libs:            "pg_textsearch",
+			},
+		},
+		{
+			desc:  "timescaledb and pg_textsearch together",
+			input: "shared_preload_libraries = 'timescaledb,pg_textsearch'",
+			want: &sharedLibResult{
+				commented:       false,
+				hasTimescale:    true,
+				hasPgTextsearch: true,
+				libs:            "timescaledb,pg_textsearch",
+			},
+		},
+		{
+			desc:  "pg_textsearch among others, commented",
+			input: "#shared_preload_libraries = 'pg_stat_statements,pg_textsearch,timescaledb'",
+			want: &sharedLibResult{
+				commented:       true,
+				hasTimescale:    true,
+				hasPgTextsearch: true,
+				libs:            "pg_stat_statements,pg_textsearch,timescaledb",
+			},
+		},
+		{
+			desc:  "extension name as substring of another library should not match",
+			input: "shared_preload_libraries = 'my_pg_textsearch,timescaledb_toolkit'",
+			want: &sharedLibResult{
+				commented:       false,
+				hasTimescale:    false,
+				hasPgTextsearch: false,
+				libs:            "my_pg_textsearch,timescaledb_toolkit",
+			},
+		},
+		{
+			desc:  "tokens with surrounding whitespace still match",
+			input: "shared_preload_libraries = ' timescaledb , pg_textsearch '",
+			want: &sharedLibResult{
+				commented:       false,
+				hasTimescale:    true,
+				hasPgTextsearch: true,
+				libs:            " timescaledb , pg_textsearch ",
 			},
 		},
 		{
@@ -117,9 +168,57 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 			if got := res.hasTimescale; got != c.want.hasTimescale {
 				t.Errorf("%s: incorrect hasTimescale: got %v want %v", c.desc, got, c.want.hasTimescale)
 			}
+			if got := res.hasPgTextsearch; got != c.want.hasPgTextsearch {
+				t.Errorf("%s: incorrect hasPgTextsearch: got %v want %v", c.desc, got, c.want.hasPgTextsearch)
+			}
 			if got := res.libs; got != c.want.libs {
 				t.Errorf("%s: incorrect libs: got %s want %s", c.desc, got, c.want.libs)
 			}
+		}
+	}
+}
+
+func TestPgTextsearchDetectedFromConfigFile(t *testing.T) {
+	cases := []struct {
+		desc  string
+		lines []string
+		want  bool
+	}{
+		{
+			desc:  "no shared_preload_libraries line",
+			lines: []string{"shared_buffers = 128MB"},
+			want:  false,
+		},
+		{
+			desc:  "shared_preload_libraries without pg_textsearch",
+			lines: []string{"shared_preload_libraries = 'timescaledb'"},
+			want:  false,
+		},
+		{
+			desc:  "pg_textsearch alone",
+			lines: []string{"shared_preload_libraries = 'pg_textsearch'"},
+			want:  true,
+		},
+		{
+			desc:  "pg_textsearch alongside timescaledb",
+			lines: []string{"shared_preload_libraries = 'timescaledb,pg_textsearch'"},
+			want:  true,
+		},
+		{
+			desc:  "pg_textsearch on commented line still counts (processSharedLibLine uncomments it)",
+			lines: []string{"#shared_preload_libraries = 'pg_textsearch'"},
+			want:  true,
+		},
+		{
+			desc:  "substring match does not trigger detection",
+			lines: []string{"shared_preload_libraries = 'my_pg_textsearch'"},
+			want:  false,
+		},
+	}
+	for _, c := range cases {
+		cfs := newConfigFileStateFromSlice(t, c.lines)
+		if got := pgTextsearchDetected(cfs.sharedLibResult); got != c.want {
+			t.Errorf("%s: pgTextsearchDetected = %v, want %v", c.desc, got, c.want)
 		}
 	}
 }

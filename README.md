@@ -7,6 +7,12 @@ It parses the existing `postgresql.conf` file to ensure that the TimescaleDB
 extension is appropriately installed and provides recommendations for
 memory, parallelism, WAL, and other settings.
 
+If `pg_textsearch` is listed in `shared_preload_libraries`, timescaledb-tune
+additionally recommends a value for `pg_textsearch.memory_limit`: total
+memory / 4 by default, or total memory / 8 under the `promscale` profile
+(which already allocates half of RAM to `shared_buffers`). No extra flags
+are required.
+
 ### Getting started
 You need the Go runtime (1.18+) installed, then simply `go install` this repo:
 ```bash

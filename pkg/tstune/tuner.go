@@ -69,6 +69,23 @@ const (
 // allows us to substitute mock versions in tests
 var filepathAbsFn = filepath.Abs
 
+// displayLabeler is optionally implemented by a SettingsGroup to supply a
+// verbatim display name for the "X settings recommendations" heading when the
+// default title-casing is not appropriate (e.g. for extension/GUC names).
+type displayLabeler interface {
+	DisplayLabel() string
+}
+
+// displayLabel returns the string to show for a settings group's heading.
+// Groups may implement displayLabeler to opt out of the default title-casing.
+func displayLabel(sg pgtune.SettingsGroup) string {
+	if d, ok := sg.(displayLabeler); ok {
+		return d.DisplayLabel()
+	}
+	label := sg.Label()
+	return strings.ToUpper(label[:1]) + label[1:]
+}
+
 // TunerFlags are the flags that control how a Tuner object behaves when it is run.
 type TunerFlags struct {
 	Memory       string // amount of memory to base recommendations on
@@ -287,6 +304,10 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	t.cfs, err = getConfigFileState(file)
 	ifErrHandle(err)
 
+	// Surface pg_textsearch presence to the tuning recommenders so the
+	// dedicated settings group only runs when the extension is loaded.
+	config.PgTextsearchEnabled = pgTextsearchDetected(t.cfs.sharedLibResult)
+
 	// Write backup
 	if !t.flags.DryRun {
 		backupPath, err := backup(t.cfs)
@@ -484,7 +505,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, profile pgtune.Pro
 	quiet := t.flags.Quiet
 	if !quiet {
 		fmt.Fprintf(t.handler.out, "\n")
-		t.handler.p.Statement(fmt.Sprintf("%s%s settings recommendations", strings.ToUpper(label[:1]), label[1:]))
+		t.handler.p.Statement(fmt.Sprintf("%s settings recommendations", displayLabel(sg)))
 	}
 	keys := sg.Keys()
 	recommender := sg.GetRecommender(profile)
@@ -592,6 +613,7 @@ func (t *Tuner) processTunables(config *pgtune.SystemConfig, profile pgtune.Prof
 		pgtune.WALLabel,
 		pgtune.BgwriterLabel,
 		pgtune.MiscLabel,
+		pgtune.PgTextsearchLabel,
 	}
 
 	for _, label := range tunables {
