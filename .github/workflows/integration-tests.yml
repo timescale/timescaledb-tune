@@ -81,15 +81,19 @@ jobs:
           set -xeu
           # Get config path
           CONFIG_PATH=$(docker exec pg-test-pg${{ matrix.pg-version }} psql -U postgres -t -c "SHOW config_file" | xargs)
-          
+          # Derive a writable TMPDIR from the config directory so this works
+          # across images whose data directory layouts differ (pg18 uses
+          # /var/lib/postgresql/18/docker rather than /var/lib/postgresql/data).
+          TMPDIR_IN_CONTAINER=$(dirname "${CONFIG_PATH}")
+
           # Save original config
           docker cp pg-test-pg${{ matrix.pg-version }}:${CONFIG_PATH} ./postgresql.conf.original
-          
+
           # Copy binary to container
           docker cp ./timescaledb-tune pg-test-pg${{ matrix.pg-version }}:/tmp/timescaledb-tune
-          
+
           # Generate tune.conf
-          docker exec -u root -e TMPDIR=/var/lib/postgresql/data pg-test-pg${{ matrix.pg-version }} \
+          docker exec -u root -e TMPDIR="${TMPDIR_IN_CONTAINER}" pg-test-pg${{ matrix.pg-version }} \
              /tmp/timescaledb-tune \
               --conf-path="${CONFIG_PATH}" \
               --pg-version=${{ matrix.pg-version }} \
