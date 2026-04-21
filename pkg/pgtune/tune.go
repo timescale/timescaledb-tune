@@ -72,12 +72,13 @@ type SettingsGroup interface {
 // SystemConfig represents a system's resource configuration, to be used when generating
 // recommendations for different SettingsGroups.
 type SystemConfig struct {
-	Memory         uint64
-	CPUs           int
-	PGMajorVersion string
-	WALDiskSize    uint64
-	maxConns       uint64
-	MaxBGWorkers   int
+	Memory              uint64
+	CPUs                int
+	PGMajorVersion      string
+	WALDiskSize         uint64
+	maxConns            uint64
+	MaxBGWorkers        int
+	PgTextsearchEnabled bool // true if pg_textsearch is in shared_preload_libraries
 }
 
 // NewSystemConfig returns a new SystemConfig with the given parameters.
@@ -112,6 +113,8 @@ func GetSettingsGroup(label string, config *SystemConfig) SettingsGroup {
 		return &BgwriterSettingsGroup{}
 	case label == MiscLabel:
 		return &MiscSettingsGroup{config.Memory, config.maxConns, config.PGMajorVersion}
+	case label == PgTextsearchLabel:
+		return &PgTextsearchSettingsGroup{config.Memory, config.PgTextsearchEnabled}
 	}
 	panic("unknown label: " + label)
 }

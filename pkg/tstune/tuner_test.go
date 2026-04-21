@@ -1411,8 +1411,11 @@ func TestTunerProcessTunables(t *testing.T) {
 		checkStmt("WAL settings recommendations")
 		checkStmt("Background writer settings recommendations")
 		checkStmt("Miscellaneous settings recommendations")
+		if wantGroups > 5 {
+			checkStmt("pg_textsearch settings recommendations")
+		}
 	}
-	input := "y\ny\ny\ny\n"
+	input := "y\ny\ny\ny\ny\n"
 
 	config := getDefaultSystemConfig(t)
 	handler := setupDefaultTestIO(input)
@@ -1443,6 +1446,16 @@ func TestTunerProcessTunables(t *testing.T) {
 	tuner = newTunerWithDefaultFlags(handler, cfs)
 	tuner.processTunables(config, pgtune.PromscaleProfile)
 	check(tuner.handler, config, 4)
+
+	// pg_textsearch settings group should appear when pg_textsearch is in
+	// shared_preload_libraries (signaled via PgTextsearchEnabled on the config).
+	config = getDefaultSystemConfig(t)
+	config.PgTextsearchEnabled = true
+	handler = setupDefaultTestIO(input)
+	cfs = &configFileState{tuneParseResults: make(map[string]*tunableParseResult)}
+	tuner = newTunerWithDefaultFlags(handler, cfs)
+	tuner.processTunables(config, pgtune.DefaultProfile)
+	check(tuner.handler, config, 6)
 }
 
 var (

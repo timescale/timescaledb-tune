@@ -69,6 +69,17 @@ const (
 // allows us to substitute mock versions in tests
 var filepathAbsFn = filepath.Abs
 
+// displayLabel formats a settings-group label for display in statements.
+// It capitalizes the first letter, but leaves labels that look like
+// extension/GUC names (containing '_') unchanged so "pg_textsearch" renders
+// as "pg_textsearch" rather than "Pg_textsearch".
+func displayLabel(label string) string {
+	if strings.Contains(label, "_") {
+		return label
+	}
+	return strings.ToUpper(label[:1]) + label[1:]
+}
+
 // TunerFlags are the flags that control how a Tuner object behaves when it is run.
 type TunerFlags struct {
 	Memory       string // amount of memory to base recommendations on
@@ -287,6 +298,12 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	t.cfs, err = getConfigFileState(file)
 	ifErrHandle(err)
 
+	// Surface pg_textsearch presence to the tuning recommenders so the
+	// dedicated settings group only runs when the extension is loaded.
+	if t.cfs.sharedLibResult != nil && t.cfs.sharedLibResult.hasPgTextsearch {
+		config.PgTextsearchEnabled = true
+	}
+
 	// Write backup
 	if !t.flags.DryRun {
 		backupPath, err := backup(t.cfs)
@@ -484,7 +501,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, profile pgtune.Pro
 	quiet := t.flags.Quiet
 	if !quiet {
 		fmt.Fprintf(t.handler.out, "\n")
-		t.handler.p.Statement(fmt.Sprintf("%s%s settings recommendations", strings.ToUpper(label[:1]), label[1:]))
+		t.handler.p.Statement(fmt.Sprintf("%s settings recommendations", displayLabel(label)))
 	}
 	keys := sg.Keys()
 	recommender := sg.GetRecommender(profile)
@@ -592,6 +609,7 @@ func (t *Tuner) processTunables(config *pgtune.SystemConfig, profile pgtune.Prof
 		pgtune.WALLabel,
 		pgtune.BgwriterLabel,
 		pgtune.MiscLabel,
+		pgtune.PgTextsearchLabel,
 	}
 
 	for _, label := range tunables {

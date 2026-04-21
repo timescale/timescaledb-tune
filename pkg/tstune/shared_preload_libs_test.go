@@ -12,9 +12,40 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 			desc:  "initial config value",
 			input: "#shared_preload_libraries = ''		# (change requires restart)",
 			want: &sharedLibResult{
-				commented:    true,
-				hasTimescale: false,
-				libs:         "",
+				commented:       true,
+				hasTimescale:    false,
+				hasPgTextsearch: false,
+				libs:            "",
+			},
+		},
+		{
+			desc:  "pg_textsearch only, uncommented",
+			input: "shared_preload_libraries = 'pg_textsearch'",
+			want: &sharedLibResult{
+				commented:       false,
+				hasTimescale:    false,
+				hasPgTextsearch: true,
+				libs:            "pg_textsearch",
+			},
+		},
+		{
+			desc:  "timescaledb and pg_textsearch together",
+			input: "shared_preload_libraries = 'timescaledb,pg_textsearch'",
+			want: &sharedLibResult{
+				commented:       false,
+				hasTimescale:    true,
+				hasPgTextsearch: true,
+				libs:            "timescaledb,pg_textsearch",
+			},
+		},
+		{
+			desc:  "pg_textsearch among others, commented",
+			input: "#shared_preload_libraries = 'pg_stat_statements,pg_textsearch,timescaledb'",
+			want: &sharedLibResult{
+				commented:       true,
+				hasTimescale:    true,
+				hasPgTextsearch: true,
+				libs:            "pg_stat_statements,pg_textsearch,timescaledb",
 			},
 		},
 		{
@@ -116,6 +147,9 @@ func TestParseLineForSharedLibResult(t *testing.T) {
 			}
 			if got := res.hasTimescale; got != c.want.hasTimescale {
 				t.Errorf("%s: incorrect hasTimescale: got %v want %v", c.desc, got, c.want.hasTimescale)
+			}
+			if got := res.hasPgTextsearch; got != c.want.hasPgTextsearch {
+				t.Errorf("%s: incorrect hasPgTextsearch: got %v want %v", c.desc, got, c.want.hasPgTextsearch)
 			}
 			if got := res.libs; got != c.want.libs {
 				t.Errorf("%s: incorrect libs: got %s want %s", c.desc, got, c.want.libs)
