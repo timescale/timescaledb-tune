@@ -9,7 +9,6 @@ import (
 )
 
 const (
-	osWindows                = "windows"
 	errMaxConnsTooLowFmt     = "maxConns must be 0 OR >= %d: got %d"
 	errMaxBGWorkersTooLowFmt = "maxBGWorkers must be >= %d: got %d"
 	errUnrecognizedProfile   = "unrecognized profile: %s"
