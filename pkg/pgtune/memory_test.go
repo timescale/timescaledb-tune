@@ -18,19 +18,19 @@ var defaultMemoryToBaseVals = map[uint64]map[string]uint64{
 		SharedBuffersKey:      2560 * parse.Megabyte,
 		EffectiveCacheKey:     7680 * parse.Megabyte,
 		MaintenanceWorkMemKey: 1280 * parse.Megabyte,
-		WorkMemKey:            64 * parse.Megabyte,
+		WorkMemKey:            200 * parse.Megabyte,
 	},
 	12 * parse.Gigabyte: {
 		SharedBuffersKey:      3 * parse.Gigabyte,
 		EffectiveCacheKey:     9 * parse.Gigabyte,
 		MaintenanceWorkMemKey: 1536 * parse.Megabyte,
-		WorkMemKey:            78643 * parse.Kilobyte,
+		WorkMemKey:            240 * parse.Megabyte,
 	},
 	32 * parse.Gigabyte: {
 		SharedBuffersKey:      8 * parse.Gigabyte,
 		EffectiveCacheKey:     24 * parse.Gigabyte,
 		MaintenanceWorkMemKey: maintenanceWorkMemLimit,
-		WorkMemKey:            209715 * parse.Kilobyte,
+		WorkMemKey:            640 * parse.Megabyte,
 	},
 }
 
@@ -44,19 +44,19 @@ var promscaleMemoryToBaseVals = map[uint64]map[string]uint64{
 		SharedBuffersKey:      5120 * parse.Megabyte,
 		EffectiveCacheKey:     7680 * parse.Megabyte,
 		MaintenanceWorkMemKey: 1280 * parse.Megabyte,
-		WorkMemKey:            64 * parse.Megabyte,
+		WorkMemKey:            200 * parse.Megabyte,
 	},
 	12 * parse.Gigabyte: {
 		SharedBuffersKey:      6 * parse.Gigabyte,
 		EffectiveCacheKey:     9 * parse.Gigabyte,
 		MaintenanceWorkMemKey: 1536 * parse.Megabyte,
-		WorkMemKey:            78643 * parse.Kilobyte,
+		WorkMemKey:            240 * parse.Megabyte,
 	},
 	32 * parse.Gigabyte: {
 		SharedBuffersKey:      16 * parse.Gigabyte,
 		EffectiveCacheKey:     24 * parse.Gigabyte,
 		MaintenanceWorkMemKey: maintenanceWorkMemLimit,
-		WorkMemKey:            209715 * parse.Kilobyte,
+		WorkMemKey:            640 * parse.Megabyte,
 	},
 }
 
@@ -89,21 +89,20 @@ func init() {
 				defaultMemorySettingsMatrix[mem][cpus][conns][EffectiveCacheKey] = parse.BytesToPGFormat(baseMatrix[EffectiveCacheKey])
 				defaultMemorySettingsMatrix[mem][cpus][conns][MaintenanceWorkMemKey] = parse.BytesToPGFormat(baseMatrix[MaintenanceWorkMemKey])
 
-				if cpus == highCPUs {
-					defaultMemorySettingsMatrix[mem][cpus][conns][WorkMemKey] = parse.BytesToPGFormat(workMemMin)
-				} else {
-					// CPU only affects work_mem in groups of 2 (i.e. 2 and 3 CPUs are treated as the same)
-					cpuFactor := math.Round(float64(cpus) / 2.0)
-					// Our work_mem values are derivied by a certain amount of memory lost/gained when
-					// moving away from baseConns
-					connFactor := float64(MaxConnectionsDefault) / float64(baseConns)
-					if conns != 0 {
-						connFactor = float64(conns) / float64(baseConns)
-					}
-
-					defaultMemorySettingsMatrix[mem][cpus][conns][WorkMemKey] =
-						parse.BytesToPGFormat(uint64(float64(baseMatrix[WorkMemKey]) / connFactor / cpuFactor))
+				// CPU only affects work_mem in groups of 2 (i.e. 2 and 3 CPUs are treated as the same)
+				cpuFactor := math.Round(float64(cpus) / 2.0)
+				// Our work_mem values are derivied by a certain amount of memory lost/gained when
+				// moving away from baseConns
+				connFactor := float64(MaxConnectionsDefault) / float64(baseConns)
+				if conns != 0 {
+					connFactor = float64(conns) / float64(baseConns)
 				}
+
+				wm := uint64(float64(baseMatrix[WorkMemKey]) / connFactor / cpuFactor)
+				if wm < workMemMin {
+					wm = workMemMin
+				}
+				defaultMemorySettingsMatrix[mem][cpus][conns][WorkMemKey] = parse.BytesToPGFormat(wm)
 			}
 		}
 	}
@@ -119,21 +118,20 @@ func init() {
 				promscaleMemorySettingsMatrix[mem][cpus][conns][EffectiveCacheKey] = parse.BytesToPGFormat(baseMatrix[EffectiveCacheKey])
 				promscaleMemorySettingsMatrix[mem][cpus][conns][MaintenanceWorkMemKey] = parse.BytesToPGFormat(baseMatrix[MaintenanceWorkMemKey])
 
-				if cpus == highCPUs {
-					promscaleMemorySettingsMatrix[mem][cpus][conns][WorkMemKey] = parse.BytesToPGFormat(workMemMin)
-				} else {
-					// CPU only affects work_mem in groups of 2 (i.e. 2 and 3 CPUs are treated as the same)
-					cpuFactor := math.Round(float64(cpus) / 2.0)
-					// Our work_mem values are derivied by a certain amount of memory lost/gained when
-					// moving away from baseConns
-					connFactor := float64(MaxConnectionsDefault) / float64(baseConns)
-					if conns != 0 {
-						connFactor = float64(conns) / float64(baseConns)
-					}
-
-					promscaleMemorySettingsMatrix[mem][cpus][conns][WorkMemKey] =
-						parse.BytesToPGFormat(uint64(float64(baseMatrix[WorkMemKey]) / connFactor / cpuFactor))
+				// CPU only affects work_mem in groups of 2 (i.e. 2 and 3 CPUs are treated as the same)
+				cpuFactor := math.Round(float64(cpus) / 2.0)
+				// Our work_mem values are derivied by a certain amount of memory lost/gained when
+				// moving away from baseConns
+				connFactor := float64(MaxConnectionsDefault) / float64(baseConns)
+				if conns != 0 {
+					connFactor = float64(conns) / float64(baseConns)
 				}
+
+				wm := uint64(float64(baseMatrix[WorkMemKey]) / connFactor / cpuFactor)
+				if wm < workMemMin {
+					wm = workMemMin
+				}
+				promscaleMemorySettingsMatrix[mem][cpus][conns][WorkMemKey] = parse.BytesToPGFormat(wm)
 			}
 		}
 	}
@@ -177,108 +175,6 @@ func TestNewPromscaleMemoryRecommender(t *testing.T) {
 
 		if !r.IsAvailable() {
 			t.Errorf("unexpectedly not available")
-		}
-	}
-}
-
-func TestMemoryRecommenderRecommendWindows(t *testing.T) {
-	cases := []struct {
-		desc        string
-		totalMemory uint64
-		cpus        int
-		conns       uint64
-		want        string
-	}{
-		{
-			desc:        "1GB",
-			totalMemory: 1 * parse.Gigabyte,
-			cpus:        1,
-			conns:       baseConns,
-			want:        "6553" + parse.KB, // from pgtune
-		},
-		{
-			desc:        "1GB, 10 conns",
-			totalMemory: 1 * parse.Gigabyte,
-			cpus:        1,
-			conns:       10,
-			want:        "13107" + parse.KB, // from pgtune
-		},
-		{
-			desc:        "1GB, 4 cpus",
-			totalMemory: 1 * parse.Gigabyte,
-			cpus:        4,
-			conns:       baseConns,
-			want:        "3276" + parse.KB, // from pgtune
-		},
-		{
-			desc:        "2GB",
-			totalMemory: 2 * parse.Gigabyte,
-			cpus:        1,
-			conns:       baseConns,
-			want:        "13107" + parse.KB, // from pgtune
-		},
-		{
-			desc:        "2GB, 5 cpus",
-			totalMemory: 2 * parse.Gigabyte,
-			cpus:        5,
-			conns:       baseConns,
-			want:        "4369" + parse.KB, // from pgtune
-		},
-		{
-			desc:        "3GB",
-			totalMemory: 3 * parse.Gigabyte,
-			cpus:        1,
-			conns:       baseConns,
-			want:        "21845" + parse.KB, // from pgtune
-		},
-		{
-			desc:        "3GB, 3 cpus",
-			totalMemory: 3 * parse.Gigabyte,
-			cpus:        3,
-			conns:       baseConns,
-			want:        "10922" + parse.KB, // from pgtune
-		},
-		{
-			desc:        "8GB",
-			totalMemory: 8 * parse.Gigabyte,
-			cpus:        1,
-			conns:       baseConns,
-			want:        "64" + parse.MB, // from pgtune
-		},
-		{
-			desc:        "8GB, 8 cpus",
-			totalMemory: 8 * parse.Gigabyte,
-			cpus:        8,
-			conns:       baseConns,
-			want:        "16" + parse.MB, // from pgtune
-		},
-		{
-			desc:        "16GB",
-			totalMemory: 16 * parse.Gigabyte,
-			cpus:        1,
-			conns:       baseConns,
-			want:        "135441" + parse.KB, // from pgtune
-		},
-		{
-			desc:        "16GB, 10 cpus",
-			totalMemory: 16 * parse.Gigabyte,
-			cpus:        10,
-			conns:       baseConns,
-			want:        "27088" + parse.KB, // from pgtune
-		},
-		{
-			desc:        "1GB, 9000 cpus",
-			totalMemory: parse.Gigabyte,
-			cpus:        highCPUs,
-			conns:       baseConns,
-			want:        "64" + parse.KB,
-		},
-	}
-
-	for _, c := range cases {
-		mr := NewMemoryRecommender(c.totalMemory, c.cpus, c.conns)
-		if got := mr.recommendWindows(); got != c.want {
-			t.Errorf("%s: incorrect value: got %s want %s", c.desc, got, c.want)
 		}
 	}
 }

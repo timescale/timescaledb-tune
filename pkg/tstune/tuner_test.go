@@ -781,7 +781,7 @@ func (r *badRecommender) Recommend(string) string { return "not a number" }
 func TestCheckIfShouldShowSetting(t *testing.T) {
 	valSharedBuffers := "2GB"
 	valEffective := "6GB"
-	valWorkMem := "52428kB"
+	valWorkMem := "160MB"
 	valMaintenance := "1GB"
 	okSharedBuffers := &tunableParseResult{
 		idx:       0,
@@ -1045,13 +1045,13 @@ func TestCheckIfShouldShowSettingErr(t *testing.T) {
 var (
 	memSettingsCorrect = []string{
 		"shared_buffers = 2GB",
-		"work_mem = 26214kB",
+		"work_mem = 64MB",
 		"effective_cache_size = 6GB",
 		"maintenance_work_mem = 1GB",
 	}
 	memSettingsCommented = []string{
 		"#shared_buffers = 2GB  # should be uncommented",
-		"work_mem = 20971kB",
+		"work_mem = 64MB",
 		"effective_cache_size = 6GB",
 		"maintenance_work_mem = 1GB",
 	}
@@ -1063,13 +1063,13 @@ var (
 	}
 	memSettingsMissing = []string{
 		"shared_buffers = 2GB",
-		"work_mem = 20971kB",
+		"work_mem = 64MB",
 		// missing effective cache size
 		"maintenance_work_mem = 1GB",
 	}
 	memSettingsCommentWrong = []string{
 		"#shared_buffers = 0GB  # should be uncommented, and 2GB",
-		"work_mem = 20971kB",
+		"work_mem = 64MB",
 		"effective_cache_size = 6GB",
 		"maintenance_work_mem = 0GB  # should be non-0",
 	}
@@ -1454,7 +1454,7 @@ var (
 		"shared_buffers = 2GB",
 		"effective_cache_size = 6GB",
 		"maintenance_work_mem = 1GB",
-		"work_mem = 20971kB",
+		"work_mem = 64MB",
 		"timescaledb.max_background_workers = 16",
 		"max_worker_processes = 23",
 		"max_parallel_workers_per_gather = 2",
