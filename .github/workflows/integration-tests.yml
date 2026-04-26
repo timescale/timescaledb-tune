@@ -88,8 +88,10 @@ jobs:
           # Copy binary to container
           docker cp ./timescaledb-tune pg-test-pg${{ matrix.pg-version }}:/tmp/timescaledb-tune
           
-          # Generate tune.conf
-          docker exec -u root -e TMPDIR=/var/lib/postgresql/data pg-test-pg${{ matrix.pg-version }} \
+          # Generate tune.conf (backup is written to TMPDIR — point it at the
+          # config's own directory so it works regardless of where PGDATA lives)
+          CONFIG_DIR=$(dirname "${CONFIG_PATH}")
+          docker exec -u root -e TMPDIR="${CONFIG_DIR}" pg-test-pg${{ matrix.pg-version }} \
              /tmp/timescaledb-tune \
               --conf-path="${CONFIG_PATH}" \
               --pg-version=${{ matrix.pg-version }} \
