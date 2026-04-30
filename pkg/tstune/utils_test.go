@@ -122,6 +122,7 @@ func TestGetPGMajorVersion(t *testing.T) {
 	okPath16 := "pg_config_16"
 	okPath17 := "pg_config_17"
 	okPath18 := "pg_config_18"
+	okPath19 := "pg_config_19"
 	okPath95 := "pg_config_9.5"
 	okPath60 := "pg_config_6.0"
 	cases := []struct {
@@ -204,6 +205,8 @@ func TestGetPGMajorVersion(t *testing.T) {
 			return "PostgreSQL 17.0", nil
 		case okPath18:
 			return "PostgreSQL 18.0", nil
+		case okPath19:
+			return "PostgreSQL 19.0", nil
 		default:
 			return "", exec.ErrNotFound
 		}
@@ -243,6 +246,7 @@ func TestValidatePGMajorVersion(t *testing.T) {
 		pgutils.MajorVersion16: true,
 		pgutils.MajorVersion17: true,
 		pgutils.MajorVersion18: true,
+		pgutils.MajorVersion19: true,
 		"9.5":                  false,
 		"1.2.3":                false,
 		"9.6.6":                false,
