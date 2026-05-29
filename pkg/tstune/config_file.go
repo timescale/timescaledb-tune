@@ -36,7 +36,7 @@ type truncateWriter interface {
 // the file; otherwise, it returns with an empty path and error.
 func getConfigFilePath(system, pgVersion string) (string, error) {
 	tried := []string{}
-	try := func(format string, args ...interface{}) string {
+	try := func(format string, args ...any) string {
 		fileName := fmt.Sprintf(format, args...)
 		tried = append(tried, fileName)
 		if fileExists(fileName) {

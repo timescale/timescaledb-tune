@@ -18,22 +18,22 @@ type testPrinter struct {
 	errors         []string
 }
 
-func (p *testPrinter) Statement(format string, args ...interface{}) {
+func (p *testPrinter) Statement(format string, args ...any) {
 	p.statementCalls++
 	p.statements = append(p.statements, fmt.Sprintf(format, args...))
 }
 
-func (p *testPrinter) Prompt(format string, args ...interface{}) {
+func (p *testPrinter) Prompt(format string, args ...any) {
 	p.promptCalls++
 	p.prompts = append(p.prompts, fmt.Sprintf(format, args...))
 }
 
-func (p *testPrinter) Success(format string, args ...interface{}) {
+func (p *testPrinter) Success(format string, args ...any) {
 	p.successCalls++
 	p.successes = append(p.successes, fmt.Sprintf(format, args...))
 }
 
-func (p *testPrinter) Error(label string, format string, args ...interface{}) {
+func (p *testPrinter) Error(label string, format string, args ...any) {
 	p.errorCalls++
 	p.errors = append(p.errors, fmt.Sprintf(label+": "+format, args...))
 }
