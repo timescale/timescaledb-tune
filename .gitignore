@@ -1,0 +1,24 @@
+*.log
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+timescaledb-tune
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+coverage.txt
+
+# Popular IDEs
+.idea/
+.vscode/
+
+# OSX internals
+.DS_Store
+
