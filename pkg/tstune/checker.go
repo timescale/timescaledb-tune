@@ -31,10 +31,10 @@ type promptChecker interface {
 
 type yesNoChecker struct {
 	errMsg string
-	args   []interface{}
+	args   []any
 }
 
-func newYesNoChecker(errMsg string, args ...interface{}) *yesNoChecker {
+func newYesNoChecker(errMsg string, args ...any) *yesNoChecker {
 	return &yesNoChecker{errMsg, args}
 }
 
@@ -51,7 +51,7 @@ type skipChecker struct {
 	err error
 }
 
-func newSkipChecker(errMsg string, args ...interface{}) *skipChecker {
+func newSkipChecker(errMsg string, args ...any) *skipChecker {
 	return &skipChecker{fmt.Errorf(errMsg, args...)}
 }
 
@@ -72,7 +72,7 @@ type numberedListChecker struct {
 	response int
 }
 
-func newNumberedListChecker(limit int, errMsg string, args ...interface{}) *numberedListChecker {
+func newNumberedListChecker(limit int, errMsg string, args ...any) *numberedListChecker {
 	return &numberedListChecker{limit, fmt.Errorf(errMsg, args...), 0}
 }
 

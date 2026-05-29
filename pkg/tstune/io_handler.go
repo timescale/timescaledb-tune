@@ -18,7 +18,7 @@ type ioHandler struct {
 	outErr io.Writer
 }
 
-func (h *ioHandler) exit(errCode int, format string, args ...interface{}) {
+func (h *ioHandler) exit(errCode int, format string, args ...any) {
 	h.p.Error(exitLabel, format, args...)
 	exitFn(errCode)
 }

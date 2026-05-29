@@ -22,35 +22,35 @@ var (
 )
 
 type printer interface {
-	Statement(string, ...interface{})
-	Prompt(string, ...interface{})
-	Success(string, ...interface{})
-	Error(string, string, ...interface{})
+	Statement(string, ...any)
+	Prompt(string, ...any)
+	Success(string, ...any)
+	Error(string, string, ...any)
 }
 
 type colorPrinter struct {
 	w io.Writer
 }
 
-func (p *colorPrinter) printWithColor(c *color.Color, format string, args ...interface{}) {
+func (p *colorPrinter) printWithColor(c *color.Color, format string, args ...any) {
 	color.NoColor = false
 	c.Fprintf(p.w, format, args...)
 }
 
-func (p *colorPrinter) Statement(format string, args ...interface{}) {
+func (p *colorPrinter) Statement(format string, args ...any) {
 	p.printWithColor(statementColor, format+"\n", args...)
 }
 
-func (p *colorPrinter) Prompt(format string, args ...interface{}) {
+func (p *colorPrinter) Prompt(format string, args ...any) {
 	p.printWithColor(promptColor, format, args...)
 }
 
-func (p *colorPrinter) Success(format string, args ...interface{}) {
+func (p *colorPrinter) Success(format string, args ...any) {
 	p.printWithColor(successColor, successLabel)
 	fmt.Fprintf(p.w, format+"\n", args...)
 }
 
-func (p *colorPrinter) Error(label string, format string, args ...interface{}) {
+func (p *colorPrinter) Error(label string, format string, args ...any) {
 	p.printWithColor(errorColor, label+": ")
 	fmt.Fprintf(p.w, format+"\n", args...)
 }
@@ -59,18 +59,18 @@ type noColorPrinter struct {
 	w io.Writer
 }
 
-func (p *noColorPrinter) Statement(format string, args ...interface{}) {
+func (p *noColorPrinter) Statement(format string, args ...any) {
 	fmt.Fprintf(p.w, noColorPrefixStatement+format+"\n", args...)
 }
 
-func (p *noColorPrinter) Prompt(format string, args ...interface{}) {
+func (p *noColorPrinter) Prompt(format string, args ...any) {
 	fmt.Fprintf(p.w, noColorPrefixPrompt+format, args...)
 }
 
-func (p *noColorPrinter) Success(format string, args ...interface{}) {
+func (p *noColorPrinter) Success(format string, args ...any) {
 	fmt.Fprintf(p.w, strings.ToUpper(successLabel)+format+"\n", args...)
 }
 
-func (p *noColorPrinter) Error(label string, format string, args ...interface{}) {
+func (p *noColorPrinter) Error(label string, format string, args ...any) {
 	fmt.Fprintf(p.w, strings.ToUpper(label)+": "+format+"\n", args...)
 }
