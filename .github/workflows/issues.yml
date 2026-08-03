@@ -11,7 +11,7 @@ jobs:
     name: Add issue to project
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/add-to-project@v0.4.0
+      - uses: actions/add-to-project@v2.0.0
         with:
           project-url: https://github.com/orgs/timescale/projects/55
           github-token: ${{ secrets.ORG_AUTOMATION_TOKEN }}
@@ -95,7 +95,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
 
       - name: Check if organization member
-        uses: tspascoal/get-user-teams-membership@v2
+        uses: tspascoal/get-user-teams-membership@v4
         id: checkUserMember
         with:
          username: ${{ github.actor }}
