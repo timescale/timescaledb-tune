@@ -11,7 +11,7 @@ jobs:
     name: Add issue to project
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/add-to-project@v2.0.0
+      - uses: actions/add-to-project@5afcf98fcd03f1c2f92c3c83f58ae24323cc57fd # v2.0.0
         with:
           project-url: https://github.com/orgs/timescale/projects/55
           github-token: ${{ secrets.ORG_AUTOMATION_TOKEN }}
@@ -23,7 +23,7 @@ jobs:
     if: github.event_name == 'issues' && github.event.action == 'labeled'
       && github.event.label.name == 'waiting-for-author'
     steps:
-      - uses: leonsteinhaeuser/project-beta-automations@v2.0.0
+      - uses: leonsteinhaeuser/project-beta-automations@6ad2dc04dc4ca680c7e2583e9503708bd454e6a2 # v2.0.0
         with:
           gh_token: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           organization: timescale
@@ -95,7 +95,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
 
       - name: Check if organization member
-        uses: tspascoal/get-user-teams-membership@v4
+        uses: tspascoal/get-user-teams-membership@b2546c5affc730fd8e3d8483ae9ad3621938c2f9 # v4
         id: checkUserMember
         with:
          username: ${{ github.actor }}
@@ -112,7 +112,7 @@ jobs:
       - name: Move to waiting for engineering column
         if: ${{ steps.checkUserMember.outputs.isTeamMember == 'false'
           && steps.extract_board_column.outputs.issue_board_column == 'Waiting for Author' }}
-        uses: leonsteinhaeuser/project-beta-automations@v2.0.0
+        uses: leonsteinhaeuser/project-beta-automations@6ad2dc04dc4ca680c7e2583e9503708bd454e6a2 # v2.0.0
         with:
           gh_token: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           organization: timescale
