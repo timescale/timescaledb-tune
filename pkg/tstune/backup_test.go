@@ -7,7 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -36,7 +36,7 @@ func TestBackup(t *testing.T) {
 		t.Fatalf("unexpected err: %v", err)
 	}
 	wantFileName := backupFilePrefix + now.Format(backupDateFmt)
-	wantPath := path.Join(os.TempDir(), wantFileName)
+	wantPath := filepath.Join(os.TempDir(), wantFileName)
 
 	osCreateFn = func(_ string) (io.WriteCloser, error) {
 		return nil, fmt.Errorf("erroring")
@@ -87,8 +87,8 @@ func TestBackup(t *testing.T) {
 
 func TestGetBackups(t *testing.T) {
 	errGlob := "glob error"
-	correctFile1 := path.Join(os.TempDir(), "timescaledb_tune.backup201901181122")
-	correctFile2 := path.Join(os.TempDir(), "timescaledb_tune.backup201901191200")
+	correctFile1 := filepath.Join(os.TempDir(), "timescaledb_tune.backup201901181122")
+	correctFile2 := filepath.Join(os.TempDir(), "timescaledb_tune.backup201901191200")
 	cases := []struct {
 		desc        string
 		onDiskFiles []string

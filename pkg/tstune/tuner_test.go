@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -265,7 +265,7 @@ func setupDefaultTestIO(input string) *ioHandler {
 func TestRestore(t *testing.T) {
 	errGlob := "glob error"
 	now := time.Now()
-	baseFile := path.Join(os.TempDir(), backupFilePrefix)
+	baseFile := filepath.Join(os.TempDir(), backupFilePrefix)
 	time1 := now.Add(-5 * time.Minute).Format(backupDateFmt)
 	time2 := now.Add(-3 * time.Hour).Format(backupDateFmt)
 	correctFile1 := baseFile + time1
