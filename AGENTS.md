@@ -4,7 +4,7 @@
 
 Go CLI tool that tunes PostgreSQL configuration for optimal TimescaleDB performance.
 
-- **Language**: Go 1.23+
+- **Language**: Go 1.27+
 - **Version**: 0.18.1 (`pkg/tstune/tuner.go`)
 
 ## Developer Preferences

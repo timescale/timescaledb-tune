@@ -51,7 +51,7 @@ func (p *colorPrinter) Success(format string, args ...interface{}) {
 }
 
 func (p *colorPrinter) Error(label string, format string, args ...interface{}) {
-	p.printWithColor(errorColor, label+": ")
+	p.printWithColor(errorColor, "%s: ", label)
 	fmt.Fprintf(p.w, format+"\n", args...)
 }
 

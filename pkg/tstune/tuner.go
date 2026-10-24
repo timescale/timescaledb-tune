@@ -291,7 +291,7 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	if !t.flags.DryRun {
 		backupPath, err := backup(t.cfs)
 		t.handler.p.Statement("Writing backup to:")
-		fmt.Fprintf(t.handler.outErr, backupPath+"\n\n")
+		fmt.Fprintf(t.handler.outErr, "%s\n\n", backupPath)
 		ifErrHandle(err)
 	}
 
@@ -342,7 +342,7 @@ func (t *Tuner) promptUntilValidInput(prompt string, checker promptChecker) erro
 // the presence of the Yes flag.
 func (t *Tuner) forcePromptUntilValidInput(prompt string, checker promptChecker) error {
 	for {
-		t.handler.p.Prompt(prompt)
+		t.handler.p.Prompt("%s", prompt)
 		resp, err := t.handler.br.ReadString('\n')
 		if err != nil {
 			return fmt.Errorf("could not parse response: %v", err)
@@ -361,7 +361,7 @@ func (t *Tuner) forcePromptUntilValidInput(prompt string, checker promptChecker)
 // it prompts the user for input on whether the provided path is correct.
 func (t *Tuner) processConfFileCheck(filePath string) error {
 	t.handler.p.Statement(statementConfFileCheck)
-	fmt.Fprintf(t.handler.outErr, filePath+"\n\n")
+	fmt.Fprintf(t.handler.outErr, "%s\n\n", filePath)
 	if len(t.flags.ConfPath) == 0 {
 		checker := newYesNoChecker(errConfFileCheckNo)
 		err := t.promptUntilValidInput(promptCorrect+promptYesNo, checker)
@@ -407,12 +407,12 @@ func (t *Tuner) processSharedLibLine() error {
 		t.handler.p.Statement(currentLabel)
 		// want to print without trailing comments to reduce clutter
 		currWithoutComments := fmt.Sprintf("%sshared_preload_libraries = '%s'", res.commentGroup, res.libs)
-		fmt.Fprintf(t.handler.out, currWithoutComments+"\n")
+		fmt.Fprintln(t.handler.out, currWithoutComments)
 
 		t.handler.p.Statement(recommendLabel)
 		// want to print without trailing comments to reduce clutter
 		recWithoutComments := updateSharedLibLine(currWithoutComments, res)
-		fmt.Fprintf(t.handler.out, recWithoutComments+"\n")
+		fmt.Fprintln(t.handler.out, recWithoutComments)
 
 		checker := newYesNoChecker(errSharedLibNeeded)
 		err := t.promptUntilValidInput(promptOkay+promptYesNo, checker)
@@ -484,7 +484,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, profile pgtune.Pro
 	quiet := t.flags.Quiet
 	if !quiet {
 		fmt.Fprintf(t.handler.out, "\n")
-		t.handler.p.Statement(fmt.Sprintf("%s%s settings recommendations", strings.ToUpper(label[:1]), label[1:]))
+		t.handler.p.Statement("%s%s settings recommendations", strings.ToUpper(label[:1]), label[1:])
 	}
 	keys := sg.Keys()
 	recommender := sg.GetRecommender(profile)
@@ -548,7 +548,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, profile pgtune.Pro
 
 		// Prompt the user for input (only in non-quiet mode)
 		if !quiet {
-			checker := newSkipChecker(label + " settings still need to be tuned, please re-run or do so manually")
+			checker := newSkipChecker("%s settings still need to be tuned, please re-run or do so manually", label)
 			err := t.promptUntilValidInput(promptOkay+promptSkip, checker)
 			if err == errSkip {
 				t.handler.p.Error("warning", label+" settings left alone, but still need tuning")
@@ -556,7 +556,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, profile pgtune.Pro
 			} else if err != nil {
 				return err
 			}
-			t.handler.p.Success(label + " settings will be updated")
+			t.handler.p.Success("%s settings will be updated", label)
 		}
 
 		// If we reach here, it means the user accepted our recommendations, so update the lines
@@ -573,7 +573,7 @@ func (t *Tuner) processSettingsGroup(sg pgtune.SettingsGroup, profile pgtune.Pro
 			}
 		})
 	} else if !quiet { // nothing to tune
-		t.handler.p.Success(label + " settings are already tuned")
+		t.handler.p.Success("%s settings are already tuned", label)
 	}
 
 	return nil
@@ -685,7 +685,7 @@ func (t *Tuner) processQuiet(config *pgtune.SystemConfig, profile pgtune.Profile
 		sharedIdx := t.cfs.sharedLibResult.idx
 		newLine := updateSharedLibLine(t.cfs.lines[sharedIdx].content, t.cfs.sharedLibResult)
 		if newLine != t.cfs.lines[sharedIdx].content {
-			fmt.Fprintf(t.handler.out, newLine+"\n")
+			fmt.Fprintln(t.handler.out, newLine)
 			t.cfs.lines[sharedIdx] = &configLine{content: newLine}
 		}
 	}
@@ -697,7 +697,7 @@ func (t *Tuner) processQuiet(config *pgtune.SystemConfig, profile pgtune.Profile
 	}
 	if newWriter.count > 0 {
 		for _, param := range ourParams {
-			fmt.Fprintf(t.handler.out, ourParamString(param)+"\n")
+			fmt.Fprintln(t.handler.out, ourParamString(param))
 		}
 		checker := newYesNoChecker("not using these settings could lead to suboptimal performance")
 		err = t.promptUntilValidInput("Use these recommendations? "+promptYesNo, checker)
@@ -721,7 +721,7 @@ func (t *Tuner) writeConfFile(confPath string) error {
 		}
 	}
 
-	t.handler.p.Statement("Saving changes to: " + outPath)
+	t.handler.p.Statement("Saving changes to: %s", outPath)
 	t.handler.p.Statement("Restart PostgreSQL to apply the modified configuration")
 	f, err := osCreateFn(outPath)
 	if err != nil {
