@@ -3,6 +3,7 @@ package tstune
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -132,7 +133,7 @@ func TestGetBackups(t *testing.T) {
 	for _, c := range cases {
 		filepathGlobFn = func(_ string) ([]string, error) {
 			if c.globErr {
-				return nil, fmt.Errorf(errGlob)
+				return nil, errors.New(errGlob)
 			}
 			return c.onDiskFiles, nil
 		}

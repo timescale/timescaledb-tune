@@ -207,7 +207,7 @@ func TestNewNumberedListCheckerCheck(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		checker := newNumberedListChecker(defaultLimit, defaultErrMsg)
+		checker := newNumberedListChecker(defaultLimit, "%s", defaultErrMsg)
 		got, err := checker.Check(c.s)
 		if c.errMsg == "" && err != nil {
 			t.Errorf("%s: unexpected err: got %v", c.s, err)

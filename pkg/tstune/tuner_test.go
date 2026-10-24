@@ -3,6 +3,7 @@ package tstune
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -245,7 +246,7 @@ type testRestorer struct {
 
 func (r *testRestorer) Restore(backupPath, confPath string) error {
 	if r.errMsg != "" {
-		return fmt.Errorf(r.errMsg)
+		return errors.New(r.errMsg)
 	}
 	return nil
 }
@@ -359,7 +360,7 @@ func TestRestore(t *testing.T) {
 	for _, c := range cases {
 		filepathGlobFn = func(_ string) ([]string, error) {
 			if c.globErr {
-				return nil, fmt.Errorf(errGlob)
+				return nil, errors.New(errGlob)
 			}
 			return c.onDiskFiles, nil
 		}
@@ -1709,7 +1710,7 @@ func TestTunerWriteConfFile(t *testing.T) {
 		if p == wantPath {
 			return p, nil
 		}
-		return "", fmt.Errorf(errAbsPath)
+		return "", errors.New(errAbsPath)
 	}
 
 	for _, c := range cases {

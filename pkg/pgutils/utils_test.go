@@ -1,6 +1,7 @@
 package pgutils
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 )
@@ -111,7 +112,7 @@ func TestGetPGConfigVersionAtPath(t *testing.T) {
 		calledName = name
 		calledArgs = args
 		if name == badName {
-			return nil, fmt.Errorf(errStr)
+			return nil, errors.New(errStr)
 		}
 		return []byte(wantStr), nil
 	}
