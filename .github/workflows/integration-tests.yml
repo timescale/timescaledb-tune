@@ -66,9 +66,11 @@ jobs:
             -p 5432:5432 \
             timescale/timescaledb:latest-pg${{ matrix.pg-version }}
           
-          # Wait for PostgreSQL
+          # Wait for PostgreSQL. The entrypoint first runs a temporary server for
+          # the init scripts, which pg_isready also reports as ready.
           for i in {1..30}; do
-            if docker exec pg-test-pg${{ matrix.pg-version }} pg_isready -U postgres > /dev/null 2>&1; then
+            if docker logs pg-test-pg${{ matrix.pg-version }} 2>&1 | grep -q "PostgreSQL init process complete" \
+               && docker exec pg-test-pg${{ matrix.pg-version }} pg_isready -U postgres > /dev/null 2>&1; then
               echo "PostgreSQL ready"
               break
             fi
