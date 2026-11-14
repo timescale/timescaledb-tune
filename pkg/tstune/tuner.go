@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -190,7 +189,7 @@ func (t *Tuner) restore(r restorer, filePath string) error {
 	t.handler.p.Statement("Available backups (most recent first):")
 	for i, file := range files {
 		now := time.Now()
-		name := path.Base(file)
+		name := filepath.Base(file)
 		datePart := strings.Replace(name, backupFilePrefix, "", -1)
 		// no need to check the error, as getBackups does that for us
 		when, _ := time.ParseInLocation(backupDateFmt, datePart, now.Location())
@@ -206,7 +205,7 @@ func (t *Tuner) restore(r restorer, filePath string) error {
 	}
 
 	backupPath := files[checker.response-1]
-	shortBackupName := path.Base(backupPath)
+	shortBackupName := filepath.Base(backupPath)
 
 	t.handler.p.Statement("Restoring '%s'...", shortBackupName)
 	err = r.Restore(backupPath, filePath)

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -27,7 +26,7 @@ var osCreateFn = func(path string) (io.WriteCloser, error) {
 // with a well known name format so it can potentially be restored.
 func backup(cfs *configFileState) (string, error) {
 	backupName := backupFilePrefix + time.Now().Format(backupDateFmt)
-	backupPath := path.Join(os.TempDir(), backupName)
+	backupPath := filepath.Join(os.TempDir(), backupName)
 	bf, err := osCreateFn(backupPath)
 	if err != nil {
 		return backupPath, fmt.Errorf(errBackupNotCreatedFmt, backupPath, err)
@@ -39,13 +38,13 @@ func backup(cfs *configFileState) (string, error) {
 // getBackups returns a list of files that match timescaledb-tune's backup
 // filename format.
 func getBackups() ([]string, error) {
-	backupPattern := path.Join(os.TempDir(), backupFilePrefix+"*")
+	backupPattern := filepath.Join(os.TempDir(), backupFilePrefix+"*")
 	files, err := filepathGlobFn(backupPattern)
 	if err != nil {
 		return nil, err
 	}
 	ret := []string{}
-	stripPrefix := path.Join(os.TempDir(), backupFilePrefix)
+	stripPrefix := filepath.Join(os.TempDir(), backupFilePrefix)
 	for _, f := range files {
 		datePart := strings.Replace(f, stripPrefix, "", -1)
 		_, err := time.Parse(backupDateFmt, datePart)
