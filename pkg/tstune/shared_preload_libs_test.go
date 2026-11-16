@@ -171,17 +171,17 @@ func TestUpdateSharedLibLine(t *testing.T) {
 		{
 			desc:     "needs to be added, empty list",
 			original: confKey + "''",
-			want:     simpleOkayCase,
+			want:     confKey + "'" + extName + ",pg_stat_statements'",
 		},
 		{
 			desc:     "needs to be added, empty list, commented out",
 			original: "#" + confKey + "''",
-			want:     simpleOkayCase,
+			want:     confKey + "'" + extName + ",pg_stat_statements'",
 		},
 		{
 			desc:     "needs to be added, empty list, trailing comment",
 			original: confKey + "'' # (change requires restart)",
-			want:     simpleOkayCaseExtra,
+			want:     confKey + "'" + extName + ",pg_stat_statements' # (change requires restart)",
 		},
 		{
 			desc:     "needs to be added, one item",

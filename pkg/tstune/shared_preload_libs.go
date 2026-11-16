@@ -5,7 +5,10 @@ import (
 	"strings"
 )
 
-const extName = "timescaledb"
+const (
+	extName     = "timescaledb"
+	pgStatsName = "pg_stat_statements"
+)
 
 var sharedRegex = regexp.MustCompile("(#+?\\s*)?shared_preload_libraries = '(.*?)'.*")
 
@@ -49,9 +52,12 @@ func updateSharedLibLine(line string, parseResult *sharedLibResult) string {
 	}
 	newLibsVal := "= '"
 	if len(parseResult.libs) > 0 {
-		newLibsVal += parseResult.libs + ","
+		newLibsVal += parseResult.libs + "," + extName
+	} else {
+		// libs at default/empty: also add pg_stat_statements
+		newLibsVal += extName + "," + pgStatsName
 	}
-	newLibsVal += extName + "'"
+	newLibsVal += "'"
 	replaceVal := "= '" + parseResult.libs + "'"
 	res = strings.Replace(res, replaceVal, newLibsVal, 1)
 
