@@ -44,6 +44,11 @@ func getConfigFilePath(system, pgVersion string) (string, error) {
 		}
 		return ""
 	}
+	if cwd, err := os.Getwd(); err == nil {
+		if fileName := try("%s/postgresql.conf", cwd); fileName != "" {
+			return fileName, nil
+		}
+	}
 	pgdata := os.Getenv("PGDATA")
 	if pgdata != "" {
 		fileName := try("%s/postgresql.conf", pgdata)
