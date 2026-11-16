@@ -51,7 +51,7 @@ const (
 	successSharedLibCorrect        = "shared_preload_libraries is set correctly"
 	successSharedLibUpdated        = "shared_preload_libraries will be updated"
 	statementSharedLibNotFound     = "Unable to find shared_preload_libraries in configuration file"
-	plainSharedLibLine             = "shared_preload_libraries = 'timescaledb'"
+	plainSharedLibLine             = "shared_preload_libraries = 'timescaledb,pg_stat_statements'"
 	plainSharedLibLineWithComments = plainSharedLibLine + "	# (change requires restart)"
 
 	statementTunableIntro = "Recommendations based on %s of available memory and %d CPUs for PostgreSQL %s"
@@ -385,7 +385,7 @@ func (t *Tuner) processNoSharedLibLine() error {
 	}
 
 	t.cfs.lines = append(t.cfs.lines, &configLine{content: plainSharedLibLine})
-	t.handler.p.Success("appending shared_preload_libraries = 'timescaledb' to end of configuration file")
+	t.handler.p.Success("appending shared_preload_libraries = 'timescaledb,pg_stat_statements' to end of configuration file")
 
 	return nil
 }
