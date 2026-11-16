@@ -204,6 +204,31 @@ func TestGetConfigFilePath(t *testing.T) {
 	osStatFn = oldOSStatFn
 }
 
+func TestGetConfigFilePathPrefersCWD(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("could not get cwd: %v", err)
+	}
+	cwdFile := cwd + "/postgresql.conf"
+
+	oldOSStatFn := osStatFn
+	defer func() { osStatFn = oldOSStatFn }()
+	osStatFn = func(fn string) (os.FileInfo, error) {
+		if fn == cwdFile || fn == fileNameArch {
+			return nil, nil
+		}
+		return nil, os.ErrNotExist
+	}
+
+	got, err := getConfigFilePath(osLinux, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != cwdFile {
+		t.Errorf("incorrect filename: got %s want %s", got, cwdFile)
+	}
+}
+
 func newConfigFileStateFromSlice(t *testing.T, lines []string) *configFileState {
 	r := stringSliceToBytesReader(lines)
 	cfs, err := getConfigFileState(r)

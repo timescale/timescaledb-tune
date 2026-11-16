@@ -59,6 +59,9 @@ work_mem = 26214kB
 Is this okay? [(y)es/(s)kip/(q)uit]:
 ```
 
+Without `--conf-path`, a `postgresql.conf` in the current working directory
+is used first, followed by `$PGDATA` and the platform-specific default locations.
+
 If you have moved the configuration file to a different location, or
 auto-detection fails (file an issue please!), you can provide the location
 with the `--conf-path` flag:
